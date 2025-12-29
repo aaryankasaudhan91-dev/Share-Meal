@@ -23,6 +23,37 @@ export const storage = {
     users.push(user);
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
   },
+  updateUser: (id: string, updates: Partial<User>) => {
+    const users = storage.getUsers();
+    const index = users.findIndex(u => u.id === id);
+    if (index !== -1) {
+      const updatedUser = { ...users[index], ...updates };
+      users[index] = updatedUser;
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+      return updatedUser;
+    }
+    return null;
+  },
+  toggleFavorite: (donorId: string, requesterId: string) => {
+    const users = storage.getUsers();
+    const donorIndex = users.findIndex(u => u.id === donorId);
+    if (donorIndex !== -1) {
+      const donor = users[donorIndex];
+      const favorites = donor.favoriteRequesterIds || [];
+      const isFavorite = favorites.includes(requesterId);
+      
+      if (isFavorite) {
+        donor.favoriteRequesterIds = favorites.filter(id => id !== requesterId);
+      } else {
+        donor.favoriteRequesterIds = [...favorites, requesterId];
+      }
+      
+      users[donorIndex] = donor;
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+      return donor;
+    }
+    return null;
+  },
   getPostings: (): FoodPosting[] => {
     const data = localStorage.getItem(STORAGE_KEY_POSTINGS);
     return data ? JSON.parse(data) : [];

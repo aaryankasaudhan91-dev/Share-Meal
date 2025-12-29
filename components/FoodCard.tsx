@@ -82,6 +82,22 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     }
   };
 
+  const handleAcceptDelivery = () => {
+    if (window.confirm("Are you sure you want to accept this delivery? This will inform the donor and recipient that you are on the way to pick up the food.")) {
+      onUpdate(posting.id, { 
+        status: FoodStatus.IN_TRANSIT, 
+        volunteerId: user.id, 
+        volunteerName: user.name 
+      });
+    }
+  };
+
+  const handleMarkDelivered = () => {
+    if (window.confirm("Confirm that this food has been successfully delivered to the recipient organization?")) {
+      onUpdate(posting.id, { status: FoodStatus.DELIVERED });
+    }
+  };
+
   const getStatusColor = (status: FoodStatus) => {
     switch (status) {
       case FoodStatus.AVAILABLE: return 'bg-emerald-100 text-emerald-700';
@@ -236,7 +252,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
               <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-700 flex items-center">
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     Pickup
                   </span>
                   {user.role === UserRole.VOLUNTEER && posting.status !== FoodStatus.DELIVERED && (
@@ -324,11 +340,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
             {canVolunteer && (
               <button 
-                onClick={() => onUpdate(posting.id, { 
-                  status: FoodStatus.IN_TRANSIT, 
-                  volunteerId: user.id, 
-                  volunteerName: user.name 
-                })}
+                onClick={handleAcceptDelivery}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"
               >
                 Accept Delivery
@@ -337,7 +349,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
             {canComplete && (
               <button 
-                onClick={() => onUpdate(posting.id, { status: FoodStatus.DELIVERED })}
+                onClick={handleMarkDelivered}
                 className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 rounded-lg transition-colors"
               >
                 Mark as Delivered

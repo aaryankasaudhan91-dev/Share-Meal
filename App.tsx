@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Address, Notification } from './types';
 import { storage } from './services/storageService';
-import { analyzeFoodSafetyImage, ImageAnalysisResult } from './services/geminiService';
+import { analyzeFoodSafetyImage, reverseGeocode } from './services/geminiService';
 import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
 import RequesterMap from './components/RequesterMap';
+import ProfileView from './components/ProfileView';
 
 const LOGO_URL = 'https://cdn-icons-png.flaticon.com/512/1000/1000399.png';
 
@@ -14,8 +15,8 @@ const App: React.FC = () => {
   const [postings, setPostings] = useState<FoodPosting[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'DASHBOARD'>('LOGIN');
-  const [showVolunteerMap, setShowVolunteerMap] = useState(false);
+  const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
+  const [showNearbyMap, setShowNearbyMap] = useState(false);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'recent' | 'expiry'>('recent');
   const [donorViewMode, setDonorViewMode] = useState<'active' | 'history'>('active');
@@ -61,15 +62,16 @@ const App: React.FC = () => {
     setAllUsers(storage.getUsers());
   }, []);
 
-  // Poll for notifications and posting updates
+  // Poll for notifications and general posting updates
   useEffect(() => {
     if (!user) return;
     
-    // Get current location for map centering if volunteer
-    if (user.role === UserRole.VOLUNTEER && !userLocation) {
+    // Get current location for map centering initially
+    if (!userLocation) {
         navigator.geolocation.getCurrentPosition(
             (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            (err) => console.log("Location access denied")
+            (err) => console.log("Location access denied"),
+            { enableHighAccuracy: true }
         );
     }
 
@@ -78,7 +80,7 @@ const App: React.FC = () => {
       setNotifications(userNotifications);
       
       const currentPostings = storage.getPostings();
-      setPostings(currentPostings); // Also refresh postings to see status changes in real-time
+      setPostings(currentPostings); 
       setAllUsers(storage.getUsers());
 
       // Check for expiry warnings for Donors
@@ -104,34 +106,66 @@ const App: React.FC = () => {
       }
     };
 
-    fetchData(); // Initial fetch
-    const interval = setInterval(fetchData, 3000); // Poll every 3 seconds
+    fetchData(); 
+    const interval = setInterval(fetchData, 3000); 
 
     return () => clearInterval(interval);
   }, [user]);
 
-  // Volunteer Location Tracker Logic
+  // Volunteer Background Location Tracker Logic
   useEffect(() => {
      if (user?.role !== UserRole.VOLUNTEER) return;
      
-     // Periodically send location if I am a volunteer on the move
-     const trackerInterval = setInterval(() => {
+     let isSubscribed = true;
+     let timer: number;
+
+     const updateVolunteerPosition = () => {
+         if (!isSubscribed) return;
+
          const currentPostings = storage.getPostings();
          const myActiveJobs = currentPostings.filter(p => p.volunteerId === user.id && p.status === FoodStatus.IN_TRANSIT);
          
          if (myActiveJobs.length > 0) {
-             navigator.geolocation.getCurrentPosition((pos) => {
-                 const newLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                 setUserLocation(newLoc);
-                 myActiveJobs.forEach(job => {
-                     storage.updatePosting(job.id, { volunteerLocation: newLoc });
-                 });
-             });
-         }
-     }, 10000); // Every 10 seconds
+             navigator.geolocation.getCurrentPosition(
+                 (pos) => {
+                     if (!isSubscribed) return;
+                     const newLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                     
+                     // Update local state for map centering/marker
+                     setUserLocation(newLoc);
 
-     return () => clearInterval(trackerInterval);
-  }, [user]);
+                     // Sync with storage for all active jobs
+                     myActiveJobs.forEach(job => {
+                         const updated = storage.updatePosting(job.id, { volunteerLocation: newLoc });
+                         if (updated) {
+                             // Immediately update local postings state for snappier UI
+                             setPostings(prev => prev.map(p => p.id === job.id ? updated : p));
+                         }
+                     });
+
+                     // Schedule next update in 10 seconds
+                     timer = window.setTimeout(updateVolunteerPosition, 10000);
+                 }, 
+                 (err) => {
+                     console.warn("Location tracking error:", err);
+                     // Retry even on error after a short delay
+                     timer = window.setTimeout(updateVolunteerPosition, 15000);
+                 }, 
+                 { enableHighAccuracy: true, timeout: 5000 }
+             );
+         } else {
+             // No active jobs? Check again in 10s to see if a job was accepted
+             timer = window.setTimeout(updateVolunteerPosition, 10000);
+         }
+     };
+
+     updateVolunteerPosition();
+
+     return () => {
+         isSubscribed = false;
+         clearTimeout(timer);
+     };
+  }, [user?.id, user?.role]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,21 +209,45 @@ const App: React.FC = () => {
   const handleGetLocation = (type: 'reg' | 'posting') => {
       const setter = type === 'reg' ? setIsGettingLocation : setIsGettingPostingLocation;
       setter(true);
+      
+      const geoOptions = {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0
+      };
+
       navigator.geolocation.getCurrentPosition(
-          (pos) => {
+          async (pos) => {
+              const { latitude, longitude } = pos.coords;
               if (type === 'reg') {
-                  setRegLat(pos.coords.latitude);
-                  setRegLng(pos.coords.longitude);
+                  setRegLat(latitude);
+                  setRegLng(longitude);
+                  const address = await reverseGeocode(latitude, longitude);
+                  if (address) {
+                    setRegAddrLine1(address.line1);
+                    setRegAddrLine2(address.line2);
+                    setRegAddrLandmark(address.landmark);
+                    setRegAddrPincode(address.pincode);
+                  }
               } else {
-                  setLocLat(pos.coords.latitude);
-                  setLocLng(pos.coords.longitude);
+                  setLocLat(latitude);
+                  setLocLng(longitude);
+                  const address = await reverseGeocode(latitude, longitude);
+                  if (address) {
+                    setLocLine1(address.line1);
+                    setLocLine2(address.line2);
+                    setLocLandmark(address.landmark);
+                    setLocPincode(address.pincode);
+                  }
               }
               setter(false);
           },
           (err) => {
-              alert("Could not fetch location.");
+              console.warn("Geolocation error:", err);
+              alert(`Could not fetch location: ${err.message}`);
               setter(false);
-          }
+          },
+          geoOptions
       );
   };
 
@@ -241,13 +299,31 @@ const App: React.FC = () => {
 
       storage.savePosting(newPosting);
       setIsAddingFood(false);
-      // Reset form
       setFoodName('');
       setQuantity('');
       setLocLine1('');
+      setLocLine2('');
+      setLocLandmark('');
       setLocPincode('');
       setFoodImage(null);
       setSafetyVerdict(null);
+  };
+
+  const handleUpdateProfile = (updates: Partial<User>) => {
+    if (!user) return;
+    const updatedUser = storage.updateUser(user.id, updates);
+    if (updatedUser) {
+      setUser(updatedUser);
+      setView('DASHBOARD');
+    }
+  };
+
+  const handleToggleFavorite = (requesterId: string) => {
+    if (!user) return;
+    const updatedUser = storage.toggleFavorite(user.id, requesterId);
+    if (updatedUser) {
+      setUser(updatedUser);
+    }
   };
 
   const filteredPostings = postings.filter(p => {
@@ -256,11 +332,9 @@ const App: React.FC = () => {
           return p.donorId === user.id && p.status === FoodStatus.DELIVERED;
       }
       if (user?.role === UserRole.VOLUNTEER) {
-          // Show available for pickup or my active deliveries
           return p.status === FoodStatus.REQUESTED || (p.volunteerId === user.id && p.status === FoodStatus.IN_TRANSIT);
       }
       if (user?.role === UserRole.REQUESTER) {
-          // Show available food or my requests
           return p.status === FoodStatus.AVAILABLE || p.orphanageId === user.id;
       }
       return true;
@@ -274,8 +348,8 @@ const App: React.FC = () => {
   if (view === 'LOGIN') {
       return (
           <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
-                  <img src={LOGO_URL} alt="Logo" className="w-16 h-16 mx-auto mb-4" />
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center border border-slate-100">
+                  <img src={LOGO_URL} alt="Logo" className="w-16 h-16 mx-auto mb-4 animate-bounce-slow" />
                   <h1 className="text-2xl font-black text-slate-800">ShareMeal Connect</h1>
                   <p className="text-emerald-600 font-bold mb-6">Welcome</p>
                   <form onSubmit={handleLogin} className="space-y-4">
@@ -284,10 +358,10 @@ const App: React.FC = () => {
                           placeholder="Enter your name" 
                           value={loginName}
                           onChange={e => setLoginName(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none"
+                          className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none font-medium"
                           required
                       />
-                      <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors">
+                      <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200">
                           Login
                       </button>
                   </form>
@@ -302,23 +376,23 @@ const App: React.FC = () => {
   if (view === 'REGISTER') {
       return (
           <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg border border-slate-100">
                   <h2 className="text-2xl font-black text-slate-800 mb-6 text-center">Join ShareMeal</h2>
                   <form onSubmit={handleRegister} className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <input type="text" placeholder="Full Name" value={regName} onChange={e => setRegName(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none" required />
-                        <input type="email" placeholder="Email" value={regEmail} onChange={e => setRegEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none" required />
+                        <input type="text" placeholder="Full Name" value={regName} onChange={e => setRegName(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none font-medium" required />
+                        <input type="email" placeholder="Email" value={regEmail} onChange={e => setRegEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none font-medium" required />
                       </div>
                       
                       <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">I want to...</label>
+                          <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest">I want to...</label>
                           <div className="grid grid-cols-3 gap-2">
                               {[UserRole.DONOR, UserRole.VOLUNTEER, UserRole.REQUESTER].map(r => (
                                   <button 
                                     key={r}
                                     type="button"
                                     onClick={() => setRegRole(r)}
-                                    className={`py-2 rounded-lg text-xs font-bold border ${regRole === r ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-black'}`}
+                                    className={`py-2.5 rounded-xl text-xs font-black border transition-all ${regRole === r ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-600 border-black'}`}
                                   >
                                       {r}
                                   </button>
@@ -327,10 +401,10 @@ const App: React.FC = () => {
                       </div>
 
                       {regRole === UserRole.REQUESTER && (
-                          <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-black">
+                          <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-black animate-in fade-in duration-300">
                               <p className="text-sm font-bold text-slate-700">Organization Details</p>
                               <input type="text" placeholder="Organization Name" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm" required />
-                              <select value={regOrgCategory} onChange={e => setRegOrgCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm">
+                              <select value={regOrgCategory} onChange={e => setRegOrgCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium">
                                   <option>Orphanage</option>
                                   <option>Old Age Home</option>
                                   <option>Shelter</option>
@@ -342,14 +416,29 @@ const App: React.FC = () => {
                                      <input type="text" placeholder="Landmark" value={regAddrLandmark} onChange={e => setRegAddrLandmark(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-black bg-white text-sm" />
                                      <input type="text" placeholder="Pincode" value={regAddrPincode} onChange={e => setRegAddrPincode(e.target.value)} className="w-24 px-3 py-2 rounded-lg border border-black bg-white text-sm" required />
                                   </div>
-                                  <button type="button" onClick={() => handleGetLocation('reg')} className="text-xs text-blue-600 font-bold hover:underline">
-                                      {isGettingLocation ? 'Locating...' : '📍 Use Current GPS Location'}
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleGetLocation('reg')} 
+                                    disabled={isGettingLocation}
+                                    className="w-full flex items-center justify-center gap-2 text-xs font-black text-white bg-slate-800 py-2 rounded-lg hover:bg-slate-900 transition-all disabled:opacity-50"
+                                  >
+                                      {isGettingLocation ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                          Detecting Address...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                          Detect Location via GPS
+                                        </>
+                                      )}
                                   </button>
                               </div>
                           </div>
                       )}
 
-                      <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors">
+                      <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200">
                           Complete Registration
                       </button>
                   </form>
@@ -365,150 +454,189 @@ const App: React.FC = () => {
     <Layout 
         user={user} 
         onLogout={() => { setUser(null); setView('LOGIN'); }} 
+        onProfileClick={() => setView('PROFILE')}
+        onLogoClick={() => setView('DASHBOARD')}
         notifications={notifications}
         onMarkNotificationRead={storage.markNotificationRead}
     >
-        {/* Controls Header */}
-        <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-8 gap-4">
-            <div>
-                <h2 className="text-2xl font-black text-slate-800">
-                    {user?.role === UserRole.DONOR ? 'My Donations' : 
-                     user?.role === UserRole.VOLUNTEER ? 'Delivery Hub' : 'Food Requests'}
-                </h2>
-                <p className="text-slate-500 text-sm">Welcome back, {user?.name}</p>
-            </div>
-            
-            <div className="flex gap-3">
-                {user?.role === UserRole.DONOR && (
-                    <div className="bg-white p-1 rounded-lg border border-black flex text-xs font-bold">
-                        <button onClick={() => setDonorViewMode('active')} className={`px-3 py-1.5 rounded ${donorViewMode === 'active' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-500'}`}>Active</button>
-                        <button onClick={() => setDonorViewMode('history')} className={`px-3 py-1.5 rounded ${donorViewMode === 'history' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-500'}`}>History</button>
-                    </div>
-                )}
-                
-                {user?.role === UserRole.VOLUNTEER && (
-                    <button 
-                        onClick={() => setShowVolunteerMap(!showVolunteerMap)}
-                        className="bg-white border border-black text-slate-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-50"
-                    >
-                        {showVolunteerMap ? 'Hide Map' : 'Show Map'}
-                    </button>
-                )}
-
-                {user?.role === UserRole.DONOR && (
-                    <button 
-                        onClick={() => setIsAddingFood(true)}
-                        className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center gap-2"
-                    >
-                        <span className="text-xl leading-none">+</span> Donate Food
-                    </button>
-                )}
-            </div>
-        </div>
-
-        {/* Volunteer Map */}
-        {user?.role === UserRole.VOLUNTEER && showVolunteerMap && (
-            <div className="mb-8">
-                <RequesterMap requesters={allUsers.filter(u => u.role === UserRole.REQUESTER)} currentLocation={userLocation} />
-            </div>
-        )}
-
-        {/* Food Grid */}
-        {filteredPostings.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-black">
-                <div className="text-6xl mb-4">🍽️</div>
-                <h3 className="text-xl font-bold text-slate-700">No postings found</h3>
-                <p className="text-slate-400">Check back later or change your filters.</p>
-            </div>
+        {view === 'PROFILE' && user ? (
+          <ProfileView 
+            user={user} 
+            onUpdate={handleUpdateProfile} 
+            onBack={() => setView('DASHBOARD')} 
+          />
         ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredPostings.map(post => (
-                    <FoodCard 
-                        key={post.id} 
-                        posting={post} 
-                        user={user!}
-                        onUpdate={(id, updates) => {
-                            const updated = storage.updatePosting(id, updates);
-                            if (updated) {
-                                setPostings(prev => prev.map(p => p.id === id ? updated : p));
-                            }
-                        }}
-                    />
-                ))}
-            </div>
-        )}
-
-        {/* Add Food Modal */}
-        {isAddingFood && (
-            <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-black text-slate-800">Donate Food</h3>
-                        <button onClick={() => setIsAddingFood(false)} className="text-slate-400 hover:text-slate-600">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                    </div>
-
-                    <form onSubmit={handleCreatePosting} className="space-y-6">
-                        <div className="flex gap-4 items-start">
-                            <div className="w-1/3">
-                                <div 
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="aspect-square rounded-xl border-2 border-dashed border-black flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-emerald-500 transition-colors overflow-hidden relative bg-white"
-                                >
-                                    {foodImage ? (
-                                        <img src={foodImage} alt="Preview" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <>
-                                            <svg className="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                            <span className="text-xs font-bold text-slate-500">Add Photo</span>
-                                        </>
-                                    )}
-                                    {isAnalyzingImage && (
-                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                                        </div>
-                                    )}
-                                </div>
-                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
-                                {safetyVerdict && (
-                                    <div className={`mt-2 text-[10px] p-2 rounded border ${safetyVerdict.isSafe ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
-                                        <strong>AI Analysis:</strong> {safetyVerdict.reasoning}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex-1 space-y-4">
-                                <input type="text" placeholder="Food Name (e.g., 20 Veg Meals)" value={foodName} onChange={e => setFoodName(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none font-bold" required />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input type="text" placeholder="Quantity (e.g., 5kg)" value={quantity} onChange={e => setQuantity(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none" required />
-                                    <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none" required />
-                                </div>
-                            </div>
+          <>
+            {/* Controls Header */}
+            <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-8 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-800">
+                        {user?.role === UserRole.DONOR ? 'My Donations' : 
+                        user?.role === UserRole.VOLUNTEER ? 'Delivery Hub' : 'Food Requests'}
+                    </h2>
+                    <p className="text-slate-500 text-sm">Welcome back, {user?.name}</p>
+                </div>
+                
+                <div className="flex gap-3">
+                    {user?.role === UserRole.DONOR && (
+                        <div className="bg-white p-1 rounded-lg border border-black flex text-xs font-bold mr-1">
+                            <button onClick={() => setDonorViewMode('active')} className={`px-3 py-1.5 rounded-md transition-all ${donorViewMode === 'active' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-500'}`}>Active</button>
+                            <button onClick={() => setDonorViewMode('history')} className={`px-3 py-1.5 rounded-md transition-all ${donorViewMode === 'history' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-500'}`}>History</button>
                         </div>
+                    )}
+                    
+                    {(user?.role === UserRole.VOLUNTEER || user?.role === UserRole.DONOR) && (
+                        <button 
+                            onClick={() => setShowNearbyMap(!showNearbyMap)}
+                            className="bg-white border border-black text-slate-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors flex items-center gap-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7l5-2.5 5.553 2.776a1 1 0 01.447.894v10.764a1 1 0 01-1.447.894L14 17l-5 3z" /></svg>
+                            {showNearbyMap ? 'Hide Impact Map' : 'Nearby Organizations'}
+                        </button>
+                    )}
 
-                        <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-black">
-                            <h4 className="text-sm font-bold text-slate-700">Pickup Location</h4>
-                            <input type="text" placeholder="Address Line 1" value={locLine1} onChange={e => setLocLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm" required />
-                            <div className="flex gap-3">
-                                <input type="text" placeholder="Landmark" value={locLandmark} onChange={e => setLocLandmark(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-black bg-white text-sm" />
-                                <input type="text" placeholder="Pincode" value={locPincode} onChange={e => setLocPincode(e.target.value)} className="w-28 px-3 py-2 rounded-lg border border-black bg-white text-sm" required />
-                            </div>
-                            <button type="button" onClick={() => handleGetLocation('posting')} className="text-xs text-blue-600 font-bold flex items-center gap-1 hover:underline">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                {isGettingPostingLocation ? 'Locating...' : 'Use Current Location'}
+                    {user?.role === UserRole.DONOR && (
+                        <button 
+                            onClick={() => setIsAddingFood(true)}
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center gap-2 transition-all"
+                        >
+                            <span className="text-xl leading-none">+</span> Donate Food
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Nearby Organizations Map Dashboard Section */}
+            {(user?.role === UserRole.VOLUNTEER || user?.role === UserRole.DONOR) && showNearbyMap && (
+                <div className="mb-8 animate-in zoom-in-95 duration-300">
+                    <div className="mb-4">
+                        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            {user?.role === UserRole.DONOR ? 'Where your food goes: Nearby Organizations' : 'Delivery Targets: Nearby Organizations'}
+                        </h3>
+                        <p className="text-sm text-slate-500">Discover shelters and orphanages in your area that need your support.</p>
+                    </div>
+                    <RequesterMap 
+                      requesters={allUsers.filter(u => u.role === UserRole.REQUESTER)} 
+                      currentLocation={userLocation} 
+                      user={user!}
+                      onToggleFavorite={handleToggleFavorite}
+                    />
+                </div>
+            )}
+
+            {/* Food Grid */}
+            {filteredPostings.length === 0 ? (
+                <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-black animate-in fade-in duration-700">
+                    <div className="text-6xl mb-4">🍽️</div>
+                    <h3 className="text-xl font-bold text-slate-700">No postings found</h3>
+                    <p className="text-slate-400">Check back later or change your filters.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    {filteredPostings.map(post => (
+                        <FoodCard 
+                            key={post.id} 
+                            posting={post} 
+                            user={user!}
+                            onUpdate={(id, updates) => {
+                                const updated = storage.updatePosting(id, updates);
+                                if (updated) {
+                                    setPostings(prev => prev.map(p => p.id === id ? updated : p));
+                                }
+                            }}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Add Food Modal */}
+            {isAddingFood && (
+                <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-slate-800">Donate Food</h3>
+                            <button onClick={() => setIsAddingFood(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
 
-                        <button 
-                            type="submit" 
-                            disabled={isAnalyzingImage}
-                            className="w-full bg-slate-800 text-white font-bold py-4 rounded-xl hover:bg-slate-900 transition-all shadow-lg disabled:opacity-50"
-                        >
-                            Confirm Donation
-                        </button>
-                    </form>
+                        <form onSubmit={handleCreatePosting} className="space-y-6">
+                            <div className="flex gap-4 items-start">
+                                <div className="w-1/3">
+                                    <div 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="aspect-square rounded-xl border-2 border-dashed border-black flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-emerald-500 transition-colors overflow-hidden relative bg-white"
+                                    >
+                                        {foodImage ? (
+                                            <img src={foodImage} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <>
+                                                <svg className="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                <span className="text-xs font-bold text-slate-500">Add Photo</span>
+                                            </>
+                                        )}
+                                        {isAnalyzingImage && (
+                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                    {safetyVerdict && (
+                                        <div className={`mt-2 text-[10px] p-2 rounded border ${safetyVerdict.isSafe ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+                                            <strong>AI Analysis:</strong> {safetyVerdict.reasoning}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 space-y-4">
+                                    <input type="text" placeholder="Food Name (e.g., 20 Veg Meals)" value={foodName} onChange={e => setFoodName(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none font-bold" required />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input type="text" placeholder="Quantity (e.g., 5kg)" value={quantity} onChange={e => setQuantity(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none font-medium" required />
+                                        <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-black bg-white outline-none font-medium" required />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-black">
+                                <h4 className="text-sm font-bold text-slate-700">Pickup Location</h4>
+                                <input type="text" placeholder="Address Line 1" value={locLine1} onChange={e => setLocLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm" required />
+                                <div className="flex gap-3">
+                                    <input type="text" placeholder="Landmark" value={locLandmark} onChange={e => setLocLandmark(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-black bg-white text-sm" />
+                                    <input type="text" placeholder="Pincode" value={locPincode} onChange={e => setLocPincode(e.target.value)} className="w-28 px-3 py-2 rounded-lg border border-black bg-white text-sm" required />
+                                </div>
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleGetLocation('posting')} 
+                                    disabled={isGettingPostingLocation}
+                                    className="w-full flex items-center justify-center gap-2 text-xs font-black text-white bg-slate-800 py-2 rounded-lg hover:bg-slate-900 transition-all disabled:opacity-50"
+                                >
+                                    {isGettingPostingLocation ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                            Detecting Address...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            Detect Location via GPS
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                disabled={isAnalyzingImage}
+                                className="w-full bg-slate-800 text-white font-black py-4 rounded-xl hover:bg-slate-900 transition-all shadow-lg disabled:opacity-50 uppercase tracking-widest text-sm"
+                            >
+                                Confirm Donation
+                            </button>
+                        </form>
+                    </div>
                 </div>
-            </div>
+            )}
+          </>
         )}
     </Layout>
   );

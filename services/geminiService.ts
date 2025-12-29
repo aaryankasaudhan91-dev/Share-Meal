@@ -70,6 +70,47 @@ export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageA
   }
 };
 
+export interface ReverseGeocodeResult {
+  line1: string;
+  line2: string;
+  landmark: string;
+  pincode: string;
+}
+
+export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseGeocodeResult | null> => {
+  try {
+    // Note: Google Maps grounding is used here to get accurate place info.
+    // Maps grounding is only supported in Gemini 2.5 series models.
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `What is the specific street address, area name, nearby landmark, and postal code for coordinates: Latitude ${lat}, Longitude ${lng}? 
+      Respond ONLY with a JSON object containing keys: line1, line2, landmark, pincode.`,
+      config: {
+        tools: [{ googleMaps: {} }],
+        toolConfig: {
+          retrievalConfig: {
+            latLng: {
+              latitude: lat,
+              longitude: lng
+            }
+          }
+        }
+      },
+    });
+
+    // Extracting the potential JSON from text because responseMimeType is not allowed with googleMaps tool.
+    const text = response.text || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return null;
+  } catch (error) {
+    console.error("Reverse Geocoding Error:", error);
+    return null;
+  }
+};
+
 export const getRouteInsights = async (location: string, userLat?: number, userLng?: number) => {
   try {
     const response = await ai.models.generateContent({

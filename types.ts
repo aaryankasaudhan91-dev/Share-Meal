@@ -29,6 +29,7 @@ export interface User {
   address?: Address;
   orgCategory?: string;
   orgName?: string;
+  favoriteRequesterIds?: string[];
 }
 
 export interface FoodPosting {
