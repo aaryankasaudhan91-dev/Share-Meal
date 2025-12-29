@@ -1,0 +1,8 @@
+{
+  "name": "Share Meal Connect",
+  "description": "A streamlined platform connecting food donors, volunteers, and orphanages to eliminate food waste and fight hunger.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}
