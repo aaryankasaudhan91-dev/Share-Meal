@@ -218,7 +218,7 @@ const Layout: React.FC<LayoutProps> = ({
                             required 
                             value={supportSubject} 
                             onChange={(e) => setSupportSubject(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-emerald-500 bg-slate-50 outline-none transition-all font-medium text-slate-700"
+                            className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none transition-all font-medium text-slate-700"
                         >
                             <option value="">Select a topic...</option>
                             <option value="Technical Issue">Technical Issue</option>
@@ -236,7 +236,7 @@ const Layout: React.FC<LayoutProps> = ({
                             value={supportMessage}
                             onChange={(e) => setSupportMessage(e.target.value)}
                             placeholder="Tell us how we can help..."
-                            className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-emerald-500 bg-slate-50 outline-none transition-all resize-none font-medium text-slate-700"
+                            className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none transition-all resize-none font-medium text-slate-700"
                         ></textarea>
                     </div>
                     <div className="flex gap-4 pt-4">

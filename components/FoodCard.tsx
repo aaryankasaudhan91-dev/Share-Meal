@@ -126,8 +126,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
              <div className="flex-1 relative">
                 <TrackingMap 
                   pickupLocation={posting.location} 
+                  donorName={posting.donorName}
                   dropoffLocation={posting.requesterAddress} 
+                  orphanageName={posting.orphanageName}
                   volunteerLocation={posting.volunteerLocation} 
+                  volunteerName={posting.volunteerName}
                 />
              </div>
              {/* Simple Legend */}
