@@ -20,15 +20,6 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [loadingRoute, setLoadingRoute] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ text: string, mapsUrl: string } | null>(null);
 
-  // Calculate Expiry Status
-  const expiryTime = new Date(posting.expiryDate).getTime();
-  const timeLeft = expiryTime - Date.now();
-  const hoursLeft = timeLeft / (1000 * 60 * 60);
-  
-  const isExpired = timeLeft < 0;
-  const isUrgent = !isExpired && hoursLeft < 2; // Less than 2 hours
-  const isExpiringSoon = !isExpired && !isUrgent && hoursLeft < 24; // Less than 24 hours
-
   // Handle ESC key and Body Scroll Lock for Modals
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -217,34 +208,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         )}
         <div className="p-5 flex-1 flex flex-col">
           <div className="flex justify-between items-start mb-4">
-            <div className="pr-2 flex-1 min-w-0">
+            <div>
               <h3 className="font-bold text-lg text-slate-800 line-clamp-1">{posting.foodName}</h3>
               <p className="text-sm text-slate-500">From: {posting.donorName}</p>
             </div>
-            <div className="flex flex-col items-end gap-1.5 shrink-0">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(posting.status)}`}>
-                  {posting.status}
-                </span>
-
-                {isExpired && posting.status !== FoodStatus.DELIVERED && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                         Expired
-                    </span>
-                )}
-                {isUrgent && posting.status !== FoodStatus.DELIVERED && (
-                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
-                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                         Urgent
-                    </span>
-                )}
-                {isExpiringSoon && posting.status !== FoodStatus.DELIVERED && (
-                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                         Expiring Soon
-                    </span>
-                )}
-            </div>
+            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(posting.status)}`}>
+              {posting.status}
+            </span>
           </div>
 
           {posting.safetyVerdict && !posting.safetyVerdict.isSafe && (
