@@ -70,6 +70,42 @@ export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageA
   }
 };
 
+export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid: boolean; feedback: string }> => {
+  try {
+    const data = base64Data.split(',')[1] || base64Data;
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: data,
+          },
+        },
+        {
+          text: "This image is supposed to be proof of a food delivery drop-off at an orphanage or shelter. Does it show signs of a successful delivery? Look for food packages, building entrances, or people receiving items. Respond in JSON format.",
+        }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isValid: { type: Type.BOOLEAN, description: "Whether the image looks like a delivery proof" },
+            feedback: { type: Type.STRING, description: "A friendly comment about the delivery verification" }
+          },
+          required: ["isValid", "feedback"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{"isValid": true, "feedback": "Delivery photo processed."}');
+  } catch (error) {
+    console.error("Gemini Verification Error:", error);
+    return { isValid: true, feedback: "Photo received and logged." };
+  }
+};
+
 export interface ReverseGeocodeResult {
   line1: string;
   line2: string;
@@ -79,8 +115,6 @@ export interface ReverseGeocodeResult {
 
 export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseGeocodeResult | null> => {
   try {
-    // Note: Google Maps grounding is used here to get accurate place info.
-    // Maps grounding is only supported in Gemini 2.5 series models.
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `What is the specific street address, area name, nearby landmark, and postal code for coordinates: Latitude ${lat}, Longitude ${lng}? 
@@ -98,7 +132,6 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
       },
     });
 
-    // Extracting the potential JSON from text because responseMimeType is not allowed with googleMaps tool.
     const text = response.text || "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

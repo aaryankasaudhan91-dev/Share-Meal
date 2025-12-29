@@ -1,9 +1,10 @@
 
-import { User, FoodPosting, FoodStatus, UserRole, Notification } from '../types';
+import { User, FoodPosting, FoodStatus, UserRole, Notification, ChatMessage } from '../types';
 
 const STORAGE_KEY_POSTINGS = 'food_rescue_postings';
 const STORAGE_KEY_USERS = 'food_rescue_users';
 const STORAGE_KEY_NOTIFICATIONS = 'food_rescue_notifications';
+const STORAGE_KEY_CHATS = 'food_rescue_chats';
 
 const getStoredNotifications = (): Notification[] => {
   return JSON.parse(localStorage.getItem(STORAGE_KEY_NOTIFICATIONS) || '[]');
@@ -20,7 +21,7 @@ export const storage = {
   },
   saveUser: (user: User) => {
     const users = storage.getUsers();
-    users.push(user);
+    users.push({ ...user, impactScore: 0 });
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
   },
   updateUser: (id: string, updates: Partial<User>) => {
@@ -59,7 +60,19 @@ export const storage = {
     return data ? JSON.parse(data) : [];
   },
   
-  // Notification Methods
+  // Chat Methods
+  getMessages: (postingId: string): ChatMessage[] => {
+    const allChats = JSON.parse(localStorage.getItem(STORAGE_KEY_CHATS) || '{}');
+    return allChats[postingId] || [];
+  },
+
+  saveMessage: (postingId: string, message: ChatMessage) => {
+    const allChats = JSON.parse(localStorage.getItem(STORAGE_KEY_CHATS) || '{}');
+    if (!allChats[postingId]) allChats[postingId] = [];
+    allChats[postingId].push(message);
+    localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(allChats));
+  },
+
   getNotifications: (userId: string): Notification[] => {
     const all = getStoredNotifications();
     return all
@@ -91,7 +104,6 @@ export const storage = {
     postings.unshift(posting);
     localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
 
-    // Notify Volunteers about new food
     const users = storage.getUsers();
     const notifications = getStoredNotifications();
     
@@ -100,7 +112,7 @@ export const storage = {
         notifications.push({
           id: Math.random().toString(36).substr(2, 9),
           userId: u.id,
-          message: `New food donation available: ${posting.foodName} near ${posting.location.landmark || posting.location.pincode}`,
+          message: `New food donation: ${posting.foodName} near ${posting.location.landmark || posting.location.pincode}`,
           isRead: false,
           createdAt: Date.now(),
           type: 'INFO'
@@ -116,104 +128,48 @@ export const storage = {
     if (index !== -1) {
       const oldPosting = postings[index];
       
-      // Inject ETA when status becomes IN_TRANSIT
       if (oldPosting.status !== FoodStatus.IN_TRANSIT && updates.status === FoodStatus.IN_TRANSIT) {
-        updates.etaMinutes = Math.floor(Math.random() * 26) + 15; // 15-40 min mock ETA
+        updates.etaMinutes = Math.floor(Math.random() * 26) + 15;
       }
 
       const newPosting = { ...oldPosting, ...updates };
       postings[index] = newPosting;
       localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
 
-      // Notification Logic
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
 
-      // Case 1: Status changed to REQUESTED (Needs Volunteer)
-      if (oldPosting.status !== FoodStatus.REQUESTED && newPosting.status === FoodStatus.REQUESTED) {
-        users.forEach(u => {
-          if (u.role === UserRole.VOLUNTEER) {
-            notifications.push({
-              id: Math.random().toString(36).substr(2, 9),
-              userId: u.id,
-              message: `Pickup requested: ${newPosting.foodName} from ${newPosting.donorName}`,
-              isRead: false,
-              createdAt: Date.now(),
-              type: 'ACTION'
-            });
-          }
-        });
-      }
-
-      // Case 2: Volunteer Assigned (Status -> IN_TRANSIT)
-      if (oldPosting.status !== FoodStatus.IN_TRANSIT && newPosting.status === FoodStatus.IN_TRANSIT && newPosting.volunteerId) {
-        // Notify Volunteer (Confirmation)
-        notifications.push({
-          id: Math.random().toString(36).substr(2, 9),
-          userId: newPosting.volunteerId,
-          message: `You accepted the pickup for ${newPosting.foodName}`,
-          isRead: false,
-          createdAt: Date.now(),
-          type: 'SUCCESS'
-        });
-
-        // Notify Donor
-        notifications.push({
-          id: Math.random().toString(36).substr(2, 9),
-          userId: newPosting.donorId,
-          message: `${newPosting.volunteerName} is picking up ${newPosting.foodName}. ETA: ${newPosting.etaMinutes}m`,
-          isRead: false,
-          createdAt: Date.now(),
-          type: 'INFO'
-        });
-
-        // Notify Requester
-        if (newPosting.orphanageId) {
-          notifications.push({
-            id: Math.random().toString(36).substr(2, 9),
-            userId: newPosting.orphanageId,
-            message: `${newPosting.volunteerName} is bringing ${newPosting.foodName}. ETA: ${newPosting.etaMinutes}m`,
-            isRead: false,
-            createdAt: Date.now(),
-            type: 'INFO'
-          });
-        }
-      }
-
-      // Case 3: Delivered (Status -> DELIVERED)
       if (oldPosting.status !== FoodStatus.DELIVERED && newPosting.status === FoodStatus.DELIVERED) {
-         // Notify Donor
+         // Increment impact scores
+         const donorIndex = users.findIndex(u => u.id === newPosting.donorId);
+         const volunteerIndex = users.findIndex(u => u.id === newPosting.volunteerId);
+         
+         if (donorIndex !== -1) {
+           users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
+         }
+         if (volunteerIndex !== -1) {
+           users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
+         }
+         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+
          notifications.push({
           id: Math.random().toString(36).substr(2, 9),
           userId: newPosting.donorId,
-          message: `Delivery Complete: ${newPosting.foodName} has reached its destination!`,
+          message: `Success! Your donation "${newPosting.foodName}" was delivered. Impact +1!`,
           isRead: false,
           createdAt: Date.now(),
           type: 'SUCCESS'
         });
 
-        // Notify Volunteer
         if (newPosting.volunteerId) {
              notifications.push({
               id: Math.random().toString(36).substr(2, 9),
               userId: newPosting.volunteerId,
-              message: `Delivery confirmed for ${newPosting.foodName}. Great job!`,
+              message: `Fantastic work! Delivery verified for ${newPosting.foodName}. Impact +1!`,
               isRead: false,
               createdAt: Date.now(),
               type: 'SUCCESS'
             });
-        }
-
-        // Notify Requester
-        if (newPosting.orphanageId) {
-          notifications.push({
-            id: Math.random().toString(36).substr(2, 9),
-            userId: newPosting.orphanageId,
-            message: `Delivery Arrived: ${newPosting.foodName} is here.`,
-            isRead: false,
-            createdAt: Date.now(),
-            type: 'SUCCESS'
-          });
         }
       }
 

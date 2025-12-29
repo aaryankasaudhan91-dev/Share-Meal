@@ -30,6 +30,17 @@ export interface User {
   orgCategory?: string;
   orgName?: string;
   favoriteRequesterIds?: string[];
+  impactScore?: number; // Total successful deliveries/donations
+}
+
+export interface ChatMessage {
+  id: string;
+  postingId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: UserRole;
+  text: string;
+  createdAt: number;
 }
 
 export interface FoodPosting {
@@ -42,6 +53,7 @@ export interface FoodPosting {
   expiryDate: string;
   status: FoodStatus;
   imageUrl?: string;
+  foodTags?: string[]; // New: Veg, Non-Veg, etc.
   safetyVerdict?: {
     isSafe: boolean;
     reasoning: string;
@@ -53,6 +65,7 @@ export interface FoodPosting {
   volunteerName?: string;
   volunteerLocation?: { lat: number; lng: number };
   etaMinutes?: number;
+  verificationImageUrl?: string; // New: Proof of delivery
   createdAt: number;
 }
 
