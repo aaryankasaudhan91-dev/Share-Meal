@@ -24,6 +24,7 @@ const Layout: React.FC<LayoutProps> = ({
   onMarkNotificationRead 
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   // Support Modal State
@@ -170,11 +171,7 @@ const Layout: React.FC<LayoutProps> = ({
                 </button>
 
                 <button 
-                  onClick={() => {
-                    if (window.confirm("Are you sure you want to log out?")) {
-                      onLogout();
-                    }
-                  }}
+                  onClick={() => setShowLogoutConfirm(true)}
                   className="bg-slate-800 hover:bg-slate-900 text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm hover:shadow-md"
                 >
                   Logout
@@ -215,6 +212,35 @@ const Layout: React.FC<LayoutProps> = ({
           </div>
         </div>
       </footer>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200">
+                <div className="w-16 h-16 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 mb-2">Confirm Logout</h3>
+                <p className="text-slate-500 text-sm mb-8 leading-relaxed">Are you sure you want to log out of ShareMeal Connect?</p>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={onLogout}
+                        className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl hover:bg-slate-900 transition-all shadow-lg uppercase tracking-widest text-xs"
+                    >
+                        Yes, Log Me Out
+                    </button>
+                    <button 
+                        onClick={() => setShowLogoutConfirm(false)}
+                        className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
+                    >
+                        Stay Logged In
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* Support Modal */}
       {showSupportModal && (
