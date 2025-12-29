@@ -24,14 +24,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
   const [lng, setLng] = useState(user.address?.lng);
   
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const handleGetLocation = () => {
     setIsGettingLocation(true);
+    setLocationStatus('Acquiring Satellite Signal...');
     
     const geoOptions = {
       enableHighAccuracy: true,
-      timeout: 8000,
+      timeout: 10000,
       maximumAge: 0
     };
 
@@ -40,8 +42,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
         const { latitude, longitude } = pos.coords;
         setLat(latitude);
         setLng(longitude);
+        setLocationStatus('GPS Locked. Analyzing Landmarks with AI...');
         
-        // AI-powered address guess
+        // AI-powered address refinement
         const address = await reverseGeocode(latitude, longitude);
         if (address) {
           setAddrLine1(address.line1);
@@ -50,11 +53,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
           setPincode(address.pincode);
         }
         
+        setLocationStatus('');
         setIsGettingLocation(false);
       },
       (err) => {
-        console.warn("Geolocation error:", err);
-        alert(`Could not fetch location: ${err.message}`);
+        let errorMsg = "Could not fetch location.";
+        if (err.code === 1) errorMsg = "Please enable location permissions in your browser settings.";
+        if (err.code === 3) errorMsg = "Connection timed out. Check your GPS signal.";
+        alert(errorMsg);
+        setLocationStatus('');
         setIsGettingLocation(false);
       },
       geoOptions
@@ -63,6 +70,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Pincode validation
+    if (user.role === UserRole.REQUESTER && !/^\d{6}$/.test(pincode)) {
+        alert("Pincode must be exactly 6 digits.");
+        return;
+    }
+
     setIsSaving(true);
     
     const updates: Partial<User> = {
@@ -92,7 +106,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
   };
 
   return (
-    <div className="max-w-2xl mx-auto animate-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-2xl mx-auto animate-in slide-in-from-bottom-4 duration-500 pb-12">
       <button 
         onClick={onBack}
         className="mb-6 flex items-center text-slate-500 hover:text-emerald-600 font-bold text-sm transition-colors group"
@@ -104,7 +118,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
       <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
         <div className="bg-emerald-600 p-8 text-white relative">
           <div className="relative z-10">
-            <h2 className="text-3xl font-black tracking-tight">My Profile</h2>
+            <h2 className="text-3xl font-black tracking-tight uppercase tracking-widest">My Profile</h2>
             <p className="opacity-80 text-sm mt-1 font-medium">Manage your personal and organization details</p>
           </div>
           <div className="absolute top-0 right-0 p-8 opacity-20 transform translate-x-1/4 -translate-y-1/4 scale-150">
@@ -120,7 +134,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                 type="text" 
                 value={name} 
                 onChange={e => setName(e.target.value)} 
-                className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700"
+                className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-black text-slate-800"
                 required 
               />
             </div>
@@ -130,7 +144,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                 type="email" 
                 value={email} 
                 onChange={e => setEmail(e.target.value)} 
-                className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700"
+                className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700"
                 required 
               />
             </div>
@@ -138,15 +152,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
 
           <div>
             <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Account Role</label>
-            <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-emerald-600 uppercase tracking-widest text-xs">
+            <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-black text-emerald-600 uppercase tracking-widest text-xs">
               {user.role}
             </div>
-            <p className="text-[10px] text-slate-400 mt-2 ml-1 italic">* Role cannot be changed once the account is created.</p>
           </div>
 
           {user.role === UserRole.REQUESTER && (
             <div className="pt-6 border-t border-slate-100 space-y-6">
-              <h3 className="text-lg font-black text-slate-800">Organization Information</h3>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Organization Information</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
@@ -155,7 +168,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                     type="text" 
                     value={orgName} 
                     onChange={e => setOrgName(e.target.value)} 
-                    className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700"
+                    className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700"
                     required 
                   />
                 </div>
@@ -164,61 +177,74 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                   <select 
                     value={orgCategory} 
                     onChange={e => setOrgCategory(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700"
+                    className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700"
                   >
                     <option>Orphanage</option>
-                    <option>Old Age Home</option>
-                    <option>Shelter</option>
+                    <option>Old care home</option>
+                    <option>NGO's</option>
                     <option>Other</option>
                   </select>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Address Details</label>
-                <input 
-                  type="text" 
-                  placeholder="Street / Building Address"
-                  value={addrLine1} 
-                  onChange={e => setAddrLine1(e.target.value)} 
-                  className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700 text-sm"
-                  required 
-                />
-                <input 
-                  type="text" 
-                  placeholder="Area / Secondary Address"
-                  value={addrLine2} 
-                  onChange={e => setAddrLine2(e.target.value)} 
-                  className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700 text-sm"
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <input 
-                    type="text" 
-                    placeholder="Landmark"
-                    value={landmark} 
-                    onChange={e => setLandmark(e.target.value)} 
-                    className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700 text-sm"
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Pincode"
-                    value={pincode} 
-                    onChange={e => setPincode(e.target.value)} 
-                    className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700 text-sm"
-                    required 
-                  />
+                <div className="flex justify-between items-center mb-1.5 ml-1">
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">Full Address</label>
+                  {isGettingLocation && (
+                    <div className="flex items-center gap-1.5">
+                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                       <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter">{locationStatus}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3">
+                    <input 
+                        type="text" 
+                        placeholder="Address Line 1"
+                        value={addrLine1} 
+                        onChange={e => setAddrLine1(e.target.value)} 
+                        className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700 text-sm"
+                        required 
+                    />
+                    <input 
+                        type="text" 
+                        placeholder="Address Line 2"
+                        value={addrLine2} 
+                        onChange={e => setAddrLine2(e.target.value)} 
+                        className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700 text-sm"
+                        required 
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                        <input 
+                            type="text" 
+                            placeholder="Landmark (Optional)"
+                            value={landmark} 
+                            onChange={e => setLandmark(e.target.value)} 
+                            className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-medium text-slate-700 text-sm"
+                        />
+                        <input 
+                            type="text" 
+                            placeholder="Pincode (6 digits)"
+                            value={pincode} 
+                            maxLength={6}
+                            pattern="\d{6}"
+                            onChange={e => setPincode(e.target.value.replace(/\D/g, ''))} 
+                            className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-black text-slate-700 text-sm"
+                            required 
+                        />
+                    </div>
                 </div>
                 <div className="flex flex-col gap-3 pt-2">
                    <button 
                     type="button" 
                     onClick={handleGetLocation}
                     disabled={isGettingLocation}
-                    className="w-full flex items-center justify-center gap-2 text-xs font-black text-white bg-slate-800 py-3 rounded-xl hover:bg-slate-900 transition-all shadow-md disabled:opacity-50"
+                    className={`w-full flex items-center justify-center gap-2 text-xs font-black py-3 rounded-xl transition-all shadow-md ${isGettingLocation ? 'bg-slate-100 text-slate-400' : 'bg-slate-800 text-white hover:bg-slate-900'}`}
                    >
                      {isGettingLocation ? (
                        <>
-                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                         Detecting Address via GPS...
+                         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                         Detecting Precise Location...
                        </>
                      ) : (
                        <>
@@ -227,11 +253,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                        </>
                      )}
                    </button>
-                   {lat && lng && !isGettingLocation && (
-                     <div className="text-center">
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full uppercase tracking-tighter">GPS: {lat.toFixed(5)}, {lng.toFixed(5)}</span>
-                     </div>
-                   )}
                 </div>
               </div>
             </div>

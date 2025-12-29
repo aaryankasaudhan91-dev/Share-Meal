@@ -117,8 +117,9 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `What is the specific street address, area name, nearby landmark, and postal code for coordinates: Latitude ${lat}, Longitude ${lng}? 
-      Respond ONLY with a JSON object containing keys: line1, line2, landmark, pincode.`,
+      contents: `Provide a HIGHLY PRECISE street address for coordinates: Latitude ${lat}, Longitude ${lng}. 
+      Include the building name, apartment/suite number if identifiable, area name, nearby unique landmarks, and the 6-digit postal code. 
+      Respond ONLY with a valid JSON object containing keys: line1, line2, landmark, pincode.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {

@@ -137,7 +137,7 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
             <select 
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="text-sm border-slate-300 rounded-lg shadow-sm focus:border-emerald-500 focus:ring-emerald-500 bg-white border px-3 py-1.5 outline-none flex-1 sm:flex-none"
+                className="text-sm border-black rounded-lg shadow-sm focus:border-emerald-500 focus:ring-emerald-500 bg-white border px-3 py-1.5 outline-none flex-1 sm:flex-none"
             >
                 {categories.map(cat => (
                     <option key={cat} value={cat}>{cat === 'Favorites' ? '⭐ My Favorites' : cat}</option>
