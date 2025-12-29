@@ -115,6 +115,12 @@ export const storage = {
     const index = postings.findIndex(p => p.id === id);
     if (index !== -1) {
       const oldPosting = postings[index];
+      
+      // Inject ETA when status becomes IN_TRANSIT
+      if (oldPosting.status !== FoodStatus.IN_TRANSIT && updates.status === FoodStatus.IN_TRANSIT) {
+        updates.etaMinutes = Math.floor(Math.random() * 26) + 15; // 15-40 min mock ETA
+      }
+
       const newPosting = { ...oldPosting, ...updates };
       postings[index] = newPosting;
       localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
@@ -155,7 +161,7 @@ export const storage = {
         notifications.push({
           id: Math.random().toString(36).substr(2, 9),
           userId: newPosting.donorId,
-          message: `${newPosting.volunteerName} is picking up ${newPosting.foodName}`,
+          message: `${newPosting.volunteerName} is picking up ${newPosting.foodName}. ETA: ${newPosting.etaMinutes}m`,
           isRead: false,
           createdAt: Date.now(),
           type: 'INFO'
@@ -166,7 +172,7 @@ export const storage = {
           notifications.push({
             id: Math.random().toString(36).substr(2, 9),
             userId: newPosting.orphanageId,
-            message: `${newPosting.volunteerName} is bringing ${newPosting.foodName}`,
+            message: `${newPosting.volunteerName} is bringing ${newPosting.foodName}. ETA: ${newPosting.etaMinutes}m`,
             isRead: false,
             createdAt: Date.now(),
             type: 'INFO'

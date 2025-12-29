@@ -112,7 +112,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const canVolunteer = user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.REQUESTED;
   const canComplete = user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.IN_TRANSIT && posting.volunteerId === user.id;
 
-  const showTrackingTimeline = user.role === UserRole.DONOR || (user.role === UserRole.REQUESTER && posting.orphanageId === user.id);
+  const isVolunteerForThis = user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id;
+  const showTrackingTimeline = user.role === UserRole.DONOR || (user.role === UserRole.REQUESTER && posting.orphanageId === user.id) || isVolunteerForThis;
   const canTrackLive = (user.role === UserRole.DONOR || (user.role === UserRole.REQUESTER && posting.orphanageId === user.id)) && posting.status === FoodStatus.IN_TRANSIT;
 
   return (
@@ -227,13 +228,21 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         )}
         <div className="p-5 flex-1 flex flex-col">
           <div className="flex justify-between items-start mb-4">
-            <div>
+            <div className="flex-1 mr-2">
               <h3 className="font-bold text-lg text-slate-800 line-clamp-1">{posting.foodName}</h3>
               <p className="text-sm text-slate-500">From: {posting.donorName}</p>
             </div>
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(posting.status)}`}>
-              {posting.status}
-            </span>
+            <div className="flex flex-col items-end gap-1">
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${getStatusColor(posting.status)}`}>
+                {posting.status}
+              </span>
+              {posting.status === FoodStatus.IN_TRANSIT && posting.etaMinutes !== undefined && (
+                <div className="flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md animate-pulse shrink-0 border border-amber-100">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  ETA: {posting.etaMinutes}M
+                </div>
+              )}
+            </div>
           </div>
 
           {posting.safetyVerdict && !posting.safetyVerdict.isSafe && (

@@ -52,6 +52,7 @@ export interface FoodPosting {
   volunteerId?: string;
   volunteerName?: string;
   volunteerLocation?: { lat: number; lng: number };
+  etaMinutes?: number;
   createdAt: number;
 }
 
