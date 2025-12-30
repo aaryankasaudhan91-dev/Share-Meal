@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { User, UserRole, Address } from '../types';
-import { reverseGeocode } from '../services/geminiService';
 import LocationPickerMap from './LocationPickerMap';
 
 interface ProfileViewProps {
@@ -23,50 +22,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
   const [lat, setLat] = useState(user.address?.lat);
   const [lng, setLng] = useState(user.address?.lng);
   
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [locationStatus, setLocationStatus] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
-  const handleGetLocation = () => {
-    setIsGettingLocation(true);
-    setLocationStatus('Acquiring Satellite Signal...');
-    
-    const geoOptions = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setLat(latitude);
-        setLng(longitude);
-        setLocationStatus('GPS Locked. AI identifying nearby landmarks...');
-        
-        // AI-powered address refinement
-        const address = await reverseGeocode(latitude, longitude);
-        if (address) {
-          setAddrLine1(address.line1);
-          setAddrLine2(address.line2);
-          setLandmark(address.landmark || '');
-          setPincode(address.pincode);
-        }
-        
-        setLocationStatus('');
-        setIsGettingLocation(false);
-      },
-      (err) => {
-        let errorMsg = "Could not fetch location.";
-        if (err.code === 1) errorMsg = "Please enable location permissions in your browser settings.";
-        if (err.code === 3) errorMsg = "Connection timed out. Check your GPS signal.";
-        alert(errorMsg);
-        setLocationStatus('');
-        setIsGettingLocation(false);
-      },
-      geoOptions
-    );
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,34 +146,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
               <div className="space-y-4">
                 <div className="flex justify-between items-center mb-1.5 ml-1">
                   <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">Full Address</label>
-                  {isGettingLocation && (
-                    <div className="flex items-center gap-1.5">
-                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                       <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter">{locationStatus}</span>
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex flex-col gap-3 pt-2">
-                   <button 
-                    type="button" 
-                    onClick={handleGetLocation}
-                    disabled={isGettingLocation}
-                    className={`w-full flex items-center justify-center gap-2 text-xs font-black py-3 rounded-xl transition-all shadow-md ${isGettingLocation ? 'bg-slate-100 text-slate-400' : 'bg-slate-800 text-white hover:bg-slate-900'}`}
-                   >
-                     {isGettingLocation ? (
-                       <>
-                         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                         Detecting Precise Location...
-                       </>
-                     ) : (
-                       <>
-                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                         Detect Current Location
-                       </>
-                     )}
-                   </button>
-                   
                    {/* Map Picker */}
                    <LocationPickerMap 
                         lat={lat}

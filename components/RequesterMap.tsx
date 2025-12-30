@@ -181,18 +181,24 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
         </div>
 
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 z-[400] bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg border border-white/50 text-[10px] font-bold text-slate-500 space-y-1.5 hidden sm:block">
+        <div className="absolute bottom-4 left-4 z-[400] bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg border border-white/50 text-[10px] font-bold text-slate-500 space-y-2">
             <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 border border-white shadow-sm animate-pulse"></span>
-                <span>You</span>
+                <div className="w-4 h-4 rounded-full bg-blue-500 border border-white shadow-sm flex items-center justify-center animate-pulse">
+                    <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                </div>
+                <span>Your Location</span>
             </div>
             <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 border border-white shadow-sm"></span>
-                <span>Requester</span>
+                <div className="w-4 h-4 rounded-full bg-emerald-600 border border-white shadow-sm flex items-center justify-center text-white">
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                </div>
+                <span>Recipient</span>
             </div>
             <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 border border-white shadow-sm"></span>
-                <span>Favorite</span>
+                <div className="w-4 h-4 rounded-full bg-amber-500 border border-white shadow-sm flex items-center justify-center text-white">
+                    <span className="text-[10px] leading-none mb-0.5">★</span>
+                </div>
+                <span>Favorites</span>
             </div>
         </div>
     </div>

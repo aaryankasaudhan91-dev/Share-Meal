@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Address, Notification } from './types';
 import { storage } from './services/storageService';
-import { analyzeFoodSafetyImage, reverseGeocode, getAddressFromPincode } from './services/geminiService';
+import { analyzeFoodSafetyImage } from './services/geminiService';
 import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
 import RequesterMap from './components/RequesterMap';
@@ -38,10 +38,6 @@ const App: React.FC = () => {
   const [regLat, setRegLat] = useState<number | undefined>(undefined);
   const [regLng, setRegLng] = useState<number | undefined>(undefined);
   
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [regLocationStatus, setRegLocationStatus] = useState('');
-  const [isLookingUpPincode, setIsLookingUpPincode] = useState(false);
-
   // Post Food States
   const [isAddingFood, setIsAddingFood] = useState(false);
   const [foodName, setFoodName] = useState('');
@@ -60,9 +56,6 @@ const App: React.FC = () => {
   const [donPincode, setDonPincode] = useState('');
   const [donLat, setDonLat] = useState<number | undefined>(undefined);
   const [donLng, setDonLng] = useState<number | undefined>(undefined);
-  const [isDetectingDonLocation, setIsDetectingDonLocation] = useState(false);
-  const [donLocationStatus, setDonLocationStatus] = useState('');
-  const [isLookingUpDonPincode, setIsLookingUpDonPincode] = useState(false);
 
   // Contact Modal States
   const [showContactModal, setShowContactModal] = useState(false);
@@ -71,6 +64,15 @@ const App: React.FC = () => {
 
   // General UI States
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Splash Screen Timer
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        setShowSplash(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     refreshData();
@@ -167,122 +169,6 @@ const App: React.FC = () => {
       setLoginPassword('');
     } else {
       alert("User not found. Please register.");
-    }
-  };
-
-  const handleDetectLocation = () => {
-    setIsDetectingLocation(true);
-    setRegLocationStatus('Locating...');
-    
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setRegLat(latitude);
-        setRegLng(longitude);
-        setRegLocationStatus('AI finding nearby landmarks...');
-        
-        try {
-            const address = await reverseGeocode(latitude, longitude);
-            if (address) {
-                setRegLine1(address.line1);
-                setRegLine2(address.line2);
-                setRegLandmark(address.landmark || '');
-                setRegPincode(address.pincode);
-                setRegLocationStatus('Location Detected!');
-            } else {
-                setRegLocationStatus('Location found. Please verify address.');
-            }
-        } catch (e) {
-            setRegLocationStatus('Manual entry required.');
-        }
-        setIsDetectingLocation(false);
-      },
-      (err) => {
-        alert("Could not access location. Please enter manually.");
-        setIsDetectingLocation(false);
-        setRegLocationStatus('');
-      },
-      { enableHighAccuracy: true }
-    );
-  };
-
-  const handlePincodeLookup = async () => {
-    if (!regPincode || regPincode.length < 6) {
-        alert("Please enter a valid 6-digit pincode first.");
-        return;
-    }
-    setIsLookingUpPincode(true);
-    try {
-        const result = await getAddressFromPincode(regPincode);
-        if (result) {
-            setRegLine1(result.line1 || regLine1);
-            setRegLine2(result.line2 || regLine2);
-            setRegLandmark(result.landmark || regLandmark);
-        } else {
-            alert("Could not find details for this pincode.");
-        }
-    } catch (error) {
-        console.error(error);
-    } finally {
-        setIsLookingUpPincode(false);
-    }
-  };
-
-  const handleDetectDonLocation = () => {
-    setIsDetectingDonLocation(true);
-    setDonLocationStatus('Acquiring Satellite Signal...');
-    
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setDonLat(latitude);
-        setDonLng(longitude);
-        setDonLocationStatus('GPS Locked. AI identifying address...');
-        
-        try {
-            const address = await reverseGeocode(latitude, longitude);
-            if (address) {
-                setDonLine1(address.line1);
-                setDonLine2(address.line2);
-                setDonLandmark(address.landmark || '');
-                setDonPincode(address.pincode);
-                setDonLocationStatus('Address Auto-Filled!');
-            } else {
-                setDonLocationStatus('Location found. Verify details.');
-            }
-        } catch (e) {
-            setDonLocationStatus('Manual entry required.');
-        }
-        setIsDetectingDonLocation(false);
-      },
-      (err) => {
-        alert("Location access denied. Please enable permissions.");
-        setIsDetectingDonLocation(false);
-        setDonLocationStatus('');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  const handleDonPincodeLookup = async () => {
-    if (!donPincode || donPincode.length < 6) {
-        alert("Please enter a valid 6-digit pincode first.");
-        return;
-    }
-    setIsLookingUpDonPincode(true);
-    try {
-        const result = await getAddressFromPincode(donPincode);
-        if (result) {
-            setDonLine1(result.line1 || donLine1);
-            setDonLine2(result.line2 || donLine2);
-            setDonLandmark(result.landmark || donLandmark);
-        } else {
-            alert("Could not find details for this pincode.");
-        }
-    } catch (error) {
-        console.error(error);
-    } finally {
-        setIsLookingUpDonPincode(false);
     }
   };
 
@@ -460,9 +346,35 @@ const App: React.FC = () => {
 
   const filteredPostings = getFilteredPostings();
 
+  const splashScreen = (
+    <div className={`fixed inset-0 z-[9999] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-100 via-teal-50 to-slate-50 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out ${showSplash ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {/* Logo Animation */}
+        <div className={`relative mb-6 transition-all duration-1000 delay-100 transform ${showSplash ? 'scale-100 opacity-100' : 'scale-75 opacity-0'}`}>
+            <div className="absolute inset-0 bg-emerald-400 blur-2xl opacity-20 animate-pulse rounded-full"></div>
+            <img src={LOGO_URL} className="w-28 h-28 relative z-10 drop-shadow-2xl" alt="Logo" />
+        </div>
+        
+        {/* Text Animation */}
+        <div className="text-center space-y-3">
+            <h1 className={`text-4xl font-black text-slate-800 tracking-tighter transition-all duration-1000 delay-300 transform ${showSplash ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+            ShareMeal <span className="text-emerald-600">Connect</span>
+            </h1>
+            <p className={`text-sm font-bold text-slate-400 uppercase tracking-[0.3em] transition-all duration-1000 delay-500 transform ${showSplash ? 'translate-y-0 opacity-100' : 'translate-y-5 opacity-0'}`}>
+            Rescue • Feed • Protect
+            </p>
+        </div>
+
+        {/* Loading Bar */}
+        <div className={`absolute bottom-12 w-48 h-1 bg-slate-200 rounded-full overflow-hidden transition-all duration-700 delay-700 ${showSplash ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="h-full bg-emerald-500 animate-[loading_2s_ease-in-out_infinite] w-full origin-left" style={{animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'}}></div>
+        </div>
+    </div>
+  );
+
   if (view === 'LOGIN') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-slate-100 flex items-center justify-center p-6 relative overflow-hidden">
+        {splashScreen}
         {/* Decorative Background Elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
             <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-emerald-200/20 rounded-full blur-3xl animate-pulse"></div>
@@ -639,19 +551,8 @@ const App: React.FC = () => {
                         <div className="space-y-2">
                              <div className="flex justify-between items-center">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Location</label>
-                                {isDetectingLocation && <span className="text-[9px] text-emerald-600 font-bold animate-pulse">{regLocationStatus}</span>}
                              </div>
                              
-                             <button 
-                                type="button" 
-                                onClick={handleDetectLocation}
-                                disabled={isDetectingLocation}
-                                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors mb-2"
-                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                {isDetectingLocation ? 'Detecting...' : 'Auto-Detect Address'}
-                             </button>
-
                              <LocationPickerMap 
                                 lat={regLat}
                                 lng={regLng}
@@ -678,24 +579,14 @@ const App: React.FC = () => {
                                 required 
                              />
                              <div className="grid grid-cols-2 gap-2">
-                                <div className="relative">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Pincode" 
-                                        className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm pr-20" 
-                                        value={regPincode} 
-                                        onChange={e => setRegPincode(e.target.value)} 
-                                        required 
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={handlePincodeLookup}
-                                        disabled={isLookingUpPincode}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg font-bold transition-colors disabled:opacity-50"
-                                    >
-                                        {isLookingUpPincode ? '...' : 'Auto-Fill'}
-                                    </button>
-                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Pincode" 
+                                    className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                    value={regPincode} 
+                                    onChange={e => setRegPincode(e.target.value)} 
+                                    required 
+                                />
                                  <input 
                                     type="text" 
                                     placeholder="Landmark" 
@@ -742,6 +633,7 @@ const App: React.FC = () => {
           }
       }}
     >
+        {splashScreen}
         {view === 'PROFILE' && user ? (
             <ProfileView 
                 user={user} 
@@ -939,22 +831,6 @@ const App: React.FC = () => {
                                     <div>
                                         <div className="flex justify-between items-center mb-1.5 ml-1">
                                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Pickup Location</label>
-                                            <div className="flex items-center gap-2">
-                                                {isDetectingDonLocation && <span className="text-[9px] text-emerald-600 font-bold animate-pulse">{donLocationStatus}</span>}
-                                                <button 
-                                                    type="button" 
-                                                    onClick={handleDetectDonLocation}
-                                                    disabled={isDetectingDonLocation}
-                                                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50 flex items-center gap-1"
-                                                >
-                                                    {isDetectingDonLocation ? (
-                                                        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                    ) : (
-                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                                    )}
-                                                    {isDetectingDonLocation ? 'Locating...' : 'Auto-Detect'}
-                                                </button>
-                                            </div>
                                         </div>
 
                                         <div className="mb-3">
@@ -972,24 +848,14 @@ const App: React.FC = () => {
                                             <input type="text" placeholder="Line 1" value={donLine1} onChange={e => setDonLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
                                             <input type="text" placeholder="Line 2" value={donLine2} onChange={e => setDonLine2(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
                                             <div className="grid grid-cols-2 gap-2">
-                                                <div className="relative">
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="Pincode" 
-                                                        value={donPincode} 
-                                                        onChange={e => setDonPincode(e.target.value)} 
-                                                        className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none pr-16" 
-                                                        required 
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleDonPincodeLookup}
-                                                        disabled={isLookingUpDonPincode}
-                                                        className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded font-bold transition-colors disabled:opacity-50"
-                                                    >
-                                                        {isLookingUpDonPincode ? '...' : 'Auto-Fill'}
-                                                    </button>
-                                                </div>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Pincode" 
+                                                    value={donPincode} 
+                                                    onChange={e => setDonPincode(e.target.value)} 
+                                                    className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" 
+                                                    required 
+                                                />
                                                 <input type="text" placeholder="Landmark" value={donLandmark} onChange={e => setDonLandmark(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" />
                                             </div>
                                         </div>
