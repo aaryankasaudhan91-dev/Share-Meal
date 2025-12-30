@@ -82,6 +82,7 @@ export interface FoodPosting {
   isPickedUp?: boolean; // New: Track if volunteer has picked up food
   pickupVerificationImageUrl?: string; // New: Proof of pickup
   verificationImageUrl?: string; // New: Proof of delivery
+  volunteerNotes?: string; // New: Notes from volunteer
   ratings?: Rating[]; // New: Volunteer ratings
   createdAt: number;
 }

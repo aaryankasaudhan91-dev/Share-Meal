@@ -59,6 +59,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const watchIdRef = useRef<number | null>(null);
   const lastEtaUpdateRef = useRef<number>(0);
 
+  // Volunteer Notes State
+  const [notes, setNotes] = useState(posting.volunteerNotes || '');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+
   useEffect(() => {
     const checkMessages = () => {
         const msgs = storage.getMessages(posting.id);
@@ -70,6 +74,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     const interval = setInterval(checkMessages, 3000);
     return () => clearInterval(interval);
   }, [posting.id]);
+
+  // Sync notes when posting updates from server/storage
+  useEffect(() => {
+      if (!isEditingNotes) {
+          setNotes(posting.volunteerNotes || '');
+      }
+  }, [posting.volunteerNotes, isEditingNotes]);
 
   // Clean up tracking watch on unmount
   useEffect(() => {
@@ -338,6 +349,52 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     } else {
         alert("Please enter a valid number of minutes.");
     }
+  };
+
+  const handleRecalculateEta = async () => {
+    if (!posting.requesterAddress) return;
+    
+    setIsUpdatingEta(true);
+    try {
+        // Prefer current location from browser for most accurate instant check, fallback to stored location
+        let lat = posting.volunteerLocation?.lat;
+        let lng = posting.volunteerLocation?.lng;
+
+        if (!lat || !lng) {
+             try {
+                const pos = await new Promise<GeolocationPosition>((resolve, reject) => 
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+                );
+                lat = pos.coords.latitude;
+                lng = pos.coords.longitude;
+             } catch (e) {
+                 console.log("Loc unavailable");
+             }
+        }
+
+        if (lat && lng) {
+            const destStr = `${posting.requesterAddress.line1}, ${posting.requesterAddress.pincode}`;
+            const minutes = await calculateLiveEta({ lat, lng }, destStr);
+            if (minutes !== null) {
+                onUpdate(posting.id, { 
+                    etaMinutes: minutes,
+                    volunteerLocation: { lat, lng } // Update location too while we are at it
+                });
+                setEtaInput(minutes.toString());
+            }
+        } else {
+            alert("Location needed for ETA.");
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setIsUpdatingEta(false);
+    }
+  };
+
+  const saveNotes = () => {
+    onUpdate(posting.id, { volunteerNotes: notes });
+    setIsEditingNotes(false);
   };
 
   const handleOptimizeRoute = async () => {
@@ -634,7 +691,17 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             </div>
             
             {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                     <button 
+                        onClick={handleRecalculateEta}
+                        disabled={isUpdatingEta}
+                        className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border border-blue-200 transition-all shadow-sm flex items-center gap-1 ${isUpdatingEta ? 'bg-blue-50 text-blue-400' : 'bg-white text-blue-600 hover:bg-blue-50'}`}
+                        title="Recalculate ETA based on traffic"
+                    >
+                        <svg className={`w-3 h-3 ${isUpdatingEta ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        {isUpdatingEta ? 'Calc...' : 'Refresh'}
+                    </button>
+                    
                     {isEditingEta ? (
                         <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-blue-200 shadow-sm animate-in fade-in zoom-in-95 duration-200">
                             <input 
@@ -655,12 +722,45 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     ) : (
                         <button 
                             onClick={() => { setEtaInput(posting.etaMinutes?.toString() || ''); setIsEditingEta(true); }}
-                            className="text-[10px] font-bold bg-white text-blue-600 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
+                            className="text-[10px] font-bold bg-white text-blue-600 px-2 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
                         >
-                            Update
+                            Edit
                         </button>
                     )}
                 </div>
+            )}
+        </div>
+      )}
+
+      {/* Volunteer Notes Section */}
+      {isInvolved && (posting.status === FoodStatus.IN_TRANSIT || posting.status === FoodStatus.DELIVERED) && (
+        <div className="mb-4 bg-yellow-50 p-3 rounded-xl border border-yellow-100">
+            <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-widest flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Volunteer Notes
+                </p>
+                {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && (
+                    !isEditingNotes ? (
+                        <button onClick={() => setIsEditingNotes(true)} className="text-[10px] font-bold text-yellow-700 hover:underline">Edit</button>
+                    ) : (
+                        <button onClick={saveNotes} className="text-[10px] font-bold text-emerald-600 hover:underline">Save</button>
+                    )
+                )}
+            </div>
+            
+            {isEditingNotes ? (
+                <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full p-2 text-xs bg-white border border-yellow-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                    placeholder="Add notes about pickup or delivery (e.g., Gate code, contact person)..."
+                    rows={2}
+                />
+            ) : (
+                <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap">
+                    {posting.volunteerNotes || <span className="text-slate-400 italic">No notes added.</span>}
+                </p>
             )}
         </div>
       )}
@@ -723,21 +823,30 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {user.role === UserRole.REQUESTER && posting.status === FoodStatus.IN_TRANSIT && posting.orphanageId === user.id && (
             <button 
                 onClick={handleRequesterDelivery}
-                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 hover:shadow-emerald-300 flex items-center justify-center gap-2"
+                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 hover:shadow-emerald-300 flex items-center justify-center gap-2 animate-pulse"
             >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                 Mark as Received
             </button>
         )}
 
         {/* Volunteer Actions */}
         {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE && !hasExpressedInterest && (
-            <button
-                onClick={handleExpressInterest}
-                className="flex-1 bg-purple-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200"
-            >
-                Express Interest
-            </button>
+            <>
+                <button
+                    onClick={handleExpressInterest}
+                    className="flex-1 bg-purple-50 text-purple-600 border border-purple-200 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-100 transition-colors"
+                >
+                    Interest Only
+                </button>
+                <button
+                    onClick={handleVolunteer}
+                    className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    Quick Accept
+                </button>
+            </>
         )}
 
         {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE && hasExpressedInterest && (
@@ -827,7 +936,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                             disabled={isVerifying}
                             className="w-full h-full bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
                         >
-                            {isVerifying ? 'Verifying with AI...' : 'Complete Delivery'}
+                            {isVerifying ? 'Verifying with AI...' : 'Verify Delivery'}
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         </button>
                     </div>
@@ -1071,7 +1180,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       
       {/* Delivery/Pickup Confirmation Modal */}
       {showDeliverConfirm && (
-        <div className="fixed inset-0 z-[180] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowDeliverConfirm(false)}>
+        <div className="fixed inset-0 z-[180] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={cancelConfirmAction}>
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
                 <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

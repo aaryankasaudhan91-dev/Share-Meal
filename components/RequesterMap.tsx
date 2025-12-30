@@ -51,32 +51,32 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
         maxZoom: 20
       }).addTo(map);
 
-      // Initialize Marker Cluster Group
-      // Using maxClusterRadius to control density and custom iconCreateFunction for dynamic sizing
+      // Initialize Marker Cluster Group with custom styling
       const markersLayer = L.markerClusterGroup({
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
         spiderfyOnMaxZoom: true,
         removeOutsideVisibleBounds: true,
         animate: true,
-        maxClusterRadius: 50,
+        maxClusterRadius: 50, // Cluster markers within 50 pixels
         iconCreateFunction: function(cluster: any) {
             const count = cluster.getChildCount();
             
             // Dynamic sizing based on count
             let sizePx = 40;
             let sizeClass = 'w-10 h-10';
-            let bgClass = 'bg-slate-800';
+            // Use Brand Emerald colors instead of slate/black
+            let bgClass = 'bg-emerald-600';
             
             if (count > 10) {
                 sizePx = 48;
                 sizeClass = 'w-12 h-12 text-lg';
-                bgClass = 'bg-slate-900';
+                bgClass = 'bg-emerald-700';
             }
             if (count > 50) {
                 sizePx = 56;
                 sizeClass = 'w-14 h-14 text-xl';
-                bgClass = 'bg-black';
+                bgClass = 'bg-emerald-900';
             }
 
             return L.divIcon({
@@ -128,7 +128,7 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
       
       const createCustomMarker = (colorClass: string, isFav: boolean) => L.divIcon({
         className: 'bg-transparent group',
-        html: `<div class="relative transition-transform hover:-translate-y-1">
+        html: `<div class="relative transition-transform hover:-translate-y-1 cursor-pointer">
                  <div class="w-8 h-8 ${colorClass} rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white font-bold relative z-10">
                     ${isFav ? '★' : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>'}
                  </div>
@@ -156,75 +156,18 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
           
           const marker = L.marker([r.address.lat, r.address.lng], { icon: markerIcon });
           
+          // Tooltip for quick ID
           marker.bindTooltip(`
             <div class="text-center px-1">
                 <div class="font-bold text-slate-800 text-sm">${r.orgName || r.name}</div>
             </div>
           `, { direction: 'top', offset: [0, -45], className: 'custom-tooltip shadow-sm border-0 rounded-lg px-2 py-1' });
 
-          const popupContent = document.createElement('div');
-          popupContent.className = 'p-1 min-w-[180px] text-center flex flex-col gap-2';
-          
-          // Header
-          const header = document.createElement('div');
-          header.innerHTML = `
-            <div class="flex flex-col items-center">
-                <h3 class="font-black text-sm text-slate-800 leading-tight mb-1">${r.orgName || r.name}</h3>
-                <span class="bg-emerald-100 text-emerald-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">${r.orgCategory || 'Organization'}</span>
-            </div>
-          `;
-          popupContent.appendChild(header);
-
-          // Address
-          if (r.address) {
-              const addr = document.createElement('p');
-              addr.className = 'text-xs text-slate-500 leading-tight border-b border-slate-100 pb-2 mb-1';
-              addr.innerText = `${r.address.line1}, ${r.address.pincode}`;
-              popupContent.appendChild(addr);
-          }
-
-          // Buttons Container
-          const btnGroup = document.createElement('div');
-          btnGroup.className = 'grid grid-cols-2 gap-2';
-
-          // View Details Button
-          const viewBtn = document.createElement('button');
-          viewBtn.className = 'px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-lg transition-colors uppercase tracking-wide';
-          viewBtn.innerText = 'Details';
-          viewBtn.onclick = (e) => {
-              e.stopPropagation();
-              if (onViewDetails) onViewDetails(r.id);
-          };
-
-          // Contact Button
-          const contactBtn = document.createElement('button');
-          contactBtn.className = 'px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg transition-colors uppercase tracking-wide';
-          contactBtn.innerText = 'Contact';
-          contactBtn.onclick = (e) => {
-              e.stopPropagation();
-              if (onContact) onContact(r.id);
-          };
-
-          btnGroup.appendChild(viewBtn);
-          btnGroup.appendChild(contactBtn);
-          popupContent.appendChild(btnGroup);
-
-          // Add Fav Button at bottom if user is logged in
-          if (user && onToggleFavorite) {
-              const favBtn = document.createElement('button');
-              favBtn.className = `w-full mt-1 text-[10px] font-bold py-1 px-2 rounded-lg border transition-all flex items-center justify-center gap-1 ${isFav ? 'text-amber-500 border-amber-200 bg-amber-50' : 'text-slate-400 border-slate-100 hover:text-amber-400 hover:border-amber-200'}`;
-              favBtn.innerHTML = isFav ? '★ Favorited' : '☆ Add to Favorites';
-              favBtn.onclick = (e) => {
-                  e.stopPropagation();
-                  onToggleFavorite(r.id);
-              };
-              popupContent.appendChild(favBtn);
-          }
-
-          marker.bindPopup(popupContent, { 
-              closeButton: false, 
-              className: 'rounded-xl overflow-hidden shadow-xl border-0 p-0',
-              maxWidth: 220
+          // Click handler to open contact modal directly
+          marker.on('click', () => {
+              if (onContact) {
+                  onContact(r.id);
+              }
           });
           
           markersToAdd.push(marker);
