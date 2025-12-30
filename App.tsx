@@ -230,14 +230,14 @@ const App: React.FC = () => {
 
   const handleDetectDonLocation = () => {
     setIsDetectingDonLocation(true);
-    setDonLocationStatus('Locating...');
+    setDonLocationStatus('Acquiring Satellite Signal...');
     
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         setDonLat(latitude);
         setDonLng(longitude);
-        setDonLocationStatus('AI finding nearby landmarks...');
+        setDonLocationStatus('GPS Locked. AI identifying address...');
         
         try {
             const address = await reverseGeocode(latitude, longitude);
@@ -246,9 +246,9 @@ const App: React.FC = () => {
                 setDonLine2(address.line2);
                 setDonLandmark(address.landmark || '');
                 setDonPincode(address.pincode);
-                setDonLocationStatus('Location Detected!');
+                setDonLocationStatus('Address Auto-Filled!');
             } else {
-                setDonLocationStatus('Location found. Please verify address.');
+                setDonLocationStatus('Location found. Verify details.');
             }
         } catch (e) {
             setDonLocationStatus('Manual entry required.');
@@ -256,11 +256,11 @@ const App: React.FC = () => {
         setIsDetectingDonLocation(false);
       },
       (err) => {
-        alert("Could not access location. Please enter manually.");
+        alert("Location access denied. Please enable permissions.");
         setIsDetectingDonLocation(false);
         setDonLocationStatus('');
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -945,12 +945,29 @@ const App: React.FC = () => {
                                                     type="button" 
                                                     onClick={handleDetectDonLocation}
                                                     disabled={isDetectingDonLocation}
-                                                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                                                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50 flex items-center gap-1"
                                                 >
-                                                    {isDetectingDonLocation ? 'Locating...' : '📍 Auto-Fill Address'}
+                                                    {isDetectingDonLocation ? (
+                                                        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                    ) : (
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                                    )}
+                                                    {isDetectingDonLocation ? 'Locating...' : 'Auto-Detect'}
                                                 </button>
                                             </div>
                                         </div>
+
+                                        <div className="mb-3">
+                                            <LocationPickerMap 
+                                                lat={donLat}
+                                                lng={donLng}
+                                                onLocationSelect={(newLat, newLng) => {
+                                                    setDonLat(newLat);
+                                                    setDonLng(newLng);
+                                                }}
+                                            />
+                                        </div>
+
                                         <div className="space-y-2">
                                             <input type="text" placeholder="Line 1" value={donLine1} onChange={e => setDonLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
                                             <input type="text" placeholder="Line 2" value={donLine2} onChange={e => setDonLine2(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
