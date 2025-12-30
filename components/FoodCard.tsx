@@ -20,6 +20,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showChat, setShowChat] = useState(false);
   const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   const [loadingRoute, setLoadingRoute] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +53,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     setTips(data);
     setLoadingTips(false);
     setShowTips(true);
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = `${window.location.origin}?post=${posting.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const handleGetRoute = async (address: Address, type: 'pickup' | 'dropoff') => {
@@ -328,9 +339,18 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
               </button>
             )}
             
-            <button onClick={fetchTips} className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 text-[10px] font-black py-1.5 rounded-lg border border-slate-200 transition-all uppercase tracking-widest">
-              {loadingTips ? 'Thinking...' : 'Safety Tips (AI)'}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={fetchTips} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-500 text-[10px] font-black py-2 rounded-lg border border-slate-200 transition-all uppercase tracking-widest">
+                {loadingTips ? 'Thinking...' : 'Safety Tips (AI)'}
+              </button>
+              <button onClick={handleShare} className={`px-4 py-2 rounded-lg border transition-all flex items-center justify-center ${copied ? 'bg-emerald-100 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-emerald-600 hover:bg-slate-100'}`} title="Share Posting">
+                 {copied ? (
+                     <span className="text-[10px] font-black uppercase tracking-widest">Copied!</span>
+                 ) : (
+                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                 )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

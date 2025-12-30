@@ -24,9 +24,19 @@ const App: React.FC = () => {
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regRole, setRegRole] = useState<UserRole>(UserRole.DONOR);
+  
+  // Requester Registration States
   const [regOrgName, setRegOrgName] = useState('');
   const [regOrgCategory, setRegOrgCategory] = useState('Orphanage');
+  const [regLine1, setRegLine1] = useState('');
+  const [regLine2, setRegLine2] = useState('');
+  const [regLandmark, setRegLandmark] = useState('');
   const [regPincode, setRegPincode] = useState('');
+  const [regLat, setRegLat] = useState<number | undefined>(undefined);
+  const [regLng, setRegLng] = useState<number | undefined>(undefined);
+  
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [regLocationStatus, setRegLocationStatus] = useState('');
 
   // Post Food States
   const [isAddingFood, setIsAddingFood] = useState(false);
@@ -104,8 +114,61 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDetectLocation = () => {
+    setIsDetectingLocation(true);
+    setRegLocationStatus('Locating...');
+    
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setRegLat(latitude);
+        setRegLng(longitude);
+        setRegLocationStatus('AI Analyzing Address...');
+        
+        try {
+            const address = await reverseGeocode(latitude, longitude);
+            if (address) {
+                setRegLine1(address.line1);
+                setRegLine2(address.line2);
+                setRegLandmark(address.landmark);
+                setRegPincode(address.pincode);
+                setRegLocationStatus('Location Detected!');
+            } else {
+                setRegLocationStatus('Location found. Please verify address.');
+            }
+        } catch (e) {
+            setRegLocationStatus('Manual entry required.');
+        }
+        setIsDetectingLocation(false);
+      },
+      (err) => {
+        alert("Could not access location. Please enter manually.");
+        setIsDetectingLocation(false);
+        setRegLocationStatus('');
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
+
+    let userAddress: Address | undefined = undefined;
+    if (regRole === UserRole.REQUESTER) {
+        if (!regLine1 || !regLine2 || !regPincode) {
+            alert("Please fill in all required address fields (Line 1, Line 2, Pincode).");
+            return;
+        }
+        userAddress = {
+            line1: regLine1,
+            line2: regLine2,
+            landmark: regLandmark,
+            pincode: regPincode,
+            lat: regLat || userLocation?.lat || 28.6139,
+            lng: regLng || userLocation?.lng || 77.2090
+        };
+    }
+
     const newUser: User = {
       id: Math.random().toString(36).substr(2, 9),
       name: regName,
@@ -113,7 +176,7 @@ const App: React.FC = () => {
       role: regRole,
       orgName: regRole === UserRole.REQUESTER ? regOrgName : undefined,
       orgCategory: regRole === UserRole.REQUESTER ? regOrgCategory : undefined,
-      address: regRole === UserRole.REQUESTER ? { line1: 'Main St', line2: 'Area 51', pincode: regPincode, lat: 28.6139, lng: 77.2090 } : undefined
+      address: userAddress
     };
     storage.saveUser(newUser);
     setUser(newUser);
@@ -192,6 +255,10 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setUser(null);
     setView('LOGIN');
+    // Reset reg forms
+    setRegName(''); setRegEmail(''); setRegRole(UserRole.DONOR);
+    setRegOrgName(''); setRegOrgCategory('Orphanage');
+    setRegLine1(''); setRegLine2(''); setRegLandmark(''); setRegPincode('');
   };
 
   if (view === 'LOGIN') {
@@ -306,49 +373,98 @@ const App: React.FC = () => {
                         </p>
                     </div>
                     <div className="relative group">
-                    <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                    </span>
-                    <input 
-                        type="text" 
-                        placeholder="Organization Name" 
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
-                        value={regOrgName} 
-                        onChange={e => setRegOrgName(e.target.value)} 
-                        required 
-                    />
+                        <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                        </span>
+                        <input 
+                            type="text" 
+                            placeholder="Organization Name" 
+                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
+                            value={regOrgName} 
+                            onChange={e => setRegOrgName(e.target.value)} 
+                            required 
+                        />
                     </div>
-                     <div className="relative group">
+                    <div className="relative group">
                         <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
                         </span>
-                            <select 
-                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all text-slate-700 font-medium appearance-none" 
-                                value={regOrgCategory} 
-                                onChange={e => setRegOrgCategory(e.target.value)}
-                            >
+                        <select 
+                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all text-slate-700 font-medium appearance-none" 
+                            value={regOrgCategory} 
+                            onChange={e => setRegOrgCategory(e.target.value)}
+                        >
                             <option value="Orphanage">Orphanage</option>
                             <option value="Old Age Home">Old Age Home</option>
                             <option value="Shelter">Homeless Shelter</option>
                             <option value="NGO">NGO</option>
                             <option value="Other">Other</option>
-                            </select>
-                            <div className="absolute right-4 top-4 pointer-events-none">
-                                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                            </div>
+                        </select>
+                        <div className="absolute right-4 top-4 pointer-events-none">
+                            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
                     </div>
-                    <div className="relative group">
-                    <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    </span>
-                    <input 
-                        type="text" 
-                        placeholder="Pincode" 
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
-                        value={regPincode} 
-                        onChange={e => setRegPincode(e.target.value)} 
-                        required 
-                    />
+                    
+                    {/* Enhanced Address Section */}
+                    <div className="space-y-3 pt-2">
+                        <div className="flex justify-between items-end">
+                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Address Details</label>
+                            <button 
+                                type="button"
+                                onClick={handleDetectLocation}
+                                disabled={isDetectingLocation}
+                                className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 hover:text-emerald-700 disabled:opacity-50 transition-colors"
+                            >
+                                {isDetectingLocation ? (
+                                    <>
+                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        Detecting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                        Auto-Detect
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        
+                        <input 
+                            type="text" 
+                            placeholder="Line 1 (House No, Building)" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            value={regLine1} 
+                            onChange={e => setRegLine1(e.target.value)} 
+                            required 
+                        />
+                        <input 
+                            type="text" 
+                            placeholder="Line 2 (Street, Area)" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            value={regLine2} 
+                            onChange={e => setRegLine2(e.target.value)} 
+                            required 
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                            <input 
+                                type="text" 
+                                placeholder="Landmark (Optional)" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                value={regLandmark} 
+                                onChange={e => setRegLandmark(e.target.value)} 
+                            />
+                            <input 
+                                type="text" 
+                                placeholder="Pincode" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                value={regPincode} 
+                                onChange={e => setRegPincode(e.target.value)} 
+                                required 
+                            />
+                        </div>
+                        {regLocationStatus && (
+                            <p className="text-[10px] font-bold text-emerald-600 text-center animate-pulse">{regLocationStatus}</p>
+                        )}
                     </div>
                 </div>
               )}
