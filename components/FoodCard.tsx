@@ -35,6 +35,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [verificationFeedback, setVerificationFeedback] = useState<string>('');
   const [verificationType, setVerificationType] = useState<'PICKUP' | 'DELIVERY' | null>(null);
 
+  // References for file inputs to clear them on cancel/fail
+  const deliveryFileInputRef = useRef<HTMLInputElement>(null);
+  const pickupFileInputRef = useRef<HTMLInputElement>(null);
+
   // Rating State
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [ratingStars, setRatingStars] = useState(0);
@@ -205,10 +209,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 setShowDeliverConfirm(true);
             } else {
                 alert(`Verification Failed: ${verification.feedback}`);
+                if (deliveryFileInputRef.current) deliveryFileInputRef.current.value = '';
             }
         } catch (error) {
             console.error("Verification Error", error);
             alert("Verification failed due to an error.");
+            if (deliveryFileInputRef.current) deliveryFileInputRef.current.value = '';
         }
         setIsVerifying(false);
       };
@@ -235,10 +241,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 setShowDeliverConfirm(true);
             } else {
                 alert(`Pickup Verification Failed: ${verification.feedback}`);
+                if (pickupFileInputRef.current) pickupFileInputRef.current.value = '';
             }
         } catch (error) {
             console.error("Pickup Verification Error", error);
             alert("Verification failed due to an error.");
+            if (pickupFileInputRef.current) pickupFileInputRef.current.value = '';
         }
         setIsVerifying(false);
       };
@@ -263,7 +271,20 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         setDeliveryUpdatePayload(null);
         setVerificationFeedback('');
         setVerificationType(null);
+        // Clear inputs
+        if (deliveryFileInputRef.current) deliveryFileInputRef.current.value = '';
+        if (pickupFileInputRef.current) pickupFileInputRef.current.value = '';
     }
+  };
+
+  const cancelConfirmAction = () => {
+    setShowDeliverConfirm(false);
+    setDeliveryUpdatePayload(null);
+    setVerificationFeedback('');
+    setVerificationType(null);
+    // Clear inputs on cancel so user can re-select same file if needed
+    if (deliveryFileInputRef.current) deliveryFileInputRef.current.value = '';
+    if (pickupFileInputRef.current) pickupFileInputRef.current.value = '';
   };
 
   const submitRating = () => {
@@ -741,6 +762,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 {!posting.isPickedUp ? (
                     <div className="relative flex-1">
                         <input 
+                            ref={pickupFileInputRef}
                             type="file" 
                             accept="image/*"
                             capture="environment"
@@ -759,6 +781,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 ) : (
                     <div className="relative flex-1">
                         <input 
+                            ref={deliveryFileInputRef}
                             type="file" 
                             accept="image/*"
                             capture="environment"
@@ -770,7 +793,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                             disabled={isVerifying}
                             className="w-full h-full bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
                         >
-                            {isVerifying ? 'Verifying...' : 'Upload Delivery Proof'}
+                            {isVerifying ? 'Verifying with AI...' : 'Complete Delivery'}
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         </button>
                     </div>
@@ -1121,7 +1144,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         Yes, Confirm
                     </button>
                     <button 
-                        onClick={() => { setShowDeliverConfirm(false); setDeliveryUpdatePayload(null); setVerificationFeedback(''); setVerificationType(null); }}
+                        onClick={cancelConfirmAction}
                         className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
                     >
                         Cancel

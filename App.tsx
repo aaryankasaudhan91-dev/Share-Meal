@@ -37,6 +37,7 @@ const App: React.FC = () => {
   const [regPincode, setRegPincode] = useState('');
   const [regLat, setRegLat] = useState<number | undefined>(undefined);
   const [regLng, setRegLng] = useState<number | undefined>(undefined);
+  const [regErrors, setRegErrors] = useState<{ [key: string]: string }>({});
   
   // Post Food States
   const [isAddingFood, setIsAddingFood] = useState(false);
@@ -56,6 +57,7 @@ const App: React.FC = () => {
   const [donPincode, setDonPincode] = useState('');
   const [donLat, setDonLat] = useState<number | undefined>(undefined);
   const [donLng, setDonLng] = useState<number | undefined>(undefined);
+  const [donErrors, setDonErrors] = useState<{ [key: string]: string }>({});
 
   // Contact Modal States
   const [showContactModal, setShowContactModal] = useState(false);
@@ -174,13 +176,24 @@ const App: React.FC = () => {
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
+    setRegErrors({});
 
     let userAddress: Address | undefined = undefined;
     if (regRole === UserRole.REQUESTER) {
-        if (!regLine1 || !regLine2 || !regPincode) {
-            alert("Please fill in all required address fields (Line 1, Line 2, Pincode).");
+        const errors: { [key: string]: string } = {};
+        if (!regLine1.trim()) errors.line1 = "Address Line 1 is required.";
+        if (!regLine2.trim()) errors.line2 = "Address Line 2 is required.";
+        if (!regPincode.trim()) {
+            errors.pincode = "Pincode is required.";
+        } else if (!/^\d{6}$/.test(regPincode)) {
+            errors.pincode = "Pincode must be exactly 6 digits.";
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setRegErrors(errors);
             return;
         }
+
         userAddress = {
             line1: regLine1,
             line2: regLine2,
@@ -211,6 +224,21 @@ const App: React.FC = () => {
   const handlePostFood = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    setDonErrors({});
+
+    const errors: { [key: string]: string } = {};
+    if (!donLine1.trim()) errors.line1 = "Address Line 1 is required.";
+    if (!donLine2.trim()) errors.line2 = "Address Line 2 is required.";
+    if (!donPincode.trim()) {
+        errors.pincode = "Pincode is required.";
+    } else if (!/^\d{6}$/.test(donPincode)) {
+        errors.pincode = "Pincode must be exactly 6 digits.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+        setDonErrors(errors);
+        return;
+    }
     
     const postLocation: Address = {
         line1: donLine1,
@@ -243,8 +271,10 @@ const App: React.FC = () => {
     setFoodCategory('Prepared Meal');
     setQuantity('');
     setUnit('meals');
+    setExpiryDate('');
     setFoodImage(null);
     setFoodAnalysis(null);
+    setDonErrors({});
     refreshData();
   };
 
@@ -296,6 +326,7 @@ const App: React.FC = () => {
     setRegName(''); setRegEmail(''); setRegPassword(''); setRegRole(UserRole.DONOR);
     setRegOrgName(''); setRegOrgCategory('Orphanage');
     setRegLine1(''); setRegLine2(''); setRegLandmark(''); setRegPincode('');
+    setRegErrors({});
     setLoginName(''); setLoginPassword('');
   };
 
@@ -458,7 +489,7 @@ const App: React.FC = () => {
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-6">
                  <button onClick={() => setView('LOGIN')} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7 7-7" /></svg>
                  </button>
                  <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Join the Mission</h2>
             </div>
@@ -565,34 +596,53 @@ const App: React.FC = () => {
                                     setRegLine2(addr.line2);
                                     if (addr.landmark) setRegLandmark(addr.landmark);
                                     setRegPincode(addr.pincode);
+                                    setRegErrors({}); // Clear errors when auto-filled
                                 }}
                              />
-
-                             <input 
-                                type="text" 
-                                placeholder="Address Line 1" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
-                                value={regLine1} 
-                                onChange={e => setRegLine1(e.target.value)} 
-                                required 
-                             />
-                             <input 
-                                type="text" 
-                                placeholder="Address Line 2" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
-                                value={regLine2} 
-                                onChange={e => setRegLine2(e.target.value)} 
-                                required 
-                             />
-                             <div className="grid grid-cols-2 gap-2">
+                             
+                             <div>
                                 <input 
                                     type="text" 
-                                    placeholder="Pincode" 
-                                    className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
-                                    value={regPincode} 
-                                    onChange={e => setRegPincode(e.target.value)} 
-                                    required 
+                                    placeholder="Address Line 1" 
+                                    className={`w-full px-4 py-3 rounded-xl border ${regErrors.line1 ? 'border-red-500 bg-red-50' : 'border-black bg-white'} focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm`}
+                                    value={regLine1} 
+                                    onChange={e => {
+                                        setRegLine1(e.target.value);
+                                        if (regErrors.line1) setRegErrors({...regErrors, line1: ''});
+                                    }} 
                                 />
+                                {regErrors.line1 && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{regErrors.line1}</p>}
+                             </div>
+
+                             <div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Address Line 2" 
+                                    className={`w-full px-4 py-3 rounded-xl border ${regErrors.line2 ? 'border-red-500 bg-red-50' : 'border-black bg-white'} focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm`}
+                                    value={regLine2} 
+                                    onChange={e => {
+                                        setRegLine2(e.target.value);
+                                        if (regErrors.line2) setRegErrors({...regErrors, line2: ''});
+                                    }} 
+                                />
+                                {regErrors.line2 && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{regErrors.line2}</p>}
+                             </div>
+
+                             <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Pincode" 
+                                        maxLength={6}
+                                        className={`w-full px-4 py-3 rounded-xl border ${regErrors.pincode ? 'border-red-500 bg-red-50' : 'border-black bg-white'} focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm`}
+                                        value={regPincode} 
+                                        onChange={e => {
+                                            setRegPincode(e.target.value.replace(/\D/g, ''));
+                                            if (regErrors.pincode) setRegErrors({...regErrors, pincode: ''});
+                                        }} 
+                                    />
+                                    {regErrors.pincode && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1 leading-tight">{regErrors.pincode}</p>}
+                                </div>
                                  <input 
                                     type="text" 
                                     placeholder="Landmark" 
@@ -852,22 +902,55 @@ const App: React.FC = () => {
                                                     setDonLine2(addr.line2);
                                                     if (addr.landmark) setDonLandmark(addr.landmark);
                                                     setDonPincode(addr.pincode);
+                                                    setDonErrors({});
                                                 }}
                                             />
                                         </div>
 
                                         <div className="space-y-2">
-                                            <input type="text" placeholder="Line 1" value={donLine1} onChange={e => setDonLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
-                                            <input type="text" placeholder="Line 2" value={donLine2} onChange={e => setDonLine2(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
-                                            <div className="grid grid-cols-2 gap-2">
+                                            <div>
                                                 <input 
                                                     type="text" 
-                                                    placeholder="Pincode" 
-                                                    value={donPincode} 
-                                                    onChange={e => setDonPincode(e.target.value)} 
-                                                    className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" 
-                                                    required 
+                                                    placeholder="Line 1" 
+                                                    value={donLine1} 
+                                                    onChange={e => {
+                                                        setDonLine1(e.target.value);
+                                                        if (donErrors.line1) setDonErrors({...donErrors, line1: ''});
+                                                    }} 
+                                                    className={`w-full px-3 py-2 rounded-lg border ${donErrors.line1 ? 'border-red-500 bg-red-50' : 'border-black bg-white'} text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none`} 
                                                 />
+                                                {donErrors.line1 && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{donErrors.line1}</p>}
+                                            </div>
+                                            
+                                            <div>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Line 2" 
+                                                    value={donLine2} 
+                                                    onChange={e => {
+                                                        setDonLine2(e.target.value);
+                                                        if (donErrors.line2) setDonErrors({...donErrors, line2: ''});
+                                                    }} 
+                                                    className={`w-full px-3 py-2 rounded-lg border ${donErrors.line2 ? 'border-red-500 bg-red-50' : 'border-black bg-white'} text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none`} 
+                                                />
+                                                {donErrors.line2 && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{donErrors.line2}</p>}
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Pincode" 
+                                                        value={donPincode} 
+                                                        maxLength={6}
+                                                        onChange={e => {
+                                                            setDonPincode(e.target.value.replace(/\D/g, ''));
+                                                            if (donErrors.pincode) setDonErrors({...donErrors, pincode: ''});
+                                                        }} 
+                                                        className={`w-full px-3 py-2 rounded-lg border ${donErrors.pincode ? 'border-red-500 bg-red-50' : 'border-black bg-white'} text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none`} 
+                                                    />
+                                                    {donErrors.pincode && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1 leading-tight">{donErrors.pincode}</p>}
+                                                </div>
                                                 <input type="text" placeholder="Landmark" value={donLandmark} onChange={e => setDonLandmark(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" />
                                             </div>
                                         </div>
