@@ -32,6 +32,8 @@ export interface User {
   orgName?: string;
   favoriteRequesterIds?: string[];
   impactScore?: number; // Total successful deliveries/donations
+  averageRating?: number;
+  ratingsCount?: number;
 }
 
 export interface ChatMessage {
@@ -41,6 +43,14 @@ export interface ChatMessage {
   senderName: string;
   senderRole: UserRole;
   text: string;
+  createdAt: number;
+}
+
+export interface Rating {
+  raterId: string;
+  raterRole: UserRole;
+  rating: number; // 1-5
+  feedback?: string;
   createdAt: number;
 }
 
@@ -69,6 +79,7 @@ export interface FoodPosting {
   interestedVolunteers?: { userId: string; userName: string }[]; // New: Track interested volunteers
   etaMinutes?: number;
   verificationImageUrl?: string; // New: Proof of delivery
+  ratings?: Rating[]; // New: Volunteer ratings
   createdAt: number;
 }
 

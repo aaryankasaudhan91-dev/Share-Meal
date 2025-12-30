@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { FoodPosting, User, UserRole, FoodStatus } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { FoodPosting, User, UserRole, FoodStatus, Rating } from '../types';
 import { verifyDeliveryImage, getOptimizedRoute, RouteOptimizationResult } from '../services/geminiService';
 import { storage } from '../services/storageService';
 import ChatModal from './ChatModal';
@@ -22,6 +22,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showProofModal, setShowProofModal] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
   
+  // Delivery Confirmation State
+  const [showDeliverConfirm, setShowDeliverConfirm] = useState(false);
+  const [deliveryUpdatePayload, setDeliveryUpdatePayload] = useState<Partial<FoodPosting> | null>(null);
+  const [verificationFeedback, setVerificationFeedback] = useState<string>('');
+
+  // Rating State
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingStars, setRatingStars] = useState(0);
+  const [ratingFeedback, setRatingFeedback] = useState('');
+
   // ETA Editing State
   const [isEditingEta, setIsEditingEta] = useState(false);
   const [etaInput, setEtaInput] = useState('');
@@ -32,7 +42,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showRoute, setShowRoute] = useState(false);
 
   // Location Sharing State
-  const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const [isLiveTracking, setIsLiveTracking] = useState(false);
+  const trackingInterval = useRef<any>(null);
 
   useEffect(() => {
     const checkMessages = () => {
@@ -46,8 +57,26 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     return () => clearInterval(interval);
   }, [posting.id]);
 
+  // Clean up tracking interval on unmount
+  useEffect(() => {
+    return () => {
+        if (trackingInterval.current) {
+            clearInterval(trackingInterval.current);
+        }
+    };
+  }, []);
+
+  // Auto-stop tracking if delivered
+  useEffect(() => {
+    if (posting.status === FoodStatus.DELIVERED && isLiveTracking) {
+        if (trackingInterval.current) clearInterval(trackingInterval.current);
+        setIsLiveTracking(false);
+    }
+  }, [posting.status, isLiveTracking]);
+
   const interestedVolunteers = posting.interestedVolunteers || [];
   const hasExpressedInterest = user.role === UserRole.VOLUNTEER && interestedVolunteers.some(v => v.userId === user.id);
+  const userHasRated = posting.ratings?.some(r => r.raterId === user.id);
 
   const handleRequest = () => {
     if (user.role !== UserRole.REQUESTER) return;
@@ -107,11 +136,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         try {
             const verification = await verifyDeliveryImage(base64);
             if (verification.isValid) {
-                onUpdate(posting.id, {
+                setDeliveryUpdatePayload({
                     status: FoodStatus.DELIVERED,
                     verificationImageUrl: base64
                 });
-                alert(`Delivery Verified! ${verification.feedback}`);
+                setVerificationFeedback(verification.feedback);
+                setShowDeliverConfirm(true);
             } else {
                 alert(`Verification Failed: ${verification.feedback}`);
             }
@@ -123,6 +153,42 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleRequesterDelivery = () => {
+    setDeliveryUpdatePayload({ status: FoodStatus.DELIVERED });
+    setVerificationFeedback('');
+    setShowDeliverConfirm(true);
+  };
+
+  const handleConfirmDelivery = () => {
+    if (deliveryUpdatePayload) {
+        onUpdate(posting.id, deliveryUpdatePayload);
+        if (verificationFeedback) {
+            alert(`Delivery Verified! ${verificationFeedback}`);
+        }
+        setShowDeliverConfirm(false);
+        setDeliveryUpdatePayload(null);
+        setVerificationFeedback('');
+    }
+  };
+
+  const submitRating = () => {
+    if (ratingStars === 0) {
+        alert("Please select a star rating.");
+        return;
+    }
+    const newRating: Rating = {
+        raterId: user.id,
+        raterRole: user.role,
+        rating: ratingStars,
+        feedback: ratingFeedback,
+        createdAt: Date.now()
+    };
+    const updatedRatings = [...(posting.ratings || []), newRating];
+    onUpdate(posting.id, { ratings: updatedRatings });
+    setShowRatingModal(false);
+    alert("Thank you for your feedback!");
   };
   
   const saveEta = () => {
@@ -157,28 +223,43 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     }
   };
 
-  const handleShareLocation = () => {
-    setIsSharingLocation(true);
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser");
-        setIsSharingLocation(false);
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
+  const updateLocation = () => {
+      navigator.geolocation.getCurrentPosition(
         (position) => {
             const { latitude, longitude } = position.coords;
             onUpdate(posting.id, {
                 volunteerLocation: { lat: latitude, lng: longitude }
             });
-            setIsSharingLocation(false);
         },
         (error) => {
             console.error("Error getting location", error);
-            alert("Unable to retrieve your location.");
-            setIsSharingLocation(false);
-        }
+            // Don't stop tracking automatically on error, as it might be temporary GPS loss
+        },
+        { enableHighAccuracy: true }
     );
+  };
+
+  const toggleLiveTracking = () => {
+    if (isLiveTracking) {
+        // Stop tracking
+        if (trackingInterval.current) {
+            clearInterval(trackingInterval.current);
+            trackingInterval.current = null;
+        }
+        setIsLiveTracking(false);
+    } else {
+        // Start tracking
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser");
+            return;
+        }
+
+        setIsLiveTracking(true);
+        // Immediate update
+        updateLocation();
+        // Periodic update every 15 seconds
+        trackingInterval.current = setInterval(updateLocation, 15000);
+    }
   };
 
   const isInvolved = 
@@ -367,6 +448,33 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
              </div>
         </div>
       )}
+      
+      {/* Rate Volunteer Section */}
+      {posting.status === FoodStatus.DELIVERED && posting.volunteerId && isInvolved && user.role !== UserRole.VOLUNTEER && (
+         <div className="mb-4">
+            {!userHasRated ? (
+                <button 
+                    onClick={() => { setRatingStars(0); setRatingFeedback(''); setShowRatingModal(true); }}
+                    className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-widest hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                    Rate Volunteer
+                </button>
+            ) : (
+                <div className="text-center p-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">You rated this volunteer</p>
+                    <div className="flex justify-center text-amber-400 gap-0.5 mt-1">
+                        {[1,2,3,4,5].map(star => {
+                            const myRating = posting.ratings?.find(r => r.raterId === user.id)?.rating || 0;
+                            return (
+                                <svg key={star} className={`w-3 h-3 ${star <= myRating ? 'fill-current' : 'text-slate-200 fill-current'}`} viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+         </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2 pt-2 border-t border-slate-100">
@@ -382,7 +490,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {/* Mark as Received for Requester */}
         {user.role === UserRole.REQUESTER && posting.status === FoodStatus.IN_TRANSIT && posting.orphanageId === user.id && (
             <button 
-                onClick={() => onUpdate(posting.id, { status: FoodStatus.DELIVERED })}
+                onClick={handleRequesterDelivery}
                 className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
@@ -425,16 +533,27 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 </button>
                 
                 <button 
-                    onClick={handleShareLocation}
-                    disabled={isSharingLocation}
-                    className="flex-1 bg-indigo-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                    onClick={toggleLiveTracking}
+                    className={`flex-1 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-colors shadow-lg flex items-center justify-center gap-2 ${
+                        isLiveTracking 
+                            ? 'bg-red-50 text-red-600 hover:bg-red-100 shadow-red-200' 
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
+                    }`}
                 >
-                    {isSharingLocation ? (
-                         <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    {isLiveTracking ? (
+                         <>
+                             <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                             </span>
+                             Stop Sharing
+                         </>
                     ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            Share Live
+                        </>
                     )}
-                    {isSharingLocation ? 'Sharing...' : 'Share Live'}
                 </button>
 
                 <div className="relative flex-1">
@@ -650,6 +769,91 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     </button>
                     <button 
                         onClick={() => { setShowAssignConfirm(false); setSelectedVolunteer(null); }}
+                        className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+      
+      {/* Rating Modal */}
+      {showRatingModal && (
+        <div className="fixed inset-0 z-[190] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowRatingModal(false)}>
+             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Rate Volunteer</h3>
+                <p className="text-slate-500 text-sm mb-6 font-medium">
+                    How was the delivery service provided by {posting.volunteerName}?
+                </p>
+                
+                <div className="flex justify-center gap-2 mb-6">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <button 
+                            key={star}
+                            onClick={() => setRatingStars(star)}
+                            className={`transition-transform hover:scale-110 focus:outline-none ${star <= ratingStars ? 'text-amber-400' : 'text-slate-200'}`}
+                        >
+                            <svg className="w-8 h-8 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        </button>
+                    ))}
+                </div>
+                
+                <textarea 
+                    rows={3}
+                    className="w-full p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-200 mb-6 resize-none"
+                    placeholder="Optional feedback..."
+                    value={ratingFeedback}
+                    onChange={(e) => setRatingFeedback(e.target.value)}
+                />
+
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={submitRating}
+                        className="w-full bg-amber-500 text-white font-black py-4 rounded-2xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 uppercase tracking-widest text-xs"
+                    >
+                        Submit Rating
+                    </button>
+                    <button 
+                        onClick={() => setShowRatingModal(false)}
+                        className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
+                    >
+                        Cancel
+                    </button>
+                </div>
+             </div>
+        </div>
+      )}
+      
+      {/* Delivery Confirmation Modal */}
+      {showDeliverConfirm && (
+        <div className="fixed inset-0 z-[180] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowDeliverConfirm(false)}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">
+                    {verificationFeedback ? 'Delivery Verified' : 'Confirm Receipt'}
+                </h3>
+                {verificationFeedback && (
+                    <div className="mb-4 bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                        <p className="text-xs text-emerald-800 font-bold">{verificationFeedback}</p>
+                    </div>
+                )}
+                <p className="text-slate-500 text-sm mb-6 leading-relaxed font-medium">
+                    {verificationFeedback 
+                        ? "The proof of delivery is valid. Mark this donation as delivered?" 
+                        : "Are you sure you have received this donation? This action cannot be undone."}
+                </p>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={handleConfirmDelivery}
+                        className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest text-xs"
+                    >
+                        Yes, Confirm Delivery
+                    </button>
+                    <button 
+                        onClick={() => { setShowDeliverConfirm(false); setDeliveryUpdatePayload(null); setVerificationFeedback(''); }}
                         className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
                     >
                         Cancel

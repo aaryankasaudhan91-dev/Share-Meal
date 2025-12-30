@@ -173,6 +173,24 @@ export const storage = {
         }
       }
 
+      // Handle Ratings
+      if (updates.ratings && updates.ratings.length > (oldPosting.ratings?.length || 0)) {
+         // A new rating was added
+         const newRating = updates.ratings[updates.ratings.length - 1]; // Assume newly added is last
+         if (newPosting.volunteerId) {
+             const vIndex = users.findIndex(u => u.id === newPosting.volunteerId);
+             if (vIndex !== -1) {
+                 const vol = users[vIndex];
+                 const currentTotal = (vol.averageRating || 0) * (vol.ratingsCount || 0);
+                 const newCount = (vol.ratingsCount || 0) + 1;
+                 vol.ratingsCount = newCount;
+                 vol.averageRating = parseFloat(((currentTotal + newRating.rating) / newCount).toFixed(1));
+                 users[vIndex] = vol;
+                 localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+             }
+         }
+      }
+
       saveStoredNotifications(notifications);
       return newPosting;
     }
