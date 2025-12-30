@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { Address } from '../types';
 
@@ -47,35 +46,38 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
     if (!map) return;
 
     // Helper to create emoji icons
-    const createEmojiIcon = (emoji: string, bgClass: string) => L.divIcon({
-      className: `flex items-center justify-center text-xl rounded-full border-2 border-white shadow-lg ${bgClass}`,
-      html: emoji,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
+    const createEmojiIcon = (emoji: string, bgClass: string, isLive: boolean = false) => L.divIcon({
+      className: `flex items-center justify-center text-xl rounded-full border-2 border-white shadow-lg ${bgClass} ${isLive ? 'animate-bounce-slow' : ''}`,
+      html: `
+        <div class="relative">
+          ${emoji}
+          ${isLive ? '<div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-white animate-pulse"></div>' : ''}
+        </div>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
       popupAnchor: [0, -20]
     });
 
     const getPickupPopup = () => `
       <div class="p-1">
-        <strong class="text-emerald-600">Pickup Point</strong><br/>
-        <span class="text-xs"><b>Donor:</b> ${donorName}</span><br/>
-        <span class="text-xs"><b>Addr:</b> ${pickupLocation.line1}</span>
+        <strong class="text-emerald-600 font-black uppercase text-[10px]">Pickup Point</strong><br/>
+        <span class="text-xs"><b>Donor:</b> ${donorName}</span>
       </div>
     `;
 
     const getDropoffPopup = () => `
       <div class="p-1">
-        <strong class="text-blue-600">Drop-off Point</strong><br/>
-        <span class="text-xs"><b>Org:</b> ${orphanageName || 'Recipient'}</span><br/>
-        <span class="text-xs"><b>Addr:</b> ${dropoffLocation?.line1}</span>
+        <strong class="text-blue-600 font-black uppercase text-[10px]">Drop-off Point</strong><br/>
+        <span class="text-xs"><b>Org:</b> ${orphanageName || 'Recipient'}</span>
       </div>
     `;
 
     const getVolunteerPopup = () => `
       <div class="p-1 text-center">
-        <strong class="text-amber-600">Volunteer Delivery</strong><br/>
-        <span class="text-xs"><b>Driver:</b> ${volunteerName || 'On the way'}</span><br/>
-        <div class="mt-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold">LIVE TRACKING</div>
+        <strong class="text-amber-600 font-black uppercase text-[10px]">Live Delivery</strong><br/>
+        <span class="text-xs font-bold">${volunteerName || 'Volunteer'}</span><br/>
+        <div class="mt-2 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[8px] font-black uppercase tracking-widest">In Transit</div>
       </div>
     `;
 
@@ -107,7 +109,7 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
     if (volunteerLocation) {
       if (!markersRef.current.volunteer) {
         markersRef.current.volunteer = L.marker([volunteerLocation.lat, volunteerLocation.lng], {
-          icon: createEmojiIcon('🚚', 'bg-amber-500 text-white animate-bounce') 
+          icon: createEmojiIcon('🚚', 'bg-amber-500 text-white', true) 
         }).addTo(map).bindPopup(getVolunteerPopup());
       } else {
         markersRef.current.volunteer.setLatLng([volunteerLocation.lat, volunteerLocation.lng]);
@@ -115,15 +117,16 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
       }
     }
 
-    // Fit Bounds to show all markers
-    const group = L.featureGroup([
+    // Fit Bounds periodically or when locations change
+    const activeMarkers = [
       markersRef.current.pickup,
       markersRef.current.dropoff,
       markersRef.current.volunteer
-    ].filter(Boolean));
+    ].filter(Boolean);
 
-    if (group.getLayers().length > 0) {
-      map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 15 });
+    if (activeMarkers.length > 0) {
+      const group = L.featureGroup(activeMarkers);
+      map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 15 });
     }
 
   }, [pickupLocation, donorName, dropoffLocation, orphanageName, volunteerLocation, volunteerName]);

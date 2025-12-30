@@ -1,7 +1,7 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Use API_KEY directly from environment variables as per guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getFoodSafetyTips = async (foodName: string): Promise<string> => {
   try {
@@ -29,19 +29,22 @@ export interface ImageAnalysisResult {
 export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageAnalysisResult> => {
   try {
     const data = base64Data.split(',')[1] || base64Data;
+    // Updated contents to use { parts: [...] } structure for multimodal requests
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [
-        {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: data,
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: data,
+            },
           },
-        },
-        {
-          text: "Analyze this image of food intended for donation. Is it visually safe and edible? Look for signs of spoilage, mold, or improper handling. Detect the type of food. Respond in JSON format.",
-        }
-      ],
+          {
+            text: "Analyze this image of food intended for donation. Is it visually safe and edible? Look for signs of spoilage, mold, or improper handling. Detect the type of food. Respond in JSON format.",
+          }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -73,19 +76,22 @@ export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageA
 export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid: boolean; feedback: string }> => {
   try {
     const data = base64Data.split(',')[1] || base64Data;
+    // Updated contents to use { parts: [...] } structure for multimodal requests
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [
-        {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: data,
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: data,
+            },
           },
-        },
-        {
-          text: "This image is supposed to be proof of a food delivery drop-off at an orphanage or shelter. Does it show signs of a successful delivery? Look for food packages, building entrances, or people receiving items. Respond in JSON format.",
-        }
-      ],
+          {
+            text: "This image is supposed to be proof of a food delivery drop-off at an orphanage or shelter. Does it show signs of a successful delivery? Look for food packages, building entrances, or people receiving items. Respond in JSON format.",
+          }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {

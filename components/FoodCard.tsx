@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { FoodPosting, FoodStatus, UserRole, User, Address } from '../types';
 import { getFoodSafetyTips, getRouteInsights, verifyDeliveryImage } from '../services/geminiService';
@@ -76,11 +75,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     }
   };
 
+  // Fixed line 83: Type 'Address' is not assignable to type '{ lat: number; lng: number; }'
   const handleAcceptPickup = () => {
     onUpdate(posting.id, { 
       status: FoodStatus.IN_TRANSIT, 
       volunteerId: user.id, 
-      volunteerName: user.name 
+      volunteerName: user.name,
+      volunteerLocation: (posting.location.lat !== undefined && posting.location.lng !== undefined) 
+        ? { lat: posting.location.lat, lng: posting.location.lng } 
+        : undefined
     });
     setShowAcceptConfirm(false);
   };
@@ -129,6 +132,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     isVolunteerForThis;
   
   const showChatButton = isParticipant && posting.status !== FoodStatus.AVAILABLE;
+  const showLiveTrackButton = isParticipant && posting.status === FoodStatus.IN_TRANSIT;
 
   return (
     <>
@@ -136,9 +140,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowTracking(false)}>
           <div className="bg-white rounded-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
              <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-               <div>
-                  <h3 className="font-bold text-lg text-slate-800">Live Delivery Tracking</h3>
-                  <p className="text-xs text-slate-500">Tracking {posting.volunteerName}'s vehicle</p>
+               <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-800">Live Delivery Tracking</h3>
+                    <p className="text-xs text-slate-500">Tracking {posting.volunteerName}'s progress</p>
+                  </div>
                </div>
                <button onClick={() => setShowTracking(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors">
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -176,7 +183,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
               </svg>
             </div>
             <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Confirm Pickup</h3>
-            <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">Are you sure you want to accept this pickup for <span className="text-slate-800 font-bold">"{posting.foodName}"</span>? You will be responsible for transporting it to the destination.</p>
+            <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">Are you sure you want to accept this pickup?</p>
             <div className="flex flex-col gap-3">
               <button 
                 onClick={handleAcceptPickup}
@@ -204,20 +211,6 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m4-3H6" /></svg>
               </div>
             </div>
-            {(isExpiringSoon || isExpired) && (
-              <div className={`absolute top-3 left-3 px-2 py-1 rounded shadow-lg flex items-center gap-1.5 animate-pulse z-10 ${isExpired ? 'bg-red-600 text-white' : 'bg-orange-500 text-white'}`}>
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                <span className="text-[10px] font-black uppercase tracking-tighter">
-                  {isExpired ? 'EXPIRED' : 'EXPIRING SOON'}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isZoomed && posting.imageUrl && (
-          <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsZoomed(false)}>
-            <img src={posting.imageUrl} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl" />
           </div>
         )}
 
@@ -240,61 +233,40 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             </div>
           </div>
 
-          {/* Tags */}
-          {posting.foodTags && posting.foodTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-4">
-               {posting.foodTags.map(tag => (
-                 <span key={tag} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-black rounded-md border border-slate-200">
-                   #{tag}
-                 </span>
-               ))}
-            </div>
-          )}
-
           <div className="space-y-3 mb-6">
             <div className="flex items-center text-sm text-slate-600 font-bold justify-between">
               <div className="flex items-center">
                 <svg className="w-4 h-4 mr-2 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                 Qty: {posting.quantity}
               </div>
-              <div className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${isExpiringSoon ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'text-slate-400'}`}>
-                Exp: {new Date(posting.expiryDate).toLocaleDateString()}
-              </div>
             </div>
             
             <div className="space-y-2">
               <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-black text-slate-700 uppercase text-[10px] tracking-widest">Pickup</span>
-                  {user.role === UserRole.VOLUNTEER && posting.status !== FoodStatus.DELIVERED && (
-                    <button onClick={() => handleGetRoute(posting.location, 'pickup')} className="text-blue-600 hover:underline font-black text-[9px] uppercase tracking-wider">Route</button>
-                  )}
-                </div>
+                <span className="font-black text-slate-700 uppercase text-[10px] tracking-widest block mb-1">Pickup</span>
                 <p className="leading-relaxed opacity-75">{formatAddress(posting.location)}</p>
               </div>
 
               {posting.requesterAddress && (
                 <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-100">
-                   <div className="flex justify-between items-start mb-1">
-                    <span className="font-black text-blue-700 uppercase text-[10px] tracking-widest">Drop-off</span>
-                    {user.role === UserRole.VOLUNTEER && posting.status !== FoodStatus.DELIVERED && (
-                      <button onClick={() => handleGetRoute(posting.requesterAddress!, 'dropoff')} className="text-blue-600 hover:underline font-black text-[9px] uppercase tracking-wider">Route</button>
-                    )}
-                  </div>
+                  <span className="font-black text-blue-700 uppercase text-[10px] tracking-widest block mb-1">Drop-off</span>
                   <p className="leading-relaxed opacity-75">{formatAddress(posting.requesterAddress)}</p>
-                  <p className="mt-1 text-[9px] font-black uppercase tracking-tighter text-blue-400">Target: {posting.orphanageName}</p>
                 </div>
               )}
             </div>
           </div>
 
           <div className="flex flex-col space-y-2 mt-auto">
-            {isExpired && (
-              <div className="text-center py-2 bg-red-50 rounded-xl border border-red-100">
-                 <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">This posting has expired</p>
-              </div>
+            {showLiveTrackButton && (
+              <button 
+                onClick={() => setShowTracking(true)}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-2 rounded-xl transition-all shadow-md shadow-amber-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+              >
+                <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                Live Track Delivery
+              </button>
             )}
-            
+
             {canRequest && (
               <button 
                 onClick={() => onUpdate(posting.id, { 
@@ -303,9 +275,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                   orphanageName: user.orgName || user.name,
                   requesterAddress: user.address
                 })}
-                className={`w-full text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs ${isExpiringSoon ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-100' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'}`}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs"
               >
-                Request Food {isExpiringSoon && '(Urgent)'}
+                Request Food
               </button>
             )}
 
@@ -319,21 +291,14 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             )}
 
             {canComplete && (
-              <div className="space-y-2">
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleVerificationUpload} />
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isVerifying}
-                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs flex items-center justify-center gap-2"
-                >
-                   {isVerifying ? (
-                     <div className="animate-spin h-3 w-3 border-b-2 border-white rounded-full"></div>
-                   ) : (
-                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                   )}
-                   Verify Handover
-                </button>
-              </div>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isVerifying}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+              >
+                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleVerificationUpload} />
+                 Verify Handover
+              </button>
             )}
 
             {showChatButton && (
