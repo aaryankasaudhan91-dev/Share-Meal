@@ -41,7 +41,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
         const { latitude, longitude } = pos.coords;
         setLat(latitude);
         setLng(longitude);
-        setLocationStatus('GPS Locked. Analyzing Landmarks with AI...');
+        setLocationStatus('GPS Locked. AI identifying nearby landmarks...');
         
         // AI-powered address refinement
         const address = await reverseGeocode(latitude, longitude);

@@ -161,19 +161,18 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `You are a logistics and delivery expert.
-      Provide a precise, structured address for coordinates: ${lat}, ${lng}.
+      contents: `You are an expert delivery coordinator for a food rescue mission.
+      The user is at coordinates: ${lat}, ${lng}.
       
-      CRITICAL INSTRUCTION: For the 'landmark' field, identify the most useful navigation landmark nearby (e.g., "Opposite City Mall", "Near St. John School", "Behind Central Bank"). This helps volunteers find the location easily.
+      Please find the most accurate address for this location using Google Maps data.
       
-      Return a VALID JSON object with:
-      - line1: Building Name / House Number / Flat No
-      - line2: Street / Area / Locality
-      - landmark: A distinct, easy-to-find landmark nearby
-      - pincode: 6-digit postal code
+      IMPORTANT: To help volunteers locate this spot quickly, identify a specific, highly visible "Landmark" nearby (e.g., "Opposite City Hospital", "Near Central Metro Station Gate 2", "Behind St. Mary's School").
       
-      Example JSON:
-      {"line1": "Flat 4B", "line2": "MG Road", "landmark": "Near Central Park", "pincode": "110001"}`,
+      Return a VALID JSON object (no markdown) with these fields:
+      - line1: Building/House Number & Name
+      - line2: Street & Locality
+      - landmark: The best navigation landmark
+      - pincode: 6-digit postal code`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -184,7 +183,6 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
             }
           }
         },
-        // responseMimeType: "application/json" // Incompatible with googleMaps tool
       },
     });
 
