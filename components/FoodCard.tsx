@@ -52,7 +52,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
   // Location Sharing State
   const [isLiveTracking, setIsLiveTracking] = useState(false);
-  const trackingInterval = useRef<any>(null);
+  const watchIdRef = useRef<number | null>(null);
   const lastEtaUpdateRef = useRef<number>(0);
 
   useEffect(() => {
@@ -67,11 +67,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     return () => clearInterval(interval);
   }, [posting.id]);
 
-  // Clean up tracking interval on unmount
+  // Clean up tracking watch on unmount
   useEffect(() => {
     return () => {
-        if (trackingInterval.current) {
-            clearInterval(trackingInterval.current);
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
         }
     };
   }, []);
@@ -79,7 +79,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   // Auto-stop tracking if delivered
   useEffect(() => {
     if (posting.status === FoodStatus.DELIVERED && isLiveTracking) {
-        if (trackingInterval.current) clearInterval(trackingInterval.current);
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+        }
         setIsLiveTracking(false);
     }
   }, [posting.status, isLiveTracking]);
@@ -310,28 +313,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     }
   };
 
-  const updateLocation = () => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const { latitude, longitude } = position.coords;
-            onUpdate(posting.id, {
-                volunteerLocation: { lat: latitude, lng: longitude }
-            });
-        },
-        (error) => {
-            console.error("Error getting location", error);
-            // Don't stop tracking automatically on error, as it might be temporary GPS loss
-        },
-        { enableHighAccuracy: true }
-    );
-  };
-
   const toggleLiveTracking = () => {
     if (isLiveTracking) {
         // Stop tracking
-        if (trackingInterval.current) {
-            clearInterval(trackingInterval.current);
-            trackingInterval.current = null;
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
         }
         setIsLiveTracking(false);
     } else {
@@ -342,10 +329,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         }
 
         setIsLiveTracking(true);
-        // Immediate update
-        updateLocation();
-        // Periodic update every 10 seconds
-        trackingInterval.current = setInterval(updateLocation, 10000);
+        
+        // Use watchPosition for better real-time tracking
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                onUpdate(posting.id, {
+                    volunteerLocation: { lat: latitude, lng: longitude }
+                });
+            },
+            (error) => {
+                console.error("Error watching location", error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
     }
   };
 
