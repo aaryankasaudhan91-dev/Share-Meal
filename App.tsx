@@ -64,6 +64,10 @@ const App: React.FC = () => {
   const [contactTargetUser, setContactTargetUser] = useState<User | null>(null);
   const [contactMessage, setContactMessage] = useState('');
 
+  // Requester Details Modal States
+  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false);
+  const [selectedRequesterDetails, setSelectedRequesterDetails] = useState<User | null>(null);
+
   // General UI States
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
@@ -336,6 +340,15 @@ const App: React.FC = () => {
       if (targetUser) {
           setContactTargetUser(targetUser);
           setShowContactModal(true);
+          setShowRequesterDetailsModal(false);
+      }
+  };
+
+  const handleViewRequesterDetails = (requesterId: string) => {
+      const targetUser = allUsers.find(u => u.id === requesterId);
+      if (targetUser) {
+          setSelectedRequesterDetails(targetUser);
+          setShowRequesterDetailsModal(true);
       }
   };
 
@@ -984,6 +997,7 @@ const App: React.FC = () => {
                              }
                         }}
                         onContact={handleContactRequester}
+                        onViewDetails={handleViewRequesterDetails}
                     />
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1086,6 +1100,85 @@ const App: React.FC = () => {
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        )}
+
+        {/* Requester Details Modal */}
+        {showRequesterDetailsModal && selectedRequesterDetails && (
+            <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowRequesterDetailsModal(false)}>
+                <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Organization Profile</h3>
+                        <button onClick={() => setShowRequesterDetailsModal(false)} className="text-slate-400 hover:text-slate-600">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    
+                    <div className="flex flex-col items-center mb-6">
+                        <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl font-black mb-3 border-4 border-white shadow-lg">
+                            {selectedRequesterDetails.orgName ? selectedRequesterDetails.orgName.charAt(0) : selectedRequesterDetails.name.charAt(0)}
+                        </div>
+                        <h4 className="text-xl font-bold text-slate-800 text-center">{selectedRequesterDetails.orgName || selectedRequesterDetails.name}</h4>
+                        <span className="mt-2 px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-100">
+                            {selectedRequesterDetails.orgCategory || 'Organization'}
+                        </span>
+                    </div>
+
+                    <div className="space-y-4 mb-6">
+                        {selectedRequesterDetails.address && (
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-3">
+                                <span className="bg-white p-1.5 rounded-lg shadow-sm text-slate-400 mt-0.5">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                </span>
+                                <div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Location</p>
+                                    <p className="text-sm font-medium text-slate-700 leading-tight">
+                                        {selectedRequesterDetails.address.line1}<br/>
+                                        {selectedRequesterDetails.address.line2 && <>{selectedRequesterDetails.address.line2}<br/></>}
+                                        {selectedRequesterDetails.address.landmark && <span className="text-slate-500 text-xs italic">Near {selectedRequesterDetails.address.landmark}</span>}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Requests</p>
+                                <p className="text-xl font-black text-slate-800">Active</p>
+                             </div>
+                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Verification</p>
+                                <p className="text-xl font-black text-emerald-600">Verified</p>
+                             </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => handleContactRequester(selectedRequesterDetails.id)}
+                            className="flex-1 bg-slate-900 text-white font-black py-3.5 rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-slate-200 hover:shadow-emerald-200 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                            Send Message
+                        </button>
+                        {user?.role === UserRole.DONOR && (
+                            <button 
+                                onClick={() => {
+                                    if(user) {
+                                        const updated = storage.toggleFavorite(user.id, selectedRequesterDetails.id);
+                                        if(updated) {
+                                            setUser(updated);
+                                            refreshData();
+                                        }
+                                    }
+                                }}
+                                className={`p-3.5 rounded-xl border-2 transition-all ${user.favoriteRequesterIds?.includes(selectedRequesterDetails.id) ? 'bg-amber-100 border-amber-300 text-amber-600' : 'bg-white border-slate-200 text-slate-300 hover:border-amber-300 hover:text-amber-400'}`}
+                            >
+                                <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.784.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         )}

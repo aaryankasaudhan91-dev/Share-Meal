@@ -10,9 +10,10 @@ interface RequesterMapProps {
   user?: User;
   onToggleFavorite?: (requesterId: string) => void;
   onContact?: (requesterId: string) => void;
+  onViewDetails?: (requesterId: string) => void;
 }
 
-const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation, user, onToggleFavorite, onContact }) => {
+const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation, user, onToggleFavorite, onContact, onViewDetails }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersLayerRef = useRef<any>(null);
@@ -158,34 +159,73 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
           marker.bindTooltip(`
             <div class="text-center px-1">
                 <div class="font-bold text-slate-800 text-sm">${r.orgName || r.name}</div>
-                <div class="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">${r.orgCategory || 'Organization'}</div>
             </div>
           `, { direction: 'top', offset: [0, -45], className: 'custom-tooltip shadow-sm border-0 rounded-lg px-2 py-1' });
 
-          if (user?.role === UserRole.DONOR && onContact) {
-             marker.on('click', () => onContact(r.id));
-          } else {
-             const popupContent = document.createElement('div');
-             popupContent.className = 'p-1 min-w-[160px] text-center';
-             popupContent.innerHTML = `
-               <h3 class="font-black text-sm text-slate-800 mb-0.5">${r.orgName || r.name}</h3>
-               <span class="inline-block bg-emerald-100 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full mb-2 uppercase tracking-wide">${r.orgCategory || 'Organization'}</span>
-               <p class="text-xs text-slate-500 mb-3 leading-tight">${r.address?.line1}, ${r.address?.pincode}</p>
-             `;
-             
-             if (user?.role === UserRole.DONOR && onToggleFavorite) {
-                 const btn = document.createElement('button');
-                 btn.className = `w-full text-xs font-bold py-2 px-3 rounded-lg border transition-all ${isFav ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`;
-                 btn.innerHTML = isFav ? '★ Favorited' : '☆ Add to Favorites';
-                 btn.onclick = (e) => {
-                     e.stopPropagation();
-                     onToggleFavorite(r.id);
-                 };
-                 popupContent.appendChild(btn);
-             }
+          const popupContent = document.createElement('div');
+          popupContent.className = 'p-1 min-w-[180px] text-center flex flex-col gap-2';
+          
+          // Header
+          const header = document.createElement('div');
+          header.innerHTML = `
+            <div class="flex flex-col items-center">
+                <h3 class="font-black text-sm text-slate-800 leading-tight mb-1">${r.orgName || r.name}</h3>
+                <span class="bg-emerald-100 text-emerald-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">${r.orgCategory || 'Organization'}</span>
+            </div>
+          `;
+          popupContent.appendChild(header);
 
-             marker.bindPopup(popupContent, { closeButton: false, className: 'rounded-xl overflow-hidden shadow-xl border-0' });
+          // Address
+          if (r.address) {
+              const addr = document.createElement('p');
+              addr.className = 'text-xs text-slate-500 leading-tight border-b border-slate-100 pb-2 mb-1';
+              addr.innerText = `${r.address.line1}, ${r.address.pincode}`;
+              popupContent.appendChild(addr);
           }
+
+          // Buttons Container
+          const btnGroup = document.createElement('div');
+          btnGroup.className = 'grid grid-cols-2 gap-2';
+
+          // View Details Button
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-lg transition-colors uppercase tracking-wide';
+          viewBtn.innerText = 'Details';
+          viewBtn.onclick = (e) => {
+              e.stopPropagation();
+              if (onViewDetails) onViewDetails(r.id);
+          };
+
+          // Contact Button
+          const contactBtn = document.createElement('button');
+          contactBtn.className = 'px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg transition-colors uppercase tracking-wide';
+          contactBtn.innerText = 'Contact';
+          contactBtn.onclick = (e) => {
+              e.stopPropagation();
+              if (onContact) onContact(r.id);
+          };
+
+          btnGroup.appendChild(viewBtn);
+          btnGroup.appendChild(contactBtn);
+          popupContent.appendChild(btnGroup);
+
+          // Add Fav Button at bottom if user is logged in
+          if (user && onToggleFavorite) {
+              const favBtn = document.createElement('button');
+              favBtn.className = `w-full mt-1 text-[10px] font-bold py-1 px-2 rounded-lg border transition-all flex items-center justify-center gap-1 ${isFav ? 'text-amber-500 border-amber-200 bg-amber-50' : 'text-slate-400 border-slate-100 hover:text-amber-400 hover:border-amber-200'}`;
+              favBtn.innerHTML = isFav ? '★ Favorited' : '☆ Add to Favorites';
+              favBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(r.id);
+              };
+              popupContent.appendChild(favBtn);
+          }
+
+          marker.bindPopup(popupContent, { 
+              closeButton: false, 
+              className: 'rounded-xl overflow-hidden shadow-xl border-0 p-0',
+              maxWidth: 220
+          });
           
           markersToAdd.push(marker);
         }
@@ -193,7 +233,7 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
       
       markersLayerRef.current.addLayers(markersToAdd);
     }
-  }, [requesters, user, selectedCategory, onToggleFavorite, onContact]);
+  }, [requesters, user, selectedCategory, onToggleFavorite, onContact, onViewDetails]);
 
   return (
     <div className="relative h-full w-full rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-slate-100 group">

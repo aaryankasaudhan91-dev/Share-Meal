@@ -287,6 +287,31 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     if (pickupFileInputRef.current) pickupFileInputRef.current.value = '';
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareText = `Food Rescue Opportunity! 🍎\n\nItem: ${posting.foodName}\nQuantity: ${posting.quantity}\nLocation: ${posting.location.line1}, ${posting.location.pincode}\n\nHelp us rescue this food on ShareMeal Connect! #FoodRescue #ZeroHunger`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'ShareMeal Connect Donation',
+          text: shareText,
+          url: window.location.href
+        });
+      } catch (error) {
+        console.log('Error sharing', error);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        alert('Donation details copied to clipboard!');
+      } catch (err) {
+        console.error('Failed to copy', err);
+        alert('Could not copy details.');
+      }
+    }
+  };
+
   const submitRating = () => {
     if (ratingStars === 0) {
         alert("Please select a star rating.");
@@ -426,6 +451,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
              <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </div>
         )}
+
+        {/* Share Button (Top Left) */}
+        <button 
+            onClick={handleShare}
+            className="absolute top-2 left-2 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-sm text-slate-600 hover:text-emerald-600 hover:bg-white transition-all transform hover:scale-110 active:scale-95"
+            title="Share Donation"
+        >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+        </button>
 
         {/* Quick View Overlay */}
         <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-[3px] rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center z-10 pointer-events-none">
@@ -801,8 +835,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             </>
         )}
         
-        {/* View Route Button - For Volunteer and others when In Transit */}
-        {posting.status === FoodStatus.IN_TRANSIT && posting.volunteerId && (
+        {/* View Route Button - Explicitly for IN_TRANSIT and displayed for involved parties */}
+        {posting.status === FoodStatus.IN_TRANSIT && (
             <button 
                 onClick={() => {
                     if (!showRoute && !routeData) {
@@ -810,7 +844,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     }
                     setShowRoute(!showRoute);
                 }}
-                className="flex-1 bg-amber-50 text-amber-700 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-amber-100 transition-colors shadow-sm border border-amber-100 flex items-center justify-center gap-2"
+                className={`flex-1 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-colors shadow-sm border flex items-center justify-center gap-2 ${showRoute ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'}`}
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                 {showRoute ? 'Hide Route' : 'View Route'}
