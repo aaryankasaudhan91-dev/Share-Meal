@@ -64,6 +64,7 @@ export interface FoodPosting {
   volunteerId?: string;
   volunteerName?: string;
   volunteerLocation?: { lat: number; lng: number };
+  interestedVolunteers?: { userId: string; userName: string }[]; // New: Track interested volunteers
   etaMinutes?: number;
   verificationImageUrl?: string; // New: Proof of delivery
   createdAt: number;

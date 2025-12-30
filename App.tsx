@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [isAddingFood, setIsAddingFood] = useState(false);
   const [foodName, setFoodName] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('meals');
   const [expiryDate, setExpiryDate] = useState('');
   const [foodImage, setFoodImage] = useState<string | null>(null);
   const [foodAnalysis, setFoodAnalysis] = useState<{isSafe: boolean, reasoning: string} | null>(null);
@@ -267,7 +268,7 @@ const App: React.FC = () => {
       donorId: user.id,
       donorName: user.name,
       foodName,
-      quantity,
+      quantity: `${quantity} ${unit}`,
       location: postLocation,
       expiryDate,
       status: FoodStatus.AVAILABLE,
@@ -280,6 +281,7 @@ const App: React.FC = () => {
     setIsAddingFood(false);
     setFoodName('');
     setQuantity('');
+    setUnit('meals');
     setFoodImage(null);
     setFoodAnalysis(null);
     refreshData();
@@ -586,14 +588,39 @@ const App: React.FC = () => {
                     onChange={e => setFoodName(e.target.value)} 
                     required 
                   />
-                  <input 
-                    type="text" 
-                    placeholder="Quantity (e.g., 5kg, 10 meals)" 
-                    className="px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none" 
-                    value={quantity} 
-                    onChange={e => setQuantity(e.target.value)} 
-                    required 
-                  />
+                  
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      min="1"
+                      placeholder="Qty" 
+                      className="flex-1 px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none font-medium" 
+                      value={quantity} 
+                      onChange={e => setQuantity(e.target.value)}
+                      onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                      required 
+                    />
+                    <div className="relative w-1/3 min-w-[120px]">
+                      <select 
+                        value={unit} 
+                        onChange={e => setUnit(e.target.value)}
+                        className="w-full h-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none appearance-none font-medium text-slate-700 cursor-pointer"
+                      >
+                        <option value="meals">Meals</option>
+                        <option value="servings">Servings</option>
+                        <option value="kg">kg</option>
+                        <option value="lbs">lbs</option>
+                        <option value="boxes">Boxes</option>
+                        <option value="packets">Packets</option>
+                        <option value="items">Items</option>
+                        <option value="liters">Liters</option>
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+                    </div>
+                  </div>
+
                   <input 
                     type="datetime-local" 
                     className="md:col-span-2 px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none" 
