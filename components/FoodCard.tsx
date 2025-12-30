@@ -401,14 +401,40 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
              <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </div>
         )}
+
+        {/* Quick View Overlay */}
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center z-10 pointer-events-none">
+            <div className="text-center transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 p-3">
+                 <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl shadow-2xl">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                        <span className="text-lg">📦</span>
+                        <div>
+                            <p className="text-[10px] text-emerald-300 font-black uppercase tracking-widest leading-none">Quantity</p>
+                            <p className="text-white font-bold text-sm leading-tight">{posting.quantity}</p>
+                        </div>
+                    </div>
+                    <div className="h-px w-full bg-white/10 my-2"></div>
+                    <div className="flex items-center justify-center gap-2">
+                        <span className="text-lg">⏳</span>
+                        <div>
+                            <p className="text-[10px] text-emerald-300 font-black uppercase tracking-widest leading-none">Expires</p>
+                            <p className="text-white font-bold text-sm leading-tight">
+                                {new Date(posting.expiryDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </p>
+                        </div>
+                    </div>
+                 </div>
+            </div>
+        </div>
+
         {posting.safetyVerdict?.isSafe && (
-            <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full shadow-sm flex items-center gap-1">
+            <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-20">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Safe
             </div>
         )}
         {posting.isPickedUp && (
-             <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm text-purple-700 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-sm flex items-center gap-1">
+             <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm text-purple-700 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-sm flex items-center gap-1 z-20">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                 Picked Up
              </div>
