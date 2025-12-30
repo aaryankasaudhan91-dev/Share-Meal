@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { FoodPosting, FoodStatus, UserRole, User, Address } from '../types';
 import { getFoodSafetyTips, getRouteInsights, verifyDeliveryImage } from '../services/geminiService';
@@ -206,7 +207,23 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {posting.imageUrl && (
           <div className="group relative h-48 w-full overflow-hidden bg-slate-100 border-b border-slate-100 cursor-zoom-in" onClick={() => setIsZoomed(true)}>
             <img src={posting.imageUrl} alt={posting.foodName} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
+            
+            {/* AI Verification Badge & Reasoning */}
+            {posting.safetyVerdict?.isSafe && (
+                <div className="absolute top-2 right-2 flex flex-col items-end gap-1 max-w-[70%]">
+                    <span className="bg-emerald-500/90 backdrop-blur-sm text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-sm flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                        AI Verified
+                    </span>
+                    {posting.safetyVerdict.reasoning && (
+                        <div className="bg-black/60 backdrop-blur-md text-white text-[9px] p-2 rounded-lg text-right shadow-sm border border-white/10">
+                            {posting.safetyVerdict.reasoning}
+                        </div>
+                    )}
+                </div>
+            )}
+            
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center z-0 pointer-events-none">
               <div className="bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all transform scale-75 group-hover:scale-100 backdrop-blur-sm">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m4-3H6" /></svg>
               </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Address, Notification } from './types';
 import { storage } from './services/storageService';
@@ -33,6 +34,7 @@ const App: React.FC = () => {
   const [quantity, setQuantity] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [foodImage, setFoodImage] = useState<string | null>(null);
+  const [foodAnalysis, setFoodAnalysis] = useState<{isSafe: boolean, reasoning: string} | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
@@ -133,6 +135,7 @@ const App: React.FC = () => {
       expiryDate,
       status: FoodStatus.AVAILABLE,
       imageUrl: foodImage || undefined,
+      safetyVerdict: foodAnalysis || undefined,
       createdAt: Date.now()
     };
     
@@ -141,7 +144,44 @@ const App: React.FC = () => {
     setFoodName('');
     setQuantity('');
     setFoodImage(null);
+    setFoodAnalysis(null);
     refreshData();
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("File size too large. Please upload an image under 5MB.");
+        return;
+      }
+      
+      setIsAnalyzing(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        try {
+          const analysis = await analyzeFoodSafetyImage(base64);
+          if (analysis.isSafe) {
+             setFoodImage(base64);
+             setFoodAnalysis({ isSafe: true, reasoning: analysis.reasoning });
+             // Auto-fill food name if empty and high confidence
+             if (!foodName && analysis.detectedFoodName) {
+               setFoodName(analysis.detectedFoodName);
+             }
+          } else {
+             alert(`Safety Alert: ${analysis.reasoning}`);
+             setFoodImage(null);
+             setFoodAnalysis(null);
+          }
+        } catch (error) {
+           console.error("AI Analysis Error:", error);
+           alert("Could not verify image with AI.");
+        }
+        setIsAnalyzing(false);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const updatePosting = (id: string, updates: Partial<FoodPosting>) => {
@@ -167,7 +207,7 @@ const App: React.FC = () => {
             <input 
               type="text" 
               placeholder="Username" 
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-emerald-500 outline-none"
+              className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none"
               value={loginName}
               onChange={e => setLoginName(e.target.value)}
               required
@@ -183,25 +223,145 @@ const App: React.FC = () => {
   if (view === 'REGISTER') {
     return (
       <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
-        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-emerald-100">
-          <h2 className="text-2xl font-black text-slate-800 mb-6 uppercase">Join the Mission</h2>
-          <form onSubmit={handleRegister} className="space-y-4">
-            <input type="text" placeholder="Full Name" className="w-full px-4 py-3 rounded-xl border border-slate-200" value={regName} onChange={e => setRegName(e.target.value)} required />
-            <input type="email" placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-slate-200" value={regEmail} onChange={e => setRegEmail(e.target.value)} required />
-            <select className="w-full px-4 py-3 rounded-xl border border-slate-200" value={regRole} onChange={e => setRegRole(e.target.value as UserRole)}>
-              <option value={UserRole.DONOR}>Food Donor</option>
-              <option value={UserRole.VOLUNTEER}>Volunteer</option>
-              <option value={UserRole.REQUESTER}>Orphanage / Requester</option>
-            </select>
-            {regRole === UserRole.REQUESTER && (
-              <>
-                <input type="text" placeholder="Organization Name" className="w-full px-4 py-3 rounded-xl border border-slate-200" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} required />
-                <input type="text" placeholder="Pincode" className="w-full px-4 py-3 rounded-xl border border-slate-200" value={regPincode} onChange={e => setRegPincode(e.target.value)} required />
-              </>
-            )}
-            <button className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs">Register</button>
-          </form>
-          <button onClick={() => setView('LOGIN')} className="w-full mt-4 text-slate-500 text-xs font-bold">Already registered? Login</button>
+        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-emerald-100 relative overflow-hidden">
+          {/* Decorative background element */}
+          <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+            <svg className="w-64 h-64 transform translate-x-1/2 -translate-y-1/2 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          </div>
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+                 <button onClick={() => setView('LOGIN')} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                 </button>
+                 <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Join the Mission</h2>
+            </div>
+            
+            <form onSubmit={handleRegister} className="space-y-5">
+              
+              <div className="space-y-4">
+                <div className="relative group">
+                    <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </span>
+                    <input 
+                      type="text" 
+                      placeholder="Full Name" 
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
+                      value={regName} 
+                      onChange={e => setRegName(e.target.value)} 
+                      required 
+                    />
+                </div>
+                <div className="relative group">
+                    <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2z" /></svg>
+                    </span>
+                    <input 
+                      type="email" 
+                      placeholder="Email Address" 
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
+                      value={regEmail} 
+                      onChange={e => setRegEmail(e.target.value)} 
+                      required 
+                    />
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest ml-1">I want to...</label>
+                <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { role: UserRole.DONOR, label: 'Donate', icon: '🎁', desc: 'Give Food' },
+                      { role: UserRole.VOLUNTEER, label: 'Volunteer', icon: '🚚', desc: 'Deliver' },
+                      { role: UserRole.REQUESTER, label: 'Request', icon: '🏠', desc: 'Need Food' }
+                    ].map((item) => (
+                      <button
+                        key={item.role}
+                        type="button"
+                        onClick={() => setRegRole(item.role)}
+                        className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all duration-200 relative overflow-hidden ${
+                          regRole === item.role 
+                            ? 'border-black bg-emerald-50 text-emerald-900 shadow-md transform scale-105 z-10' 
+                            : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-emerald-200 hover:bg-white hover:text-emerald-600'
+                        }`}
+                      >
+                        <span className="text-2xl mb-1">{item.icon}</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                        <span className="text-[9px] font-medium opacity-70">{item.desc}</span>
+                        {regRole === item.role && (
+                            <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        )}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {regRole === UserRole.REQUESTER && (
+                <div className="space-y-4 animate-in slide-in-from-top-4 fade-in duration-300 pt-2 border-t border-slate-100">
+                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-start gap-3 mt-2">
+                        <span className="text-lg">ℹ️</span>
+                        <p className="text-[10px] font-medium text-blue-800 leading-relaxed mt-0.5">
+                            Requester accounts are for orphanages, shelters, and NGOs. Verification may be required.
+                        </p>
+                    </div>
+                    <div className="relative group">
+                    <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </span>
+                    <input 
+                        type="text" 
+                        placeholder="Organization Name" 
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
+                        value={regOrgName} 
+                        onChange={e => setRegOrgName(e.target.value)} 
+                        required 
+                    />
+                    </div>
+                     <div className="relative group">
+                        <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                        </span>
+                            <select 
+                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all text-slate-700 font-medium appearance-none" 
+                                value={regOrgCategory} 
+                                onChange={e => setRegOrgCategory(e.target.value)}
+                            >
+                            <option value="Orphanage">Orphanage</option>
+                            <option value="Old Age Home">Old Age Home</option>
+                            <option value="Shelter">Homeless Shelter</option>
+                            <option value="NGO">NGO</option>
+                            <option value="Other">Other</option>
+                            </select>
+                            <div className="absolute right-4 top-4 pointer-events-none">
+                                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                    </div>
+                    <div className="relative group">
+                    <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </span>
+                    <input 
+                        type="text" 
+                        placeholder="Pincode" 
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
+                        value={regPincode} 
+                        onChange={e => setRegPincode(e.target.value)} 
+                        required 
+                    />
+                    </div>
+                </div>
+              )}
+
+              <button className="w-full bg-slate-900 text-white font-black py-4 rounded-xl hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg uppercase tracking-widest text-xs flex items-center justify-center gap-2 group">
+                Create Account
+                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              </button>
+            </form>
+            <div className="mt-6 text-center">
+                <p className="text-slate-400 text-xs font-medium">By registering, you agree to our <a href="#" className="underline hover:text-emerald-600">Terms</a> & <a href="#" className="underline hover:text-emerald-600">Privacy Policy</a>.</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -228,10 +388,83 @@ const App: React.FC = () => {
               </div>
               {isAddingFood && (
                 <form onSubmit={handlePostFood} className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
-                  <input type="text" placeholder="What are you donating?" className="px-4 py-3 rounded-xl border border-slate-200" value={foodName} onChange={e => setFoodName(e.target.value)} required />
-                  <input type="text" placeholder="Quantity (e.g., 5kg, 10 meals)" className="px-4 py-3 rounded-xl border border-slate-200" value={quantity} onChange={e => setQuantity(e.target.value)} required />
-                  <input type="datetime-local" className="px-4 py-3 rounded-xl border border-slate-200" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} required />
-                  <button className="md:col-span-2 bg-emerald-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs">Publish Donation</button>
+                  <input 
+                    type="text" 
+                    placeholder="What are you donating?" 
+                    className="px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none" 
+                    value={foodName} 
+                    onChange={e => setFoodName(e.target.value)} 
+                    required 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Quantity (e.g., 5kg, 10 meals)" 
+                    className="px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none" 
+                    value={quantity} 
+                    onChange={e => setQuantity(e.target.value)} 
+                    required 
+                  />
+                  <input 
+                    type="datetime-local" 
+                    className="md:col-span-2 px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none" 
+                    value={expiryDate} 
+                    onChange={e => setExpiryDate(e.target.value)} 
+                    required 
+                  />
+                  
+                   {/* Image Upload */}
+                   <div className="md:col-span-2 border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors relative group">
+                    <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={isAnalyzing}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+                    />
+                    
+                    {isAnalyzing ? (
+                         <div className="flex flex-col items-center gap-2 py-2">
+                            <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                            <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Analyzing Food Safety...</span>
+                         </div>
+                    ) : foodImage ? (
+                        <div className="relative z-20 w-full">
+                            <img src={foodImage} alt="Preview" className="h-48 w-full object-cover rounded-lg shadow-sm" />
+                            <div className="absolute top-2 right-2 flex flex-col items-end gap-1 max-w-[70%]">
+                                <span className="bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full shadow-sm flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                    AI Verified
+                                </span>
+                                {foodAnalysis?.reasoning && (
+                                    <div className="bg-black/60 backdrop-blur-md text-white text-[9px] p-2 rounded-lg text-right shadow-sm border border-white/10">
+                                        {foodAnalysis.reasoning}
+                                    </div>
+                                )}
+                                <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        setFoodImage(null);
+                                        setFoodAnalysis(null);
+                                    }}
+                                    className="bg-white text-red-500 p-1 rounded-full shadow-sm hover:bg-red-50 mt-1"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="py-2 flex flex-col items-center gap-1 pointer-events-none">
+                            <div className="bg-emerald-50 text-emerald-600 p-3 rounded-full mb-1 group-hover:scale-110 transition-transform">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            </div>
+                            <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Upload Food Photo</span>
+                            <span className="text-[10px] font-medium text-slate-400">AI will verify safety & detect food type</span>
+                        </div>
+                    )}
+                  </div>
+
+                  <button disabled={isAnalyzing} className="md:col-span-2 bg-emerald-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs disabled:opacity-50">Publish Donation</button>
                 </form>
               )}
             </div>
