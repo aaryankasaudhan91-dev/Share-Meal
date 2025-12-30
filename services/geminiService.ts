@@ -198,6 +198,34 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
   }
 };
 
+export const getAddressFromPincode = async (pincode: string): Promise<ReverseGeocodeResult | null> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `Find the location details for the Indian Pincode "${pincode}". 
+      Return a VALID JSON object (no markdown) with these fields:
+      - line1: A representative local area or locality name for this pincode.
+      - line2: The District, City, and State.
+      - landmark: A major, well-known landmark in this pincode area (or leave empty if unknown).
+      - pincode: The pincode itself.`,
+      config: {
+        tools: [{ googleMaps: {} }],
+      },
+    });
+
+    const text = response.text || "";
+    // Regex to extract JSON block if wrapped in markdown
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return null;
+  } catch (error) {
+    console.error("Pincode Lookup Error:", error);
+    return null;
+  }
+};
+
 export const getRouteInsights = async (location: string, userLat?: number, userLng?: number) => {
   try {
     const response = await ai.models.generateContent({

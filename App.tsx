@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Address, Notification } from './types';
 import { storage } from './services/storageService';
-import { analyzeFoodSafetyImage, reverseGeocode } from './services/geminiService';
+import { analyzeFoodSafetyImage, reverseGeocode, getAddressFromPincode } from './services/geminiService';
 import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
 import RequesterMap from './components/RequesterMap';
 import ProfileView from './components/ProfileView';
+import LocationPickerMap from './components/LocationPickerMap';
 
 const LOGO_URL = 'https://cdn-icons-png.flaticon.com/512/1000/1000399.png';
 
@@ -39,6 +40,7 @@ const App: React.FC = () => {
   
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [regLocationStatus, setRegLocationStatus] = useState('');
+  const [isLookingUpPincode, setIsLookingUpPincode] = useState(false);
 
   // Post Food States
   const [isAddingFood, setIsAddingFood] = useState(false);
@@ -60,11 +62,15 @@ const App: React.FC = () => {
   const [donLng, setDonLng] = useState<number | undefined>(undefined);
   const [isDetectingDonLocation, setIsDetectingDonLocation] = useState(false);
   const [donLocationStatus, setDonLocationStatus] = useState('');
+  const [isLookingUpDonPincode, setIsLookingUpDonPincode] = useState(false);
 
   // Contact Modal States
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactTargetUser, setContactTargetUser] = useState<User | null>(null);
   const [contactMessage, setContactMessage] = useState('');
+
+  // General UI States
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     refreshData();
@@ -140,6 +146,12 @@ const App: React.FC = () => {
     }
   };
 
+  const handleManualRefresh = () => {
+    setIsRefreshing(true);
+    refreshData();
+    setTimeout(() => setIsRefreshing(false), 750);
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const existing = allUsers.find(u => u.name.toLowerCase() === loginName.toLowerCase());
@@ -194,6 +206,28 @@ const App: React.FC = () => {
     );
   };
 
+  const handlePincodeLookup = async () => {
+    if (!regPincode || regPincode.length < 6) {
+        alert("Please enter a valid 6-digit pincode first.");
+        return;
+    }
+    setIsLookingUpPincode(true);
+    try {
+        const result = await getAddressFromPincode(regPincode);
+        if (result) {
+            setRegLine1(result.line1 || regLine1);
+            setRegLine2(result.line2 || regLine2);
+            setRegLandmark(result.landmark || regLandmark);
+        } else {
+            alert("Could not find details for this pincode.");
+        }
+    } catch (error) {
+        console.error(error);
+    } finally {
+        setIsLookingUpPincode(false);
+    }
+  };
+
   const handleDetectDonLocation = () => {
     setIsDetectingDonLocation(true);
     setDonLocationStatus('Locating...');
@@ -228,6 +262,28 @@ const App: React.FC = () => {
       },
       { enableHighAccuracy: true }
     );
+  };
+
+  const handleDonPincodeLookup = async () => {
+    if (!donPincode || donPincode.length < 6) {
+        alert("Please enter a valid 6-digit pincode first.");
+        return;
+    }
+    setIsLookingUpDonPincode(true);
+    try {
+        const result = await getAddressFromPincode(donPincode);
+        if (result) {
+            setDonLine1(result.line1 || donLine1);
+            setDonLine2(result.line2 || donLine2);
+            setDonLandmark(result.landmark || donLandmark);
+        } else {
+            alert("Could not find details for this pincode.");
+        }
+    } catch (error) {
+        console.error(error);
+    } finally {
+        setIsLookingUpDonPincode(false);
+    }
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -596,6 +652,15 @@ const App: React.FC = () => {
                                 {isDetectingLocation ? 'Detecting...' : 'Auto-Detect Address'}
                              </button>
 
+                             <LocationPickerMap 
+                                lat={regLat}
+                                lng={regLng}
+                                onLocationSelect={(lat, lng) => {
+                                    setRegLat(lat);
+                                    setRegLng(lng);
+                                }}
+                             />
+
                              <input 
                                 type="text" 
                                 placeholder="Address Line 1" 
@@ -613,14 +678,24 @@ const App: React.FC = () => {
                                 required 
                              />
                              <div className="grid grid-cols-2 gap-2">
-                                 <input 
-                                    type="text" 
-                                    placeholder="Pincode" 
-                                    className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
-                                    value={regPincode} 
-                                    onChange={e => setRegPincode(e.target.value)} 
-                                    required 
-                                 />
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Pincode" 
+                                        className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm pr-20" 
+                                        value={regPincode} 
+                                        onChange={e => setRegPincode(e.target.value)} 
+                                        required 
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handlePincodeLookup}
+                                        disabled={isLookingUpPincode}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg font-bold transition-colors disabled:opacity-50"
+                                    >
+                                        {isLookingUpPincode ? '...' : 'Auto-Fill'}
+                                    </button>
+                                </div>
                                  <input 
                                     type="text" 
                                     placeholder="Landmark" 
@@ -687,7 +762,15 @@ const App: React.FC = () => {
                         <p className="text-slate-500 text-sm font-medium">Here's what's happening with food rescue in your area.</p>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                         <button 
+                            onClick={handleManualRefresh}
+                            className={`p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-emerald-600 hover:border-emerald-200 shadow-sm transition-all ${isRefreshing ? 'text-emerald-600 border-emerald-200' : ''}`}
+                            title="Refresh Data"
+                         >
+                            <svg className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                         </button>
+
                          <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
                             <button 
                                 onClick={() => setDashboardMode('FEED')}
@@ -841,6 +924,7 @@ const App: React.FC = () => {
                                                 <option value="kg">kg</option>
                                                 <option value="items">Items</option>
                                                 <option value="servings">Servings</option>
+                                                <option value="pieces">Pieces</option>
                                             </select>
                                         </div>
                                         <input 
@@ -871,7 +955,24 @@ const App: React.FC = () => {
                                             <input type="text" placeholder="Line 1" value={donLine1} onChange={e => setDonLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
                                             <input type="text" placeholder="Line 2" value={donLine2} onChange={e => setDonLine2(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
                                             <div className="grid grid-cols-2 gap-2">
-                                                <input type="text" placeholder="Pincode" value={donPincode} onChange={e => setDonPincode(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
+                                                <div className="relative">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Pincode" 
+                                                        value={donPincode} 
+                                                        onChange={e => setDonPincode(e.target.value)} 
+                                                        className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none pr-16" 
+                                                        required 
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleDonPincodeLookup}
+                                                        disabled={isLookingUpDonPincode}
+                                                        className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded font-bold transition-colors disabled:opacity-50"
+                                                    >
+                                                        {isLookingUpDonPincode ? '...' : 'Auto-Fill'}
+                                                    </button>
+                                                </div>
                                                 <input type="text" placeholder="Landmark" value={donLandmark} onChange={e => setDonLandmark(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" />
                                             </div>
                                         </div>

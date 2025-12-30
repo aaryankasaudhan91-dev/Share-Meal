@@ -21,6 +21,14 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
   // Get unique categories from requesters
   const categories = ['All', 'Favorites', ...Array.from(new Set(requesters.map(r => r.orgCategory || 'Other').filter(Boolean)))];
 
+  const handleRecenter = () => {
+    if (mapInstanceRef.current && currentLocation) {
+      mapInstanceRef.current.flyTo([currentLocation.lat, currentLocation.lng], 14, {
+        duration: 1.5
+      });
+    }
+  };
+
   useEffect(() => {
     if (mapContainerRef.current && !mapInstanceRef.current) {
       // Initialize map
@@ -28,31 +36,37 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
       const initialLng = currentLocation?.lng || 78.9629;
       const initialZoom = currentLocation ? 12 : 5;
 
-      const map = L.map(mapContainerRef.current).setView([initialLat, initialLng], initialZoom);
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: false // Custom placement
+      }).setView([initialLat, initialLng], initialZoom);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // Use CartoDB Voyager tiles
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
       }).addTo(map);
 
       const markersLayer = L.layerGroup().addTo(map);
       markersLayerRef.current = markersLayer;
 
       if (currentLocation) {
-        L.marker([currentLocation.lat, currentLocation.lng], {
-            icon: L.divIcon({
-                className: 'bg-blue-600 rounded-full border-2 border-white shadow-lg',
-                iconSize: [16, 16],
-            })
-        })
+        // Pulse effect for current location
+        const pulseIcon = L.divIcon({
+            className: 'bg-transparent',
+            html: `<div class="relative flex items-center justify-center">
+                     <div class="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg z-10"></div>
+                     <div class="absolute w-12 h-12 bg-blue-500/30 rounded-full animate-ping"></div>
+                     <div class="absolute w-24 h-24 bg-blue-500/10 rounded-full animate-pulse"></div>
+                   </div>`,
+            iconSize: [0, 0]
+        });
+
+        L.marker([currentLocation.lat, currentLocation.lng], { icon: pulseIcon })
         .addTo(map)
         .bindPopup("<b>You are here</b>");
-
-        L.circle([currentLocation.lat, currentLocation.lng], {
-            color: 'blue',
-            fillColor: '#3b82f6',
-            fillOpacity: 0.1,
-            radius: 2000
-        }).addTo(map);
       }
 
       mapInstanceRef.current = map;
@@ -64,22 +78,18 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
     if (mapInstanceRef.current && markersLayerRef.current) {
       markersLayerRef.current.clearLayers();
       
-      const greenIcon = L.icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      });
-
-      const goldIcon = L.icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
+      const createCustomMarker = (colorClass: string, isFav: boolean) => L.divIcon({
+        className: 'bg-transparent group',
+        html: `<div class="relative transition-transform hover:-translate-y-1">
+                 <div class="w-8 h-8 ${colorClass} rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white font-bold relative z-10">
+                    ${isFav ? '★' : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>'}
+                 </div>
+                 <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white"></div>
+                 <div class="w-6 h-2 bg-black/20 rounded-[100%] blur-[2px] absolute top-full left-1/2 -translate-x-1/2 mt-0"></div>
+               </div>`,
+        iconSize: [32, 42],
+        iconAnchor: [16, 42],
+        popupAnchor: [0, -42]
       });
 
       let filteredRequesters = requesters;
@@ -92,36 +102,35 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
       filteredRequesters.forEach(r => {
         if (r.address?.lat && r.address?.lng) {
           const isFav = user?.favoriteRequesterIds?.includes(r.id);
-          const marker = L.marker([r.address.lat, r.address.lng], { icon: isFav ? goldIcon : greenIcon })
+          const markerIcon = createCustomMarker(isFav ? 'bg-amber-500' : 'bg-emerald-600', !!isFav);
+          
+          const marker = L.marker([r.address.lat, r.address.lng], { icon: markerIcon })
             .addTo(markersLayerRef.current);
           
-          // Always bind a tooltip for quick identification
+          // Tooltip on hover
           marker.bindTooltip(`
-            <div class="text-center">
-                <div class="font-bold text-sm">${r.orgName || r.name}</div>
-                <div class="text-xs opacity-75">${r.orgCategory || 'Organization'}</div>
+            <div class="text-center px-1">
+                <div class="font-bold text-slate-800 text-sm">${r.orgName || r.name}</div>
+                <div class="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">${r.orgCategory || 'Organization'}</div>
             </div>
-          `, { direction: 'top', offset: [0, -35] });
+          `, { direction: 'top', offset: [0, -45], className: 'custom-tooltip shadow-sm border-0 rounded-lg px-2 py-1' });
 
-          // Direct interaction for Donors vs Popup for others
+          // Click handling
           if (user?.role === UserRole.DONOR && onContact) {
-             marker.on('click', () => {
-                onContact(r.id);
-             });
+             marker.on('click', () => onContact(r.id));
           } else {
-             // Fallback to popup for non-donors (e.g. other Requesters/Volunteers browsing map)
              const popupContent = document.createElement('div');
-             popupContent.className = 'p-1 min-w-[150px]';
+             popupContent.className = 'p-1 min-w-[160px] text-center';
              popupContent.innerHTML = `
-               <h3 class="font-bold text-sm text-slate-800">${r.orgName || r.name}</h3>
-               <p class="text-xs font-bold text-emerald-600 mb-2 uppercase tracking-wide">${r.orgCategory || 'Organization'}</p>
-               <p class="text-[10px] text-slate-400 mb-2">${r.address?.line1}, ${r.address?.pincode}</p>
+               <h3 class="font-black text-sm text-slate-800 mb-0.5">${r.orgName || r.name}</h3>
+               <span class="inline-block bg-emerald-100 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full mb-2 uppercase tracking-wide">${r.orgCategory || 'Organization'}</span>
+               <p class="text-xs text-slate-500 mb-3 leading-tight">${r.address?.line1}, ${r.address?.pincode}</p>
              `;
              
              if (user?.role === UserRole.DONOR && onToggleFavorite) {
                  const btn = document.createElement('button');
-                 btn.className = `w-full text-xs font-bold py-1 px-2 rounded border ${isFav ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`;
-                 btn.innerText = isFav ? '★ Favorited' : '☆ Add to Favorites';
+                 btn.className = `w-full text-xs font-bold py-2 px-3 rounded-lg border transition-all ${isFav ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`;
+                 btn.innerHTML = isFav ? '★ Favorited' : '☆ Add to Favorites';
                  btn.onclick = (e) => {
                      e.stopPropagation();
                      onToggleFavorite(r.id);
@@ -129,7 +138,7 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
                  popupContent.appendChild(btn);
              }
 
-             marker.bindPopup(popupContent);
+             marker.bindPopup(popupContent, { closeButton: false, className: 'rounded-xl overflow-hidden shadow-xl border-0' });
           }
         }
       });
@@ -137,20 +146,31 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
   }, [requesters, user, selectedCategory, onToggleFavorite, onContact]);
 
   return (
-    <div className="relative h-full w-full rounded-2xl overflow-hidden shadow-inner bg-slate-100">
+    <div className="relative h-full w-full rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-slate-100 group">
         <div ref={mapContainerRef} className="h-full w-full z-0" />
         
+        {/* Recenter Button */}
+        {currentLocation && (
+            <button 
+                onClick={handleRecenter}
+                className="absolute bottom-6 right-14 z-[400] bg-white p-2.5 rounded-xl shadow-lg border border-slate-100 text-slate-600 hover:text-blue-600 hover:scale-110 transition-all"
+                title="Recenter on me"
+            >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </button>
+        )}
+
         {/* Filter Overlay */}
-        <div className="absolute top-4 left-4 z-[400] bg-white/90 backdrop-blur-md p-2 rounded-xl shadow-lg border border-white/50 max-w-[200px]">
+        <div className="absolute top-4 left-4 z-[400] bg-white/90 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-white/50 max-w-[200px] animate-in slide-in-from-left-2 duration-500">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">Filter Map</p>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
                 {categories.map(cat => (
                     <button
                         key={cat}
                         onClick={() => setSelectedCategory(cat)}
-                        className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all ${
+                        className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all ${
                             selectedCategory === cat 
-                            ? 'bg-slate-800 text-white shadow-md' 
+                            ? 'bg-slate-800 text-white shadow-md scale-105' 
                             : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                         }`}
                     >
@@ -161,17 +181,17 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
         </div>
 
         {/* Legend */}
-        <div className="absolute bottom-4 right-4 z-[400] bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-white/50 text-[10px] font-bold text-slate-500 space-y-1">
+        <div className="absolute bottom-4 left-4 z-[400] bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg border border-white/50 text-[10px] font-bold text-slate-500 space-y-1.5 hidden sm:block">
             <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-blue-600 border border-white shadow-sm"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 border border-white shadow-sm animate-pulse"></span>
                 <span>You</span>
             </div>
             <div className="flex items-center gap-2">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png" className="h-4 w-3" alt="" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 border border-white shadow-sm"></span>
                 <span>Requester</span>
             </div>
             <div className="flex items-center gap-2">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png" className="h-4 w-3" alt="" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 border border-white shadow-sm"></span>
                 <span>Favorite</span>
             </div>
         </div>
