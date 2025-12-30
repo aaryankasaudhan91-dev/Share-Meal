@@ -379,6 +379,17 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             </button>
         )}
 
+        {/* Mark as Received for Requester */}
+        {user.role === UserRole.REQUESTER && posting.status === FoodStatus.IN_TRANSIT && posting.orphanageId === user.id && (
+            <button 
+                onClick={() => onUpdate(posting.id, { status: FoodStatus.DELIVERED })}
+                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                Mark as Received
+            </button>
+        )}
+
         {/* Volunteer Actions */}
         {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE && (
             <button
