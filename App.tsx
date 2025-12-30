@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Address, Notification } from './types';
 import { storage } from './services/storageService';
@@ -168,7 +167,7 @@ const App: React.FC = () => {
             if (address) {
                 setRegLine1(address.line1);
                 setRegLine2(address.line2);
-                setRegLandmark(address.landmark);
+                setRegLandmark(address.landmark || '');
                 setRegPincode(address.pincode);
                 setRegLocationStatus('Location Detected!');
             } else {
@@ -204,7 +203,7 @@ const App: React.FC = () => {
             if (address) {
                 setDonLine1(address.line1);
                 setDonLine2(address.line2);
-                setDonLandmark(address.landmark);
+                setDonLandmark(address.landmark || '');
                 setDonPincode(address.pincode);
                 setDonLocationStatus('Location Detected!');
             } else {
@@ -475,161 +474,119 @@ const App: React.FC = () => {
                     </span>
                     <input 
                       type="password" 
-                      placeholder="Password" 
+                      placeholder="Create Password" 
                       className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
                       value={regPassword} 
                       onChange={e => setRegPassword(e.target.value)} 
                       required 
                     />
                 </div>
-              </div>
 
-              <div className="space-y-2 pt-2">
-                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest ml-1">I want to...</label>
-                <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { role: UserRole.DONOR, label: 'Donate', icon: '🎁', desc: 'Give Food' },
-                      { role: UserRole.VOLUNTEER, label: 'Volunteer', icon: '🚚', desc: 'Deliver' },
-                      { role: UserRole.REQUESTER, label: 'Request', icon: '🏠', desc: 'Need Food' }
-                    ].map((item) => (
-                      <button
-                        key={item.role}
-                        type="button"
-                        onClick={() => setRegRole(item.role)}
-                        className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all duration-200 relative overflow-hidden ${
-                          regRole === item.role 
-                            ? 'border-black bg-emerald-50 text-emerald-900 shadow-md transform scale-105 z-10' 
-                            : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-emerald-200 hover:bg-white hover:text-emerald-600'
-                        }`}
-                      >
-                        <span className="text-2xl mb-1">{item.icon}</span>
-                        <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
-                        <span className="text-[9px] font-medium opacity-70">{item.desc}</span>
-                        {regRole === item.role && (
-                            <div className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                        )}
-                      </button>
-                    ))}
+                <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">I want to...</label>
+                    <div className="grid grid-cols-3 gap-2">
+                        {[
+                            { role: UserRole.DONOR, label: 'Donate', icon: '🎁' },
+                            { role: UserRole.VOLUNTEER, label: 'Volunteer', icon: '🚚' },
+                            { role: UserRole.REQUESTER, label: 'Request', icon: '🏠' }
+                        ].map((option) => (
+                            <button
+                                key={option.role}
+                                type="button"
+                                onClick={() => setRegRole(option.role)}
+                                className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${regRole === option.role ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-100 bg-white text-slate-500 hover:border-emerald-200'}`}
+                            >
+                                <span className="text-lg">{option.icon}</span>
+                                <span className="text-[10px] font-black uppercase tracking-tight">{option.label}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
-              </div>
 
-              {regRole === UserRole.REQUESTER && (
-                <div className="space-y-4 animate-in slide-in-from-top-4 fade-in duration-300 pt-2 border-t border-slate-100">
-                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-start gap-3 mt-2">
-                        <span className="text-lg">ℹ️</span>
-                        <p className="text-[10px] font-medium text-blue-800 leading-relaxed mt-0.5">
-                            Requester accounts are for orphanages, shelters, and NGOs. Verification may be required.
-                        </p>
-                    </div>
-                    <div className="relative group">
-                        <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                        </span>
+                {regRole === UserRole.REQUESTER && (
+                    <div className="space-y-4 pt-4 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300">
                         <input 
-                            type="text" 
-                            placeholder="Organization Name" 
-                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
-                            value={regOrgName} 
-                            onChange={e => setRegOrgName(e.target.value)} 
-                            required 
+                          type="text" 
+                          placeholder="Organization Name" 
+                          className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                          value={regOrgName} 
+                          onChange={e => setRegOrgName(e.target.value)} 
+                          required 
                         />
-                    </div>
-                    <div className="relative group">
-                        <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                        </span>
-                        <select 
-                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all text-slate-700 font-medium appearance-none" 
+                         <select 
                             value={regOrgCategory} 
                             onChange={e => setRegOrgCategory(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all font-medium text-slate-700 text-sm"
                         >
-                            <option value="Orphanage">Orphanage</option>
-                            <option value="Old Age Home">Old Age Home</option>
-                            <option value="Shelter">Homeless Shelter</option>
-                            <option value="NGO">NGO</option>
-                            <option value="Other">Other</option>
+                            <option>Orphanage</option>
+                            <option>Old care home</option>
+                            <option>NGO's</option>
+                            <option>Other</option>
                         </select>
-                        <div className="absolute right-4 top-4 pointer-events-none">
-                            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                        </div>
-                    </div>
-                    
-                    {/* Enhanced Address Section */}
-                    <div className="space-y-3 pt-2">
-                        <div className="flex justify-between items-end">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Address Details</label>
-                            <button 
-                                type="button"
+                        
+                        <div className="space-y-2">
+                             <div className="flex justify-between items-center">
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Location</label>
+                                {isDetectingLocation && <span className="text-[9px] text-emerald-600 font-bold animate-pulse">{regLocationStatus}</span>}
+                             </div>
+                             
+                             <button 
+                                type="button" 
                                 onClick={handleDetectLocation}
                                 disabled={isDetectingLocation}
-                                className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 hover:text-emerald-700 disabled:opacity-50 transition-colors"
-                            >
-                                {isDetectingLocation ? (
-                                    <>
-                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        Detecting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                        Auto-Detect
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                        
-                        <input 
-                            type="text" 
-                            placeholder="Line 1 (House No, Building)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                            value={regLine1} 
-                            onChange={e => setRegLine1(e.target.value)} 
-                            required 
-                            disabled={isDetectingLocation}
-                        />
-                        <input 
-                            type="text" 
-                            placeholder="Line 2 (Street, Area)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                            value={regLine2} 
-                            onChange={e => setRegLine2(e.target.value)} 
-                            required 
-                            disabled={isDetectingLocation}
-                        />
-                        <div className="grid grid-cols-2 gap-3">
-                            <input 
-                                type="text" 
-                                placeholder="Landmark (Optional)" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                                value={regLandmark} 
-                                onChange={e => setRegLandmark(e.target.value)} 
-                                disabled={isDetectingLocation}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Pincode" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                                value={regPincode} 
-                                onChange={e => setRegPincode(e.target.value)} 
-                                required 
-                                disabled={isDetectingLocation}
-                            />
-                        </div>
-                        {regLocationStatus && (
-                            <p className="text-[10px] font-bold text-emerald-600 text-center animate-pulse">{regLocationStatus}</p>
-                        )}
-                    </div>
-                </div>
-              )}
+                                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors mb-2"
+                             >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                {isDetectingLocation ? 'Detecting...' : 'Auto-Detect Address'}
+                             </button>
 
-              <button className="w-full bg-slate-900 text-white font-black py-4 rounded-xl hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg uppercase tracking-widest text-xs flex items-center justify-center gap-2 group">
+                             <input 
+                                type="text" 
+                                placeholder="Address Line 1" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                value={regLine1} 
+                                onChange={e => setRegLine1(e.target.value)} 
+                                required 
+                             />
+                             <input 
+                                type="text" 
+                                placeholder="Address Line 2" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                value={regLine2} 
+                                onChange={e => setRegLine2(e.target.value)} 
+                                required 
+                             />
+                             <div className="grid grid-cols-2 gap-2">
+                                 <input 
+                                    type="text" 
+                                    placeholder="Pincode" 
+                                    className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                    value={regPincode} 
+                                    onChange={e => setRegPincode(e.target.value)} 
+                                    required 
+                                 />
+                                 <input 
+                                    type="text" 
+                                    placeholder="Landmark" 
+                                    className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                    value={regLandmark} 
+                                    onChange={e => setRegLandmark(e.target.value)} 
+                                 />
+                             </div>
+                        </div>
+                    </div>
+                )}
+
+              </div>
+
+              <button 
+                type="submit" 
+                className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 uppercase tracking-widest text-xs flex items-center justify-center gap-2 group"
+              >
                 Create Account
                 <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
               </button>
             </form>
-            <div className="mt-6 text-center">
-                <p className="text-slate-400 text-xs font-medium">By registering, you agree to our <a href="#" className="underline hover:text-emerald-600">Terms</a> & <a href="#" className="underline hover:text-emerald-600">Privacy Policy</a>.</p>
-            </div>
           </div>
         </div>
       </div>
@@ -639,257 +596,242 @@ const App: React.FC = () => {
   return (
     <Layout 
       user={user} 
-      onLogout={handleLogout} 
-      onLogoClick={() => setView('DASHBOARD')}
+      onLogout={handleLogout}
       onProfileClick={() => setView('PROFILE')}
+      onLogoClick={() => setView('DASHBOARD')}
       notifications={notifications}
-      onMarkNotificationRead={(id) => { storage.markNotificationRead(id); refreshData(); }}
+      onMarkNotificationRead={(id) => {
+          storage.markNotificationRead(id);
+          refreshData();
+      }}
+      onMarkAllNotificationsRead={() => {
+          if(user) {
+              storage.markAllNotificationsRead(user.id);
+              refreshData();
+          }
+      }}
     >
-      {view === 'PROFILE' ? (
-        <ProfileView user={user!} onUpdate={(updates) => { storage.updateUser(user!.id, updates); refreshData(); }} onBack={() => setView('DASHBOARD')} />
-      ) : (
-        <div className="space-y-8">
-          {user?.role === UserRole.DONOR && (
-            <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Post Surplus Food</h2>
-                <button onClick={() => setIsAddingFood(!isAddingFood)} className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest">{isAddingFood ? 'Close' : 'New Donation'}</button>
-              </div>
-              {isAddingFood && (
-                <form onSubmit={handlePostFood} className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
-                  <input 
-                    type="text" 
-                    placeholder="What are you donating?" 
-                    className="px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none" 
-                    value={foodName} 
-                    onChange={e => setFoodName(e.target.value)} 
-                    required 
-                  />
-                  
-                  <div className="flex gap-2">
-                    <input 
-                      type="number" 
-                      min="1"
-                      placeholder="Qty" 
-                      className="flex-1 px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none font-medium" 
-                      value={quantity} 
-                      onChange={e => setQuantity(e.target.value)}
-                      onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
-                      required 
-                    />
-                    <div className="relative w-1/3 min-w-[120px]">
-                      <select 
-                        value={unit} 
-                        onChange={e => setUnit(e.target.value)}
-                        className="w-full h-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none appearance-none font-medium text-slate-700 cursor-pointer"
-                      >
-                        <option value="meals">Meals</option>
-                        <option value="servings">Servings</option>
-                        <option value="kg">kg</option>
-                        <option value="lbs">lbs</option>
-                        <option value="boxes">Boxes</option>
-                        <option value="packets">Packets</option>
-                        <option value="items">Items</option>
-                        <option value="liters">Liters</option>
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                      </div>
+        {view === 'PROFILE' && user ? (
+            <ProfileView 
+                user={user} 
+                onUpdate={(updates) => {
+                    storage.updateUser(user.id, updates);
+                    refreshData();
+                    setUser({...user, ...updates});
+                }} 
+                onBack={() => setView('DASHBOARD')}
+            />
+        ) : (
+            <>
+                <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                            Welcome back, <span className="text-emerald-600">{user?.name}</span>
+                        </h2>
+                        <p className="text-slate-500 text-sm font-medium">Here's what's happening with food rescue in your area.</p>
                     </div>
-                  </div>
 
-                  <input 
-                    type="datetime-local" 
-                    className="md:col-span-2 px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none" 
-                    value={expiryDate} 
-                    onChange={e => setExpiryDate(e.target.value)} 
-                    required 
-                  />
-                  
-                  {/* Donation Address Section */}
-                   <div className="md:col-span-2 space-y-3 pt-2 border-t border-slate-100 mt-2">
-                        <div className="flex justify-between items-end">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Pickup Location</label>
+                    <div className="flex gap-2">
+                         <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
                             <button 
-                                type="button"
-                                onClick={handleDetectDonLocation}
-                                disabled={isDetectingDonLocation}
-                                className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 hover:text-emerald-700 disabled:opacity-50 transition-colors"
+                                onClick={() => setDashboardMode('FEED')}
+                                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${dashboardMode === 'FEED' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
                             >
-                                {isDetectingDonLocation ? (
-                                    <>
-                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        Detecting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                        Auto-Detect
-                                    </>
-                                )}
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                                Feed
+                            </button>
+                            <button 
+                                onClick={() => setDashboardMode('MAP')}
+                                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${dashboardMode === 'MAP' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                                Map
+                            </button>
+                         </div>
+                         {user?.role === UserRole.DONOR && (
+                            <button 
+                                onClick={() => setIsAddingFood(!isAddingFood)}
+                                className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                                Donate Food
+                            </button>
+                         )}
+                    </div>
+                </div>
+
+                {isAddingFood && (
+                    <div className="mb-8 bg-white p-6 rounded-3xl shadow-xl border border-emerald-100 animate-in slide-in-from-top-4 duration-300">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                <span className="bg-emerald-100 text-emerald-600 p-2 rounded-lg"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg></span>
+                                Post New Donation
+                            </h3>
+                            <button onClick={() => setIsAddingFood(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <input 
-                            type="text" 
-                            placeholder="Line 1 (House No, Building)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                            value={donLine1} 
-                            onChange={e => setDonLine1(e.target.value)} 
-                            required 
-                            disabled={isDetectingDonLocation}
-                           />
-                           <input 
-                            type="text" 
-                            placeholder="Line 2 (Street, Area)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                            value={donLine2} 
-                            onChange={e => setDonLine2(e.target.value)} 
-                            required 
-                            disabled={isDetectingDonLocation}
-                           />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <input 
-                                type="text" 
-                                placeholder="Landmark (Optional)" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                                value={donLandmark} 
-                                onChange={e => setDonLandmark(e.target.value)} 
-                                disabled={isDetectingDonLocation}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Pincode" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
-                                value={donPincode} 
-                                onChange={e => setDonPincode(e.target.value)} 
-                                required 
-                                disabled={isDetectingDonLocation}
-                            />
-                        </div>
-                        {donLocationStatus && (
-                            <p className="text-[10px] font-bold text-emerald-600 text-center animate-pulse">{donLocationStatus}</p>
+                        <form onSubmit={handlePostFood} className="space-y-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {/* Left Col */}
+                                <div className="space-y-4">
+                                     <div>
+                                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Food Image</label>
+                                        <div className="relative group">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                                className="hidden"
+                                                id="food-image-upload"
+                                            />
+                                            <label 
+                                                htmlFor="food-image-upload" 
+                                                className={`w-full h-48 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all ${foodImage ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400'}`}
+                                            >
+                                                {isAnalyzing ? (
+                                                    <div className="text-center text-emerald-600">
+                                                        <svg className="animate-spin h-8 w-8 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                        <span className="text-xs font-bold animate-pulse">AI Checking Safety...</span>
+                                                    </div>
+                                                ) : foodImage ? (
+                                                    <img src={foodImage} alt="Preview" className="h-full w-full object-cover rounded-2xl" />
+                                                ) : (
+                                                    <div className="text-center text-slate-400">
+                                                        <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                        <span className="text-xs font-bold">Upload Photo</span>
+                                                    </div>
+                                                )}
+                                            </label>
+                                            {foodAnalysis && (
+                                                <div className={`mt-2 text-xs font-bold p-2 rounded-lg flex items-start gap-2 ${foodAnalysis.isSafe ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className="text-lg mt-px">{foodAnalysis.isSafe ? '✅' : '⚠️'}</span>
+                                                    {foodAnalysis.reasoning}
+                                                </div>
+                                            )}
+                                        </div>
+                                     </div>
+                                </div>
+                                
+                                {/* Right Col */}
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Details</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="What food is this?" 
+                                            value={foodName} 
+                                            onChange={e => setFoodName(e.target.value)} 
+                                            className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700 mb-3"
+                                            required 
+                                        />
+                                        <div className="flex gap-2 mb-3">
+                                            <input 
+                                                type="number" 
+                                                placeholder="Quantity" 
+                                                value={quantity} 
+                                                onChange={e => setQuantity(e.target.value)} 
+                                                className="flex-1 px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700"
+                                                required 
+                                            />
+                                            <select 
+                                                value={unit} 
+                                                onChange={e => setUnit(e.target.value)}
+                                                className="w-28 px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700"
+                                            >
+                                                <option value="meals">Meals</option>
+                                                <option value="kg">kg</option>
+                                                <option value="items">Items</option>
+                                                <option value="servings">Servings</option>
+                                            </select>
+                                        </div>
+                                        <input 
+                                            type="datetime-local" 
+                                            value={expiryDate} 
+                                            onChange={e => setExpiryDate(e.target.value)} 
+                                            className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700 text-sm"
+                                            required 
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1.5 ml-1">
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Pickup Location</label>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleDetectDonLocation}
+                                                disabled={isDetectingDonLocation}
+                                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                                            >
+                                                {isDetectingDonLocation ? 'Locating...' : '📍 Use Current Location'}
+                                            </button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <input type="text" placeholder="Line 1" value={donLine1} onChange={e => setDonLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" required />
+                                            <input type="text" placeholder="Line 2" value={donLine2} onChange={e => setDonLine2(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" required />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="text" placeholder="Pincode" value={donPincode} onChange={e => setDonPincode(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" required />
+                                                <input type="text" placeholder="Landmark" value={donLandmark} onChange={e => setDonLandmark(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button 
+                                type="submit" 
+                                disabled={isAnalyzing}
+                                className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 uppercase tracking-widest text-sm disabled:opacity-50"
+                            >
+                                Post Donation
+                            </button>
+                        </form>
+                    </div>
+                )}
+                
+                {dashboardMode === 'MAP' ? (
+                    <RequesterMap 
+                        requesters={allUsers.filter(u => u.role === UserRole.REQUESTER)} 
+                        currentLocation={userLocation}
+                        user={user || undefined}
+                        onToggleFavorite={(id) => {
+                             if (user) {
+                                 const updated = storage.toggleFavorite(user.id, id);
+                                 if (updated) {
+                                     setUser(updated);
+                                     refreshData();
+                                 }
+                             }
+                        }}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {postings.filter(p => p.status !== FoodStatus.DELIVERED || (Date.now() - p.createdAt < 86400000)).length === 0 ? (
+                            <div className="col-span-full text-center py-20 opacity-50">
+                                <svg className="w-20 h-20 mx-auto text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                <p className="font-bold text-slate-400">No active food donations nearby.</p>
+                            </div>
+                        ) : (
+                            postings
+                                .filter(p => p.status !== FoodStatus.DELIVERED || (Date.now() - p.createdAt < 86400000)) // Show delivered items for 24h
+                                .sort((a, b) => b.createdAt - a.createdAt)
+                                .map(posting => (
+                                    <FoodCard 
+                                        key={posting.id} 
+                                        posting={posting} 
+                                        user={user!} 
+                                        onUpdate={updatePosting} 
+                                    />
+                                ))
                         )}
                     </div>
-                  
-                   {/* Image Upload */}
-                   <div className="md:col-span-2 border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors relative group">
-                    <input 
-                        type="file" 
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        disabled={isAnalyzing}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
-                    />
-                    
-                    {isAnalyzing ? (
-                         <div className="flex flex-col items-center gap-2 py-2">
-                            <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
-                            <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Analyzing Food Safety...</span>
-                         </div>
-                    ) : foodImage ? (
-                        <div className="relative z-20 w-full">
-                            <img src={foodImage} alt="Preview" className="h-48 w-full object-cover rounded-lg shadow-sm" />
-                            <div className="absolute top-2 right-2 flex flex-col items-end gap-1 max-w-[70%]">
-                                <span className="bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full shadow-sm flex items-center gap-1">
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                    AI Verified
-                                </span>
-                                {foodAnalysis?.reasoning && (
-                                    <div className="bg-black/60 backdrop-blur-md text-white text-[9px] p-2 rounded-lg text-right shadow-sm border border-white/10">
-                                        {foodAnalysis.reasoning}
-                                    </div>
-                                )}
-                                <button 
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        setFoodImage(null);
-                                        setFoodAnalysis(null);
-                                    }}
-                                    className="bg-white text-red-500 p-1 rounded-full shadow-sm hover:bg-red-50 mt-1"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="py-2 flex flex-col items-center gap-1 pointer-events-none">
-                            <div className="bg-emerald-50 text-emerald-600 p-3 rounded-full mb-1 group-hover:scale-110 transition-transform">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            </div>
-                            <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Upload Food Photo</span>
-                            <span className="text-[10px] font-medium text-slate-400">AI will verify safety & detect food type</span>
-                        </div>
-                    )}
-                  </div>
-
-                  <button disabled={isAnalyzing} className="md:col-span-2 bg-emerald-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs disabled:opacity-50">Publish Donation</button>
-                </form>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-6">
-               <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Active Postings</h2>
-                  <div className="flex bg-slate-200 p-1 rounded-xl">
-                    <button onClick={() => setDashboardMode('FEED')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${dashboardMode === 'FEED' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>Feed</button>
-                    <button onClick={() => setDashboardMode('MAP')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${dashboardMode === 'MAP' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>Map</button>
-                  </div>
-               </div>
-
-               {dashboardMode === 'FEED' ? (
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {postings.filter(p => p.status !== FoodStatus.DELIVERED).map(post => (
-                      <FoodCard key={post.id} posting={post} user={user!} onUpdate={updatePosting} />
-                    ))}
-                    {postings.filter(p => p.status !== FoodStatus.DELIVERED).length === 0 && (
-                      <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">
-                        No active food rescues found.
-                      </div>
-                    )}
-                 </div>
-               ) : (
-                 <RequesterMap requesters={allUsers.filter(u => u.role === UserRole.REQUESTER)} currentLocation={userLocation} user={user!} onToggleFavorite={(rid) => { storage.toggleFavorite(user!.id, rid); refreshData(); }} />
-               )}
-            </div>
-
-            <div className="space-y-6">
-              <div className="bg-slate-800 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
-                <div className="relative z-10">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-emerald-400 mb-1">Impact Score</h3>
-                  <div className="text-4xl font-black">{user?.impactScore || 0}</div>
-                  <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-tight">Meals Rescued & Delivered</p>
-                </div>
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200">
-                <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-4">Rescue History</h3>
-                <div className="space-y-3">
-                  {postings.filter(p => p.status === FoodStatus.DELIVERED).slice(0, 5).map(p => (
-                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                      <div className="bg-emerald-100 text-emerald-600 p-2 rounded-xl">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                      </div>
-                      <div>
-                        <div className="text-xs font-black text-slate-800">{p.foodName}</div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase">{new Date(p.createdAt).toLocaleDateString()}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                )}
+            </>
+        )}
     </Layout>
   );
 };

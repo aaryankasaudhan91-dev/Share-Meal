@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Use API_KEY directly from environment variables as per guidelines
@@ -154,7 +153,7 @@ export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid
 export interface ReverseGeocodeResult {
   line1: string;
   line2: string;
-  landmark: string;
+  landmark?: string;
   pincode: string;
 }
 
@@ -162,9 +161,19 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Provide a HIGHLY PRECISE street address for coordinates: Latitude ${lat}, Longitude ${lng}. 
-      Include the building name, apartment/suite number if identifiable, area name, nearby unique landmarks, and the 6-digit postal code. 
-      Respond ONLY with a valid JSON object containing keys: line1, line2, landmark, pincode.`,
+      contents: `You are a logistics and delivery expert.
+      Provide a precise, structured address for coordinates: ${lat}, ${lng}.
+      
+      CRITICAL INSTRUCTION: For the 'landmark' field, identify the most useful navigation landmark nearby (e.g., "Opposite City Mall", "Near St. John School", "Behind Central Bank"). This helps volunteers find the location easily.
+      
+      Return a VALID JSON object with:
+      - line1: Building Name / House Number / Flat No
+      - line2: Street / Area / Locality
+      - landmark: A distinct, easy-to-find landmark nearby
+      - pincode: 6-digit postal code
+      
+      Example JSON:
+      {"line1": "Flat 4B", "line2": "MG Road", "landmark": "Near Central Park", "pincode": "110001"}`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -174,7 +183,8 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
               longitude: lng
             }
           }
-        }
+        },
+        // responseMimeType: "application/json" // Incompatible with googleMaps tool
       },
     });
 
@@ -232,7 +242,7 @@ export const getOptimizedRoute = async (origin: string, destination: string): Pr
       model: "gemini-2.5-flash",
       contents: `You are a logistics expert. Plan the most efficient driving route from "${origin}" to "${destination}". 
       Consider standard traffic patterns for a delivery. 
-      Respond in JSON format with the following structure:
+      Respond in VALID JSON format with the following structure:
       {
         "summary": "Brief overview of the route (e.g., Via Main St)",
         "estimatedDuration": "Estimated time (e.g., 15 mins)",
@@ -241,11 +251,16 @@ export const getOptimizedRoute = async (origin: string, destination: string): Pr
       }`,
       config: {
         tools: [{ googleMaps: {} }], // Use grounding for location context
-        responseMimeType: "application/json"
+        // responseMimeType: "application/json" // Incompatible with googleMaps tool
       },
     });
-
-    return JSON.parse(response.text || 'null');
+    
+    const text = response.text || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return null;
   } catch (error) {
     console.error("Route Optimization Error:", error);
     return null;

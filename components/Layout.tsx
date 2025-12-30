@@ -10,6 +10,7 @@ interface LayoutProps {
   onLogoClick: () => void;
   notifications?: Notification[];
   onMarkNotificationRead?: (id: string) => void;
+  onMarkAllNotificationsRead?: () => void;
 }
 
 const LOGO_URL = 'https://cdn-icons-png.flaticon.com/512/1000/1000399.png';
@@ -21,7 +22,8 @@ const Layout: React.FC<LayoutProps> = ({
   onProfileClick,
   onLogoClick,
   notifications = [], 
-  onMarkNotificationRead 
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -117,9 +119,19 @@ const Layout: React.FC<LayoutProps> = ({
                     <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[100] animate-in slide-in-from-top-2 duration-200">
                       <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                         <h3 className="font-bold text-slate-700 text-sm">Recent Updates</h3>
-                        {unreadCount > 0 && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">{unreadCount} new</span>}
+                        <div className="flex items-center gap-2">
+                             {unreadCount > 0 && onMarkAllNotificationsRead && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onMarkAllNotificationsRead(); }}
+                                    className="text-[10px] text-slate-500 hover:text-emerald-600 font-bold uppercase tracking-wider hover:underline decoration-emerald-200 underline-offset-2 transition-all mr-1"
+                                >
+                                    Mark all read
+                                </button>
+                             )}
+                             {unreadCount > 0 && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">{unreadCount} new</span>}
+                        </div>
                       </div>
-                      <div className="max-h-80 overflow-y-auto">
+                      <div className="max-h-80 overflow-y-auto custom-scrollbar">
                         {notifications.length === 0 ? (
                           <div className="p-10 text-center text-slate-400 text-sm flex flex-col items-center gap-2">
                             <svg className="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>

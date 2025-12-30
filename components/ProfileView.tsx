@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, UserRole, Address } from '../types';
 import { reverseGeocode } from '../services/geminiService';
@@ -49,7 +48,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
         if (address) {
           setAddrLine1(address.line1);
           setAddrLine2(address.line2);
-          setLandmark(address.landmark);
+          setLandmark(address.landmark || '');
           setPincode(address.pincode);
         }
         

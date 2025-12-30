@@ -86,6 +86,12 @@ export const storage = {
     saveStoredNotifications(updated);
   },
 
+  markAllNotificationsRead: (userId: string) => {
+    const all = getStoredNotifications();
+    const updated = all.map(n => n.userId === userId ? { ...n, isRead: true } : n);
+    saveStoredNotifications(updated);
+  },
+
   createNotification: (userId: string, message: string, type: 'INFO' | 'ACTION' | 'SUCCESS') => {
     const notifications = getStoredNotifications();
     notifications.push({
