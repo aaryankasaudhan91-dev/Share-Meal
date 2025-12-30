@@ -47,6 +47,16 @@ const App: React.FC = () => {
   const [foodAnalysis, setFoodAnalysis] = useState<{isSafe: boolean, reasoning: string} | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // Donation Address States
+  const [donLine1, setDonLine1] = useState('');
+  const [donLine2, setDonLine2] = useState('');
+  const [donLandmark, setDonLandmark] = useState('');
+  const [donPincode, setDonPincode] = useState('');
+  const [donLat, setDonLat] = useState<number | undefined>(undefined);
+  const [donLng, setDonLng] = useState<number | undefined>(undefined);
+  const [isDetectingDonLocation, setIsDetectingDonLocation] = useState(false);
+  const [donLocationStatus, setDonLocationStatus] = useState('');
+
   useEffect(() => {
     refreshData();
     navigator.geolocation.getCurrentPosition(
@@ -93,6 +103,25 @@ const App: React.FC = () => {
 
     return () => clearInterval(trackingInterval);
   }, []);
+
+  // Pre-fill donor address when adding food
+  useEffect(() => {
+    if (isAddingFood && user?.address) {
+       setDonLine1(user.address.line1);
+       setDonLine2(user.address.line2);
+       setDonLandmark(user.address.landmark || '');
+       setDonPincode(user.address.pincode);
+       setDonLat(user.address.lat);
+       setDonLng(user.address.lng);
+    } else if (isAddingFood && !user?.address) {
+       setDonLine1('');
+       setDonLine2('');
+       setDonLandmark('');
+       setDonPincode('');
+       setDonLat(undefined);
+       setDonLng(undefined);
+    }
+  }, [isAddingFood, user]);
 
   const refreshData = () => {
     setPostings(storage.getPostings());
@@ -150,6 +179,42 @@ const App: React.FC = () => {
     );
   };
 
+  const handleDetectDonLocation = () => {
+    setIsDetectingDonLocation(true);
+    setDonLocationStatus('Locating...');
+    
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setDonLat(latitude);
+        setDonLng(longitude);
+        setDonLocationStatus('AI Analyzing Address...');
+        
+        try {
+            const address = await reverseGeocode(latitude, longitude);
+            if (address) {
+                setDonLine1(address.line1);
+                setDonLine2(address.line2);
+                setDonLandmark(address.landmark);
+                setDonPincode(address.pincode);
+                setDonLocationStatus('Location Detected!');
+            } else {
+                setDonLocationStatus('Location found. Please verify address.');
+            }
+        } catch (e) {
+            setDonLocationStatus('Manual entry required.');
+        }
+        setIsDetectingDonLocation(false);
+      },
+      (err) => {
+        alert("Could not access location. Please enter manually.");
+        setIsDetectingDonLocation(false);
+        setDonLocationStatus('');
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -188,13 +253,22 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!user) return;
     
+    const postLocation: Address = {
+        line1: donLine1,
+        line2: donLine2,
+        landmark: donLandmark,
+        pincode: donPincode,
+        lat: donLat || userLocation?.lat || 28.6139,
+        lng: donLng || userLocation?.lng || 77.2090
+    };
+
     const newPost: FoodPosting = {
       id: Math.random().toString(36).substr(2, 9),
       donorId: user.id,
       donorName: user.name,
       foodName,
       quantity,
-      location: user.address || { line1: 'Donor HQ', line2: 'Downtown', pincode: '110001', lat: 28.6139, lng: 77.2090 },
+      location: postLocation,
       expiryDate,
       status: FoodStatus.AVAILABLE,
       imageUrl: foodImage || undefined,
@@ -527,6 +601,70 @@ const App: React.FC = () => {
                     onChange={e => setExpiryDate(e.target.value)} 
                     required 
                   />
+                  
+                  {/* Donation Address Section */}
+                   <div className="md:col-span-2 space-y-3 pt-2 border-t border-slate-100 mt-2">
+                        <div className="flex justify-between items-end">
+                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Pickup Location</label>
+                            <button 
+                                type="button"
+                                onClick={handleDetectDonLocation}
+                                disabled={isDetectingDonLocation}
+                                className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 hover:text-emerald-700 disabled:opacity-50 transition-colors"
+                            >
+                                {isDetectingDonLocation ? (
+                                    <>
+                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        Detecting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                        Auto-Detect
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <input 
+                            type="text" 
+                            placeholder="Line 1 (House No, Building)" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            value={donLine1} 
+                            onChange={e => setDonLine1(e.target.value)} 
+                            required 
+                           />
+                           <input 
+                            type="text" 
+                            placeholder="Line 2 (Street, Area)" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            value={donLine2} 
+                            onChange={e => setDonLine2(e.target.value)} 
+                            required 
+                           />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <input 
+                                type="text" 
+                                placeholder="Landmark (Optional)" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                value={donLandmark} 
+                                onChange={e => setDonLandmark(e.target.value)} 
+                            />
+                            <input 
+                                type="text" 
+                                placeholder="Pincode" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                value={donPincode} 
+                                onChange={e => setDonPincode(e.target.value)} 
+                                required 
+                            />
+                        </div>
+                        {donLocationStatus && (
+                            <p className="text-[10px] font-bold text-emerald-600 text-center animate-pulse">{donLocationStatus}</p>
+                        )}
+                    </div>
                   
                    {/* Image Upload */}
                    <div className="md:col-span-2 border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors relative group">

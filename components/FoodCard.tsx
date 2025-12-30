@@ -144,7 +144,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     isVolunteerForThis;
   
   const showChatButton = isParticipant && posting.status !== FoodStatus.AVAILABLE;
-  const showLiveTrackButton = isParticipant && posting.status === FoodStatus.IN_TRANSIT;
+  const showTrackDeliveryButton = isVolunteerForThis && posting.status === FoodStatus.IN_TRANSIT;
 
   return (
     <>
@@ -285,13 +285,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
           </div>
 
           <div className="flex flex-col space-y-2 mt-auto">
-            {showLiveTrackButton && (
+            {showTrackDeliveryButton && (
               <button 
                 onClick={() => setShowTracking(true)}
                 className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-2 rounded-xl transition-all shadow-md shadow-amber-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
               >
                 <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
-                Live Track Delivery
+                Track Delivery
               </button>
             )}
 
