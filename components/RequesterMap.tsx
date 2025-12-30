@@ -114,7 +114,7 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
              popupContent.className = 'p-1 min-w-[150px]';
              popupContent.innerHTML = `
                <h3 class="font-bold text-sm text-slate-800">${r.orgName || r.name}</h3>
-               <p class="text-xs text-slate-500 mb-2">${r.orgCategory}</p>
+               <p class="text-xs font-bold text-emerald-600 mb-2 uppercase tracking-wide">${r.orgCategory || 'Organization'}</p>
                <p class="text-[10px] text-slate-400 mb-2">${r.address?.line1}, ${r.address?.pincode}</p>
              `;
              

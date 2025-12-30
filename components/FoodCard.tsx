@@ -331,8 +331,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         setIsLiveTracking(true);
         // Immediate update
         updateLocation();
-        // Periodic update every 15 seconds
-        trackingInterval.current = setInterval(updateLocation, 15000);
+        // Periodic update every 10 seconds
+        trackingInterval.current = setInterval(updateLocation, 10000);
     }
   };
 
@@ -417,12 +417,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     </p>
                 )
             })()}
-            {posting.status === FoodStatus.AVAILABLE && (
-                 <div className="mt-1 flex items-center gap-1 text-xs text-slate-500 font-medium">
-                    <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                    <span>Posted by: <span className="text-slate-700 font-bold">{posting.donorName}</span> {posting.donorOrg && <span className="text-slate-400">({posting.donorOrg})</span>}</span>
-                 </div>
-            )}
+            <div className="mt-1 flex items-center gap-1 text-xs text-slate-500 font-medium">
+                <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                <span>Posted by: <span className="text-slate-700 font-bold">{posting.donorName}</span> {posting.donorOrg && <span className="text-slate-400">({posting.donorOrg})</span>}</span>
+            </div>
         </div>
         <div className="text-right">
              {getStatusBadge()}
@@ -651,12 +649,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                              </span>
-                             Stop
+                             Stop Tracking
                          </>
                     ) : (
                         <>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            Live
+                            Live Track
                         </>
                     )}
                 </button>
@@ -845,7 +843,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 </button>
                 <TrackingMap 
                     pickupLocation={posting.location}
-                    donorName={posting.donorName}
+                    donorName={posting.donorOrg ? `${posting.donorName} (${posting.donorOrg})` : posting.donorName}
                     dropoffLocation={posting.requesterAddress}
                     orphanageName={posting.orphanageName}
                     volunteerLocation={posting.volunteerLocation}
