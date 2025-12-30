@@ -21,8 +21,10 @@ const App: React.FC = () => {
   
   // Registration States
   const [loginName, setLoginName] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState<UserRole>(UserRole.DONOR);
   
   // Requester Registration States
@@ -135,10 +137,16 @@ const App: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const existing = allUsers.find(u => u.name.toLowerCase() === loginName.toLowerCase());
+    
     if (existing) {
+      if (existing.password && existing.password !== loginPassword) {
+        alert("Incorrect password.");
+        return;
+      }
       setUser(existing);
       setNotifications(storage.getNotifications(existing.id));
       setView('DASHBOARD');
+      setLoginPassword('');
     } else {
       alert("User not found. Please register.");
     }
@@ -239,6 +247,7 @@ const App: React.FC = () => {
       id: Math.random().toString(36).substr(2, 9),
       name: regName,
       email: regEmail,
+      password: regPassword,
       role: regRole,
       orgName: regRole === UserRole.REQUESTER ? regOrgName : undefined,
       orgCategory: regRole === UserRole.REQUESTER ? regOrgCategory : undefined,
@@ -247,6 +256,7 @@ const App: React.FC = () => {
     storage.saveUser(newUser);
     setUser(newUser);
     setView('DASHBOARD');
+    setRegPassword('');
     refreshData();
   };
 
@@ -332,9 +342,10 @@ const App: React.FC = () => {
     setUser(null);
     setView('LOGIN');
     // Reset reg forms
-    setRegName(''); setRegEmail(''); setRegRole(UserRole.DONOR);
+    setRegName(''); setRegEmail(''); setRegPassword(''); setRegRole(UserRole.DONOR);
     setRegOrgName(''); setRegOrgCategory('Orphanage');
     setRegLine1(''); setRegLine2(''); setRegLandmark(''); setRegPincode('');
+    setLoginName(''); setLoginPassword('');
   };
 
   if (view === 'LOGIN') {
@@ -353,6 +364,14 @@ const App: React.FC = () => {
               className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none"
               value={loginName}
               onChange={e => setLoginName(e.target.value)}
+              required
+            />
+            <input 
+              type="password" 
+              placeholder="Password" 
+              className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none"
+              value={loginPassword}
+              onChange={e => setLoginPassword(e.target.value)}
               required
             />
             <button className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs">Login</button>
@@ -406,6 +425,19 @@ const App: React.FC = () => {
                       className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
                       value={regEmail} 
                       onChange={e => setRegEmail(e.target.value)} 
+                      required 
+                    />
+                </div>
+                <div className="relative group">
+                    <span className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    </span>
+                    <input 
+                      type="password" 
+                      placeholder="Password" 
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium" 
+                      value={regPassword} 
+                      onChange={e => setRegPassword(e.target.value)} 
                       required 
                     />
                 </div>

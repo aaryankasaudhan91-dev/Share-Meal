@@ -25,6 +25,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string; // Added password field
   role: UserRole;
   address?: Address;
   orgCategory?: string;

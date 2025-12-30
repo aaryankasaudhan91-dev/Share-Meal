@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Use API_KEY directly from environment variables as per guidelines
@@ -177,5 +178,38 @@ export const getRouteInsights = async (location: string, userLat?: number, userL
       text: "Check location on Google Maps for the best route.",
       mapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location)}`
     };
+  }
+};
+
+export interface RouteOptimizationResult {
+  summary: string;
+  estimatedDuration: string;
+  steps: string[];
+  trafficTips: string;
+}
+
+export const getOptimizedRoute = async (origin: string, destination: string): Promise<RouteOptimizationResult | null> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `You are a logistics expert. Plan the most efficient driving route from "${origin}" to "${destination}". 
+      Consider standard traffic patterns for a delivery. 
+      Respond in JSON format with the following structure:
+      {
+        "summary": "Brief overview of the route (e.g., Via Main St)",
+        "estimatedDuration": "Estimated time (e.g., 15 mins)",
+        "steps": ["Step 1", "Step 2", ...],
+        "trafficTips": "Advice on potential bottlenecks or shortcuts"
+      }`,
+      config: {
+        tools: [{ googleMaps: {} }], // Use grounding for location context
+        responseMimeType: "application/json"
+      },
+    });
+
+    return JSON.parse(response.text || 'null');
+  } catch (error) {
+    console.error("Route Optimization Error:", error);
+    return null;
   }
 };

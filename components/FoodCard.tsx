@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FoodPosting, FoodStatus, UserRole, User, Address } from '../types';
-import { getFoodSafetyTips, getRouteInsights, verifyDeliveryImage, reverseGeocode } from '../services/geminiService';
+import { getFoodSafetyTips, getRouteInsights, verifyDeliveryImage, reverseGeocode, getOptimizedRoute, RouteOptimizationResult } from '../services/geminiService';
 import TrackingMap from './TrackingMap';
 import ChatModal from './ChatModal';
 
@@ -25,6 +25,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [copied, setCopied] = useState(false);
   const [refiningAddress, setRefiningAddress] = useState<'pickup' | 'dropoff' | null>(null);
   
+  // Volunteer Assignment Confirmation
+  const [showAssignConfirm, setShowAssignConfirm] = useState(false);
+  const [selectedVolunteer, setSelectedVolunteer] = useState<{id: string, name: string} | null>(null);
+
+  // Route Optimization States
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [routeAnalysis, setRouteAnalysis] = useState<RouteOptimizationResult | null>(null);
+  const [isOptimizingRoute, setIsOptimizingRoute] = useState(false);
+  
   const [loadingRoute, setLoadingRoute] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,12 +53,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const interestCount = interestedVolunteers.length;
 
   useEffect(() => {
-    if (isZoomed || showTracking || showChat || showAcceptConfirm || showDetails || showVolunteerSelection) {
+    if (isZoomed || showTracking || showChat || showAcceptConfirm || showDetails || showVolunteerSelection || showRouteModal || showAssignConfirm) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
-  }, [isZoomed, showTracking, showChat, showAcceptConfirm, showDetails, showVolunteerSelection]);
+  }, [isZoomed, showTracking, showChat, showAcceptConfirm, showDetails, showVolunteerSelection, showRouteModal, showAssignConfirm]);
 
   const formatAddress = (addr: Address) => {
     return `${addr.line1}, ${addr.line2}${addr.landmark ? ` (Near ${addr.landmark})` : ''}, Pin: ${addr.pincode}`;
@@ -99,6 +108,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     }
   };
 
+  const handleOptimizeRoute = async () => {
+    if (!posting.requesterAddress) return;
+    setIsOptimizingRoute(true);
+    setShowRouteModal(true);
+    
+    const origin = formatAddress(posting.location);
+    const destination = formatAddress(posting.requesterAddress);
+    
+    try {
+        const result = await getOptimizedRoute(origin, destination);
+        setRouteAnalysis(result);
+    } catch (e) {
+        console.error("Failed to optimize route", e);
+    } finally {
+        setIsOptimizingRoute(false);
+    }
+  };
+
   // Logic for Volunteer expressing interest
   const handleExpressInterest = () => {
     if (hasExpressedInterest) return;
@@ -119,6 +146,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       });
       setShowDetails(false); // Close modal
       setShowVolunteerSelection(false); // Close selection modal
+      setShowAssignConfirm(false); // Close confirm modal
+      setSelectedVolunteer(null);
+  };
+
+  const initiateVolunteerAssignment = (volId: string, volName: string) => {
+      setSelectedVolunteer({ id: volId, name: volName });
+      setShowAssignConfirm(true);
   };
 
   // Legacy direct accept (still useful if no specific interest flow needed or for quick testing)
@@ -144,17 +178,17 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         try {
             const result = await verifyDeliveryImage(base64);
             if (result.isValid) {
-              alert(`Verification Successful: ${result.feedback}`);
+              alert(`AI Verification Successful: ${result.feedback}`);
               onUpdate(posting.id, { 
                 status: FoodStatus.DELIVERED, 
                 verificationImageUrl: base64 
               });
             } else {
-              alert("Verification Failed: " + result.feedback);
+              alert("AI Verification Failed: " + result.feedback);
             }
         } catch (error) {
             console.error(error);
-            alert("Unable to verify image. Please try again.");
+            alert("Unable to verify image with Gemini. Please try again.");
         } finally {
             setIsVerifying(false);
             if (fileInputRef.current) {
@@ -233,6 +267,115 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
   return (
     <>
+      {/* Assign Volunteer Confirmation Modal */}
+      {showAssignConfirm && selectedVolunteer && (
+        <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowAssignConfirm(false)}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Confirm Assignment</h3>
+                <p className="text-slate-500 text-sm mb-6 leading-relaxed font-medium">
+                    Are you sure you want to assign <b>{selectedVolunteer.name}</b> to collect this donation?
+                </p>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={() => handleApproveVolunteer(selectedVolunteer.id, selectedVolunteer.name)}
+                        className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest text-xs"
+                    >
+                        Yes, Assign Volunteer
+                    </button>
+                    <button 
+                        onClick={() => { setShowAssignConfirm(false); setSelectedVolunteer(null); }}
+                        className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Route Optimization Modal */}
+      {showRouteModal && (
+        <div className="fixed inset-0 z-[160] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowRouteModal(false)}>
+            <div className="bg-white rounded-3xl w-full max-w-lg p-0 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-amber-500 p-6 flex justify-between items-start">
+                    <div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.447-.894L15 7m0 13V7m0 0L9.553 4.553A1 1 0 019 3.618C9 3.203 9.4 3 9.8 3h4.4c.4 0 .8.203.8.618l.553 2.935" /></svg>
+                            AI Route Optimizer
+                        </h3>
+                        <p className="text-amber-100 text-sm font-medium mt-1">Smart logistics for faster delivery</p>
+                    </div>
+                    <button onClick={() => setShowRouteModal(false)} className="text-white/80 hover:text-white p-1 hover:bg-white/20 rounded-lg transition-all">
+                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    {isOptimizingRoute ? (
+                        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                            <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin"></div>
+                            <p className="text-sm font-bold text-slate-500 animate-pulse">Calculating best route...</p>
+                        </div>
+                    ) : routeAnalysis ? (
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Time</h4>
+                                    <p className="text-lg font-black text-slate-800">{routeAnalysis.estimatedDuration}</p>
+                                </div>
+                                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                                    <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Route Summary</h4>
+                                    <p className="text-sm font-bold text-amber-900">{routeAnalysis.summary}</p>
+                                </div>
+                            </div>
+                            
+                            {routeAnalysis.trafficTips && (
+                                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        Traffic Insights
+                                    </h4>
+                                    <p className="text-sm font-medium text-blue-800 leading-relaxed">{routeAnalysis.trafficTips}</p>
+                                </div>
+                            )}
+
+                            <div>
+                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-4">Turn-by-Turn Guide</h4>
+                                <div className="relative pl-4 space-y-6 border-l-2 border-slate-100">
+                                    {routeAnalysis.steps.map((step, idx) => (
+                                        <div key={idx} className="relative">
+                                            <div className="absolute -left-[21px] top-0 w-3 h-3 bg-white border-2 border-amber-500 rounded-full"></div>
+                                            <p className="text-sm font-medium text-slate-600 leading-relaxed">{step}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-center text-slate-500">Unable to calculate route.</p>
+                    )}
+                </div>
+                
+                <div className="p-4 bg-slate-50 border-t border-slate-200">
+                    <button 
+                        onClick={() => {
+                            const origin = formatAddress(posting.location);
+                            const destination = formatAddress(posting.requesterAddress!);
+                            window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`, '_blank');
+                        }}
+                        className="w-full bg-slate-800 text-white font-black py-3 rounded-xl hover:bg-slate-900 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Open Navigation in Maps
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* Full Details Modal */}
       {showDetails && (
         <div className="fixed inset-0 z-[140] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowDetails(false)}>
@@ -274,7 +417,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                             </span>
                          )}
                          {/* Expiring Soon Badge (12-24h) */}
-                         {isExpiringSoon && (
+                         {isExpiring Soon && (
                             <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-700 border border-orange-200">
                                 Expiring Soon
                             </span>
@@ -312,7 +455,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                                         </div>
                                     </div>
                                     <button 
-                                        onClick={() => handleApproveVolunteer(vol.userId, vol.userName)}
+                                        onClick={() => initiateVolunteerAssignment(vol.userId, vol.userName)}
                                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors shadow-sm"
                                     >
                                         Approve
@@ -444,10 +587,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                             <div>
                                 <p className="font-bold text-slate-800">{posting.volunteerName}</p>
                                 {posting.status === FoodStatus.IN_TRANSIT && (
-                                    <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider animate-pulse">● In Transit</span>
+                                    <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 uppercase tracking-wider bg-amber-100 px-2 py-0.5 rounded-full mt-1 border border-amber-200 w-fit">
+                                        <svg className="w-3 h-3 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                        In Transit
+                                    </span>
                                 )}
                                 {posting.status === FoodStatus.DELIVERED && (
-                                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">● Delivered</span>
+                                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full mt-1 border border-emerald-200 w-fit">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                        Delivered
+                                    </span>
                                 )}
                             </div>
                         </div>
@@ -491,7 +640,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     {interestedVolunteers.map((vol) => (
                         <button
                             key={vol.userId}
-                            onClick={() => handleApproveVolunteer(vol.userId, vol.userName)}
+                            onClick={() => initiateVolunteerAssignment(vol.userId, vol.userName)}
                             className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 transition-all group"
                         >
                             <div className="flex items-center gap-3">
@@ -606,16 +755,40 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1 mr-2">
               <h3 className="font-black text-lg text-slate-800 line-clamp-1">{posting.foodName}</h3>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-tight">By {posting.donorName}</p>
-              {posting.status === FoodStatus.IN_TRANSIT && posting.volunteerName && (
-                <div className="flex items-center gap-1.5 mt-1.5">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-                    </span>
-                    <p className="text-[10px] text-slate-600 font-bold uppercase tracking-tight">
-                        Vol: {posting.volunteerName}
+              
+              {/* Refined Donor Display */}
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                </div>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-tight">
+                     Donor: <span className="text-slate-700">{posting.donorName}</span>
+                </p>
+              </div>
+
+              {/* Refined Volunteer Display */}
+              {posting.volunteerName && (
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${posting.status === FoodStatus.DELIVERED ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                         <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    </div>
+                    <p className="text-xs font-bold uppercase tracking-tight text-slate-600 truncate max-w-[100px]">
+                        {posting.volunteerName}
                     </p>
+                    
+                    {posting.status === FoodStatus.IN_TRANSIT && (
+                         <span className="flex items-center gap-1 ml-1 bg-amber-100 text-amber-700 text-[9px] px-1.5 py-0.5 rounded-full font-black tracking-wider border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            IN TRANSIT
+                         </span>
+                    )}
+                    
+                    {posting.status === FoodStatus.DELIVERED && (
+                         <span className="flex items-center gap-1 ml-1 bg-emerald-100 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full font-black tracking-wider border border-emerald-200">
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                            DELIVERED
+                         </span>
+                    )}
                 </div>
               )}
             </div>
@@ -653,7 +826,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
               )}
             </div>
           </div>
-
+          
           <div className="space-y-3 mb-6">
             <div className="flex items-center text-sm text-slate-600 font-bold justify-between">
               <div className="flex items-center">
@@ -725,13 +898,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
               </button>
             </div>
           </div>
-
+          
           <div className="flex flex-col space-y-2 mt-auto">
+            {/* Volunteer: Route Optimization Button */}
+            {isVolunteerForThis && posting.status === FoodStatus.IN_TRANSIT && (
+              <button 
+                onClick={handleOptimizeRoute}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-2 rounded-xl transition-all shadow-md shadow-amber-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.447-.894L15 7m0 13V7m0 0L9.553 4.553A1 1 0 019 3.618C9 3.203 9.4 3 9.8 3h4.4c.4 0 .8.203.8.618l.553 2.935" /></svg>
+                Optimize Route (AI)
+              </button>
+            )}
+
             {/* Main Card View Track Button */}
             {showTrackDeliveryButton && (
               <button 
                 onClick={() => setShowTracking(true)}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-2 rounded-xl transition-all shadow-md shadow-amber-100 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                className="w-full bg-slate-700 hover:bg-slate-800 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs flex items-center justify-center gap-2"
               >
                 <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
                 Track Delivery
@@ -801,7 +985,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                  ) : (
                     <>
                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                       Upload Delivery Proof
+                       Upload Proof (AI Verified)
                     </>
                  )}
               </button>
