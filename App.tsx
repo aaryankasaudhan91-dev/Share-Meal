@@ -277,6 +277,7 @@ const App: React.FC = () => {
       id: Math.random().toString(36).substr(2, 9),
       donorId: user.id,
       donorName: user.name,
+      donorOrg: user.orgName,
       foodName,
       quantity: `${quantity} ${unit}`,
       location: postLocation,

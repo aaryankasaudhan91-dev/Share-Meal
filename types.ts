@@ -48,6 +48,7 @@ export interface FoodPosting {
   id: string;
   donorId: string;
   donorName: string;
+  donorOrg?: string; // Added donor organization
   foodName: string;
   quantity: string;
   location: Address;

@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus } from '../types';
 import { verifyDeliveryImage, getOptimizedRoute, RouteOptimizationResult } from '../services/geminiService';
+import { storage } from '../services/storageService';
 import ChatModal from './ChatModal';
 import TrackingMap from './TrackingMap';
 
@@ -18,6 +19,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showVolunteerSelection, setShowVolunteerSelection] = useState(false);
   const [showAssignConfirm, setShowAssignConfirm] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<{id: string, name: string} | null>(null);
+  const [showProofModal, setShowProofModal] = useState(false);
+  const [messageCount, setMessageCount] = useState(0);
+  
+  // ETA Editing State
+  const [isEditingEta, setIsEditingEta] = useState(false);
+  const [etaInput, setEtaInput] = useState('');
   
   // Route Optimization State
   const [routeData, setRouteData] = useState<RouteOptimizationResult | null>(null);
@@ -25,6 +32,18 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
   // Location Sharing State
   const [isSharingLocation, setIsSharingLocation] = useState(false);
+
+  useEffect(() => {
+    const checkMessages = () => {
+        const msgs = storage.getMessages(posting.id);
+        setMessageCount(msgs.length);
+    };
+    
+    checkMessages();
+    // Poll for new messages to update badge
+    const interval = setInterval(checkMessages, 3000);
+    return () => clearInterval(interval);
+  }, [posting.id]);
 
   const interestedVolunteers = posting.interestedVolunteers || [];
   const hasExpressedInterest = user.role === UserRole.VOLUNTEER && interestedVolunteers.some(v => v.userId === user.id);
@@ -102,6 +121,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         setIsVerifying(false);
       };
       reader.readAsDataURL(file);
+    }
+  };
+  
+  const saveEta = () => {
+    const mins = parseInt(etaInput);
+    if (!isNaN(mins) && mins >= 0) {
+        onUpdate(posting.id, { etaMinutes: mins });
+        setIsEditingEta(false);
+    } else {
+        alert("Please enter a valid number of minutes.");
     }
   };
 
@@ -215,6 +244,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     </p>
                 )
             })()}
+            {posting.status === FoodStatus.AVAILABLE && (
+                 <div className="mt-1 flex items-center gap-1 text-xs text-slate-500 font-medium">
+                    <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    <span>Posted by: <span className="text-slate-700 font-bold">{posting.donorName}</span> {posting.donorOrg && <span className="text-slate-400">({posting.donorOrg})</span>}</span>
+                 </div>
+            )}
         </div>
         <div className="text-right">
              {getStatusBadge()}
@@ -265,6 +300,53 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
                     DONE
                     </span>
+            )}
+        </div>
+      )}
+
+      {/* ETA Display and Edit */}
+      {posting.status === FoodStatus.IN_TRANSIT && (
+        <div className="mb-4 bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <div className="bg-blue-200 text-blue-700 p-1.5 rounded-lg">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <div>
+                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Est. Arrival</p>
+                    <p className="text-sm font-black text-blue-900">
+                        {posting.etaMinutes ? `${posting.etaMinutes} mins` : 'Calculating...'}
+                    </p>
+                </div>
+            </div>
+            
+            {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && (
+                <div className="flex items-center gap-2">
+                    {isEditingEta ? (
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-blue-200 shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                            <input 
+                                type="number" 
+                                className="w-12 text-xs font-bold p-1 outline-none text-slate-700"
+                                placeholder="Min"
+                                value={etaInput}
+                                onChange={(e) => setEtaInput(e.target.value)}
+                                autoFocus
+                            />
+                            <button onClick={saveEta} className="bg-emerald-500 text-white p-1 rounded hover:bg-emerald-600 transition-colors">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                            <button onClick={() => setIsEditingEta(false)} className="text-slate-400 hover:text-red-500 p-1 transition-colors">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            onClick={() => { setEtaInput(posting.etaMinutes?.toString() || ''); setIsEditingEta(true); }}
+                            className="text-[10px] font-bold bg-white text-blue-600 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
+                        >
+                            Update
+                        </button>
+                    )}
+                </div>
             )}
         </div>
       )}
@@ -361,14 +443,30 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 </div>
             </>
         )}
+        
+        {/* View Proof Button for Delivered Items */}
+        {posting.status === FoodStatus.DELIVERED && posting.verificationImageUrl && (
+             <button 
+                onClick={() => setShowProofModal(true)}
+                className="flex-1 bg-emerald-50 text-emerald-700 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-100 transition-colors shadow-sm border border-emerald-100 flex items-center justify-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                View Proof
+            </button>
+        )}
 
         {isInvolved && (
             <button 
                 onClick={() => setShowChat(true)}
-                className="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors"
+                className="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors relative"
                 title="Chat"
             >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                {messageCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">
+                        {messageCount}
+                    </span>
+                )}
             </button>
         )}
 
@@ -527,6 +625,35 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     >
                         Cancel
                     </button>
+                </div>
+            </div>
+        </div>
+      )}
+      
+      {/* Proof of Delivery Modal */}
+      {showProofModal && posting.verificationImageUrl && (
+        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowProofModal(false)}>
+            <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center animate-in zoom-in-95 duration-200">
+                <button onClick={() => setShowProofModal(false)} className="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition-colors backdrop-blur-sm">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+                <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10" onClick={(e) => e.stopPropagation()}>
+                    <img 
+                        src={posting.verificationImageUrl} 
+                        alt="Proof of Delivery" 
+                        className="max-w-full max-h-[80vh] object-contain"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 text-white">
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className="bg-emerald-500 p-1.5 rounded-full">
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                            <h4 className="font-black uppercase tracking-widest text-sm">Delivery Verified</h4>
+                        </div>
+                        <p className="text-xs text-slate-300 font-medium ml-8">
+                            Delivered by {posting.volunteerName}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
