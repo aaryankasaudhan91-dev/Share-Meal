@@ -29,6 +29,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showAssignConfirm, setShowAssignConfirm] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<{id: string, name: string} | null>(null);
 
+  // Volunteer Location Update State
+  const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
+
   // Route Optimization States
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [routeAnalysis, setRouteAnalysis] = useState<RouteOptimizationResult | null>(null);
@@ -166,6 +169,32 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         : undefined
     });
     setShowAcceptConfirm(false);
+  };
+
+  const handleUpdateLocation = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsUpdatingLocation(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          onUpdate(posting.id, { 
+            volunteerLocation: { lat: latitude, lng: longitude } 
+          });
+          alert("Location updated successfully!");
+          setIsUpdatingLocation(false);
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          alert("Could not fetch location. Please ensure GPS is enabled.");
+          setIsUpdatingLocation(false);
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      alert("Geolocation is not supported by your browser.");
+      setIsUpdatingLocation(false);
+    }
   };
 
   const handleVerificationUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -417,7 +446,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                             </span>
                          )}
                          {/* Expiring Soon Badge (12-24h) */}
-                         {isExpiring Soon && (
+                         {isExpiringSoon && (
                             <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-700 border border-orange-200">
                                 Expiring Soon
                             </span>
@@ -919,6 +948,27 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
               >
                 <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
                 Track Delivery
+              </button>
+            )}
+            
+            {/* Volunteer: Update Location Button */}
+            {isVolunteerForThis && posting.status === FoodStatus.IN_TRANSIT && (
+              <button 
+                onClick={handleUpdateLocation}
+                disabled={isUpdatingLocation}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+              >
+                {isUpdatingLocation ? (
+                   <>
+                      <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Updating...
+                   </>
+                ) : (
+                   <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      Update My Location
+                   </>
+                )}
               </button>
             )}
 

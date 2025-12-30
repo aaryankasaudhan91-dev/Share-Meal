@@ -350,33 +350,73 @@ const App: React.FC = () => {
 
   if (view === 'LOGIN') {
     return (
-      <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
-        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-emerald-100">
-          <div className="text-center mb-8">
-            <img src={LOGO_URL} className="h-16 w-16 mx-auto mb-4" alt="Logo" />
-            <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">ShareMeal</h1>
-            <p className="text-emerald-600 font-bold text-xs uppercase tracking-widest">Connect</p>
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-slate-100 flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Decorative Background Elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+            <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-emerald-200/20 rounded-full blur-3xl animate-pulse"></div>
+            <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-blue-200/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+            <div className="absolute bottom-[10%] left-[20%] w-[35%] h-[35%] bg-amber-200/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+        </div>
+
+        <div className="bg-white/90 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-white/50 relative z-10 animate-in fade-in zoom-in-95 duration-500">
+          <div className="text-center mb-10">
+            <div className="inline-block relative">
+                <div className="absolute inset-0 bg-emerald-200 rounded-full blur-xl opacity-50"></div>
+                <img src={LOGO_URL} className="h-20 w-20 mx-auto mb-4 relative z-10 transform hover:scale-110 transition-transform duration-300" alt="Logo" />
+            </div>
+            <h1 className="text-4xl font-black text-slate-800 tracking-tight mb-1">ShareMeal</h1>
+            <p className="text-emerald-600 font-bold text-xs uppercase tracking-[0.3em]">Rescue • Feed • Protect</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input 
-              type="text" 
-              placeholder="Username" 
-              className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none"
-              value={loginName}
-              onChange={e => setLoginName(e.target.value)}
-              required
-            />
-            <input 
-              type="password" 
-              placeholder="Password" 
-              className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none"
-              value={loginPassword}
-              onChange={e => setLoginPassword(e.target.value)}
-              required
-            />
-            <button className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs">Login</button>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-4">
+                <div className="relative group">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </span>
+                    <input 
+                      type="text" 
+                      placeholder="Username" 
+                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all placeholder:text-slate-400 font-bold text-slate-700"
+                      value={loginName}
+                      onChange={e => setLoginName(e.target.value)}
+                      required
+                    />
+                </div>
+                <div className="relative group">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    </span>
+                    <input 
+                      type="password" 
+                      placeholder="Password" 
+                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all placeholder:text-slate-400 font-bold text-slate-700"
+                      value={loginPassword}
+                      onChange={e => setLoginPassword(e.target.value)}
+                      required
+                    />
+                </div>
+            </div>
+
+            <button className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-slate-200 hover:shadow-emerald-200 uppercase tracking-widest text-xs flex items-center justify-center gap-2 group">
+                Login
+                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            </button>
           </form>
-          <button onClick={() => setView('REGISTER')} className="w-full mt-4 text-slate-500 text-xs font-bold hover:text-emerald-600">Don't have an account? Register</button>
+
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+            <p className="text-slate-400 text-xs font-bold mb-3">New to ShareMeal?</p>
+            <button 
+                onClick={() => setView('REGISTER')} 
+                className="text-emerald-600 hover:text-emerald-700 font-black text-sm hover:underline decoration-2 underline-offset-4 transition-all"
+            >
+                Create an Account
+            </button>
+          </div>
+        </div>
+        
+        <div className="absolute bottom-6 text-center w-full z-10 pointer-events-none">
+            <p className="text-[10px] font-bold text-slate-400/60 uppercase tracking-widest">Ending Hunger • Reducing Waste</p>
         </div>
       </div>
     );
