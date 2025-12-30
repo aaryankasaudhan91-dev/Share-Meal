@@ -29,6 +29,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   // Route Optimization State
   const [routeData, setRouteData] = useState<RouteOptimizationResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
+  const [showRoute, setShowRoute] = useState(false);
 
   // Location Sharing State
   const [isSharingLocation, setIsSharingLocation] = useState(false);
@@ -211,7 +212,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   };
 
   return (
-    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
       {/* Image Section */}
       <div className="relative mb-4">
         {posting.imageUrl ? (
@@ -444,6 +445,22 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             </>
         )}
         
+        {/* View Route Button - For Volunteer and others when In Transit */}
+        {posting.status === FoodStatus.IN_TRANSIT && posting.volunteerId && (
+            <button 
+                onClick={() => {
+                    if (!showRoute && !routeData) {
+                        handleOptimizeRoute();
+                    }
+                    setShowRoute(!showRoute);
+                }}
+                className="flex-1 bg-amber-50 text-amber-700 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-amber-100 transition-colors shadow-sm border border-amber-100 flex items-center justify-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                {showRoute ? 'Hide Route' : 'View Route'}
+            </button>
+        )}
+        
         {/* View Proof Button for Delivered Items */}
         {posting.status === FoodStatus.DELIVERED && posting.verificationImageUrl && (
              <button 
@@ -483,34 +500,30 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         )}
       </div>
 
-      {/* Route Optimization Section for Volunteer */}
-      {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.IN_TRANSIT && posting.volunteerId === user.id && (
-        <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+      {/* Route Optimization Section - Controlled by showRoute */}
+      {showRoute && (
+        <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex justify-between items-center mb-3">
                 <h4 className="font-black text-slate-700 text-xs uppercase tracking-widest flex items-center gap-2">
-                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-                    Smart Delivery Route
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    Delivery Route
                 </h4>
                 <button 
                     onClick={handleOptimizeRoute}
                     disabled={loadingRoute}
-                    className="text-[10px] font-bold bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all flex items-center gap-1"
+                    className="text-[10px] font-bold text-slate-400 hover:text-emerald-600 transition-colors"
                 >
-                    {loadingRoute ? (
-                        <>
-                            <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            Optimizing...
-                        </>
-                    ) : (
-                        <>
-                           {routeData ? 'Refresh Route' : 'Generate Route'}
-                        </>
-                    )}
+                   {loadingRoute ? 'Loading...' : 'Refresh'}
                 </button>
             </div>
             
-            {routeData && (
-                <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
+            {loadingRoute ? (
+                 <div className="flex flex-col items-center justify-center py-6 text-slate-400 gap-2">
+                     <svg className="animate-spin w-6 h-6" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                     <span className="text-xs font-medium">Calculating optimal path...</span>
+                 </div>
+            ) : routeData ? (
+                <div className="space-y-3">
                     <div className="flex gap-3">
                         <div className="flex-1 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Est. Time</p>
@@ -546,6 +559,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                          </ul>
                     </div>
                 </div>
+            ) : (
+                 <div className="text-center py-4 text-xs text-slate-500">
+                    Unable to load route data.
+                 </div>
             )}
         </div>
       )}
