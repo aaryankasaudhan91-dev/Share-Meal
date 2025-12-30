@@ -11,6 +11,7 @@ interface TrackingMapProps {
   orphanageName?: string;
   volunteerLocation?: { lat: number; lng: number };
   volunteerName?: string;
+  isPickedUp?: boolean;
 }
 
 const TrackingMap: React.FC<TrackingMapProps> = ({ 
@@ -19,11 +20,13 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
   dropoffLocation, 
   orphanageName,
   volunteerLocation,
-  volunteerName 
+  volunteerName,
+  isPickedUp
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<{ [key: string]: any }>({});
+  const routeLineRef = useRef<any>(null);
 
   useEffect(() => {
     if (mapContainerRef.current && !mapInstanceRef.current) {
@@ -85,11 +88,15 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
     if (pickupLocation.lat && pickupLocation.lng) {
       if (!markersRef.current.pickup) {
         markersRef.current.pickup = L.marker([pickupLocation.lat, pickupLocation.lng], {
-          icon: createEmojiIcon('📦', 'bg-emerald-500 text-white')
+          icon: createEmojiIcon('📦', 'bg-emerald-500 text-white', !isPickedUp && !volunteerLocation)
         }).addTo(map).bindPopup(getPickupPopup());
       } else {
         markersRef.current.pickup.setLatLng([pickupLocation.lat, pickupLocation.lng]);
         markersRef.current.pickup.setPopupContent(getPickupPopup());
+        // Dim pickup marker if already picked up
+        if (isPickedUp) {
+            markersRef.current.pickup.setOpacity(0.5);
+        }
       }
     }
 
@@ -105,7 +112,7 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
       }
     }
 
-    // Update Volunteer Marker
+    // Update Volunteer Marker and Route Line
     if (volunteerLocation) {
       if (!markersRef.current.volunteer) {
         markersRef.current.volunteer = L.marker([volunteerLocation.lat, volunteerLocation.lng], {
@@ -115,21 +122,54 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
         markersRef.current.volunteer.setLatLng([volunteerLocation.lat, volunteerLocation.lng]);
         markersRef.current.volunteer.setPopupContent(getVolunteerPopup());
       }
+
+      // Draw Route Line
+      const routePoints: [number, number][] = [];
+      routePoints.push([volunteerLocation.lat, volunteerLocation.lng]); // Start at volunteer
+
+      if (!isPickedUp && pickupLocation.lat && pickupLocation.lng) {
+        // Volunteer -> Pickup
+        routePoints.push([pickupLocation.lat, pickupLocation.lng]);
+      } else if (isPickedUp && dropoffLocation?.lat && dropoffLocation?.lng) {
+        // Volunteer -> Dropoff
+        routePoints.push([dropoffLocation.lat, dropoffLocation.lng]);
+      }
+
+      if (routeLineRef.current) {
+        routeLineRef.current.setLatLngs(routePoints);
+      } else {
+        routeLineRef.current = L.polyline(routePoints, {
+            color: isPickedUp ? '#3b82f6' : '#10b981', // Blue for dropoff, Green for pickup
+            weight: 4,
+            opacity: 0.7,
+            dashArray: '10, 10', // Dashed line to indicate projected path
+            lineCap: 'round'
+        }).addTo(map);
+      }
+      
+      // Smoothly pan map to follow volunteer, keeping destination in view if possible
+      const bounds = L.latLngBounds(routePoints);
+      map.flyToBounds(bounds, { 
+          padding: [50, 50], 
+          maxZoom: 16, 
+          animate: true,
+          duration: 1.5 // Smooth animation duration
+      });
+
+    } else {
+      // If no volunteer, just fit markers
+      const activeMarkers = [
+        markersRef.current.pickup,
+        markersRef.current.dropoff
+      ].filter(Boolean);
+
+      if (activeMarkers.length > 0) {
+        const group = L.featureGroup(activeMarkers);
+        map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 15 });
+      }
     }
 
-    // Fit Bounds periodically or when locations change
-    const activeMarkers = [
-      markersRef.current.pickup,
-      markersRef.current.dropoff,
-      markersRef.current.volunteer
-    ].filter(Boolean);
-
-    if (activeMarkers.length > 0) {
-      const group = L.featureGroup(activeMarkers);
-      map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 15 });
-    }
-
-  }, [pickupLocation, donorName, dropoffLocation, orphanageName, volunteerLocation, volunteerName]);
+  }, [pickupLocation, donorName, dropoffLocation, orphanageName, volunteerLocation, volunteerName, isPickedUp]);
 
   return <div ref={mapContainerRef} className="h-full w-full rounded-xl z-0" />;
 };

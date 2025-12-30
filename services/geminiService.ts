@@ -87,7 +87,7 @@ export const verifyPickupImage = async (base64Data: string): Promise<{ isValid: 
             },
           },
           {
-            text: "This image is proof of a volunteer picking up food from a donor. Does it show food containers, boxes, or people handing over items? Respond in JSON format.",
+            text: "Analyze this image to verify a food pickup. It MUST show food containers, boxes, bags of food, or people handing over items. If the image is black, blurry, or shows something irrelevant (like a floor, ceiling, or selfie without food), set isValid to false. Respond in JSON format.",
           }
         ]
       },
@@ -96,8 +96,8 @@ export const verifyPickupImage = async (base64Data: string): Promise<{ isValid: 
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            isValid: { type: Type.BOOLEAN, description: "Whether the image looks like a pickup proof" },
-            feedback: { type: Type.STRING, description: "Brief confirmation or feedback about the pickup" }
+            isValid: { type: Type.BOOLEAN, description: "Whether the image looks like a valid pickup proof" },
+            feedback: { type: Type.STRING, description: "Brief confirmation or specific feedback about why it failed" }
           },
           required: ["isValid", "feedback"]
         }
@@ -126,7 +126,7 @@ export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid
             },
           },
           {
-            text: "This image is supposed to be proof of a food delivery drop-off at an orphanage or shelter. Does it show signs of a successful delivery? Look for food packages, building entrances, or people receiving items. Respond in JSON format.",
+            text: "Analyze this image to verify a food delivery drop-off. It MUST show food items being delivered, a building entrance (orphanage/shelter), or people receiving food. If the image is irrelevant or unclear, set isValid to false. Respond in JSON format.",
           }
         ]
       },
@@ -135,8 +135,8 @@ export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            isValid: { type: Type.BOOLEAN, description: "Whether the image looks like a delivery proof" },
-            feedback: { type: Type.STRING, description: "A friendly comment about the delivery verification" }
+            isValid: { type: Type.BOOLEAN, description: "Whether the image looks like a valid delivery proof" },
+            feedback: { type: Type.STRING, description: "A friendly comment about the delivery verification or rejection reason" }
           },
           required: ["isValid", "feedback"]
         }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus, Rating } from '../types';
 import { verifyDeliveryImage, verifyPickupImage, getOptimizedRoute, calculateLiveEta, RouteOptimizationResult } from '../services/geminiService';
@@ -19,7 +18,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showVolunteerSelection, setShowVolunteerSelection] = useState(false);
   const [showAssignConfirm, setShowAssignConfirm] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<{id: string, name: string} | null>(null);
+  
+  // Proof Viewing State
   const [showProofModal, setShowProofModal] = useState(false);
+  const [viewingProofType, setViewingProofType] = useState<'PICKUP' | 'DELIVERY'>('DELIVERY');
+
   const [messageCount, setMessageCount] = useState(0);
   
   // Delivery/Pickup Confirmation State
@@ -85,7 +88,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         if (
             posting.status === FoodStatus.IN_TRANSIT && 
             user.role === UserRole.VOLUNTEER && 
-            posting.volunteerId === user.id &&
+            posting.volunteerId === user.id && 
             posting.volunteerLocation && 
             posting.requesterAddress &&
             (now - lastEtaUpdateRef.current > 60000)
@@ -235,7 +238,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     if (deliveryUpdatePayload) {
         onUpdate(posting.id, deliveryUpdatePayload);
         if (verificationFeedback) {
-            alert(`${verificationType === 'PICKUP' ? 'Pickup' : 'Delivery'} Verified! ${verificationFeedback}`);
+            // Keep silent on success, let the notification system handle it or show a toast
         }
         setShowDeliverConfirm(false);
         setDeliveryUpdatePayload(null);
@@ -333,6 +336,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     }
   };
 
+  const handleViewProof = (type: 'PICKUP' | 'DELIVERY') => {
+    setViewingProofType(type);
+    setShowProofModal(true);
+  };
+
   const isInvolved = 
     posting.donorId === user.id || 
     posting.orphanageId === user.id || 
@@ -365,6 +373,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       default: return null;
     }
   };
+
+  const proofImageToShow = viewingProofType === 'DELIVERY' ? posting.verificationImageUrl : posting.pickupVerificationImageUrl;
+  const confirmationPreviewImage = deliveryUpdatePayload?.verificationImageUrl || deliveryUpdatePayload?.pickupVerificationImageUrl;
 
   return (
     <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
@@ -603,7 +614,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                Confirm Pickup
+                Accept & Start Pickup
             </button>
         )}
 
@@ -655,6 +666,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         <input 
                             type="file" 
                             accept="image/*"
+                            capture="environment"
                             onChange={handlePickupVerification}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                             disabled={isVerifying}
@@ -672,6 +684,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         <input 
                             type="file" 
                             accept="image/*"
+                            capture="environment"
                             onChange={handleDeliveryVerification}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                             disabled={isVerifying}
@@ -707,12 +720,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {/* View Proof Button for Delivered Items */}
         {posting.status === FoodStatus.DELIVERED && posting.verificationImageUrl && (
              <button 
-                onClick={() => setShowProofModal(true)}
+                onClick={() => handleViewProof('DELIVERY')}
                 title="View delivery verification photo"
                 className="flex-1 bg-emerald-50 text-emerald-700 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-100 transition-colors shadow-sm border border-emerald-100 flex items-center justify-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                View Proof
+                Delivery Proof
+            </button>
+        )}
+
+        {/* View Pickup Proof Button for Picked Up Items */}
+        {posting.isPickedUp && posting.pickupVerificationImageUrl && (
+             <button 
+                onClick={() => handleViewProof('PICKUP')}
+                title="View pickup verification photo"
+                className="flex-1 bg-purple-50 text-purple-700 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-100 transition-colors shadow-sm border border-purple-100 flex items-center justify-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                Pickup Proof
             </button>
         )}
 
@@ -825,6 +850,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     orphanageName={posting.orphanageName}
                     volunteerLocation={posting.volunteerLocation}
                     volunteerName={posting.volunteerName}
+                    isPickedUp={posting.isPickedUp}
                 />
              </div>
         </div>
@@ -955,6 +981,18 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         <p className="text-xs text-emerald-800 font-bold">{verificationFeedback}</p>
                     </div>
                 )}
+                
+                {/* Show Image Preview */}
+                {(deliveryUpdatePayload?.verificationImageUrl || deliveryUpdatePayload?.pickupVerificationImageUrl) && (
+                    <div className="mb-6 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                        <img 
+                            src={deliveryUpdatePayload.verificationImageUrl || deliveryUpdatePayload.pickupVerificationImageUrl} 
+                            alt="Verification Proof" 
+                            className="w-full h-40 object-cover" 
+                        />
+                    </div>
+                )}
+
                 <p className="text-slate-500 text-sm mb-6 leading-relaxed font-medium">
                     {verificationFeedback 
                         ? (verificationType === 'PICKUP' ? "The pickup has been verified. Proceed to delivery?" : "The proof of delivery is valid. Mark this donation as delivered?")
@@ -978,8 +1016,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         </div>
       )}
       
-      {/* Proof of Delivery Modal */}
-      {showProofModal && posting.verificationImageUrl && (
+      {/* Proof of Delivery/Pickup Modal */}
+      {showProofModal && proofImageToShow && (
         <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowProofModal(false)}>
             <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center animate-in zoom-in-95 duration-200">
                 <button onClick={() => setShowProofModal(false)} className="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition-colors backdrop-blur-sm">
@@ -987,19 +1025,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 </button>
                 <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10" onClick={(e) => e.stopPropagation()}>
                     <img 
-                        src={posting.verificationImageUrl} 
-                        alt="Proof of Delivery" 
+                        src={proofImageToShow} 
+                        alt={viewingProofType === 'DELIVERY' ? "Proof of Delivery" : "Proof of Pickup"} 
                         className="max-w-full max-h-[80vh] object-contain"
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 text-white">
                         <div className="flex items-center gap-2 mb-1">
-                            <div className="bg-emerald-500 p-1.5 rounded-full">
+                            <div className={`${viewingProofType === 'DELIVERY' ? 'bg-emerald-500' : 'bg-purple-500'} p-1.5 rounded-full`}>
                                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
                             </div>
-                            <h4 className="font-black uppercase tracking-widest text-sm">Delivery Verified</h4>
+                            <h4 className="font-black uppercase tracking-widest text-sm">
+                                {viewingProofType === 'DELIVERY' ? 'Delivery Verified' : 'Pickup Verified'}
+                            </h4>
                         </div>
                         <p className="text-xs text-slate-300 font-medium ml-8">
-                            Delivered by {posting.volunteerName}
+                            {viewingProofType === 'DELIVERY' 
+                                ? `Delivered by ${posting.volunteerName}`
+                                : `Picked up by ${posting.volunteerName}`
+                            }
                         </p>
                     </div>
                 </div>

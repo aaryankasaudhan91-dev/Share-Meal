@@ -60,6 +60,7 @@ export interface FoodPosting {
   donorName: string;
   donorOrg?: string; // Added donor organization
   foodName: string;
+  foodCategory?: string; // New field for categorization
   quantity: string;
   location: Address;
   expiryDate: string;

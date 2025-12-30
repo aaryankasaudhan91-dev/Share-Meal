@@ -15,8 +15,9 @@ const App: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
-  const [dashboardMode, setDashboardMode] = useState<'FEED' | 'MAP'>('FEED');
+  const [dashboardMode, setDashboardMode] = useState<'FEED' | 'MAP' | 'TASKS'>('FEED');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Registration States
   const [loginName, setLoginName] = useState('');
@@ -42,6 +43,7 @@ const App: React.FC = () => {
   // Post Food States
   const [isAddingFood, setIsAddingFood] = useState(false);
   const [foodName, setFoodName] = useState('');
+  const [foodCategory, setFoodCategory] = useState('Prepared Meal');
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('meals');
   const [expiryDate, setExpiryDate] = useState('');
@@ -58,6 +60,11 @@ const App: React.FC = () => {
   const [donLng, setDonLng] = useState<number | undefined>(undefined);
   const [isDetectingDonLocation, setIsDetectingDonLocation] = useState(false);
   const [donLocationStatus, setDonLocationStatus] = useState('');
+
+  // Contact Modal States
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactTargetUser, setContactTargetUser] = useState<User | null>(null);
+  const [contactMessage, setContactMessage] = useState('');
 
   useEffect(() => {
     refreshData();
@@ -278,6 +285,7 @@ const App: React.FC = () => {
       donorName: user.name,
       donorOrg: user.orgName,
       foodName,
+      foodCategory,
       quantity: `${quantity} ${unit}`,
       location: postLocation,
       expiryDate,
@@ -290,6 +298,7 @@ const App: React.FC = () => {
     storage.savePosting(newPost);
     setIsAddingFood(false);
     setFoodName('');
+    setFoodCategory('Prepared Meal');
     setQuantity('');
     setUnit('meals');
     setFoodImage(null);
@@ -347,6 +356,53 @@ const App: React.FC = () => {
     setRegLine1(''); setRegLine2(''); setRegLandmark(''); setRegPincode('');
     setLoginName(''); setLoginPassword('');
   };
+
+  // Contact Handlers
+  const handleContactRequester = (requesterId: string) => {
+      const targetUser = allUsers.find(u => u.id === requesterId);
+      if (targetUser) {
+          setContactTargetUser(targetUser);
+          setShowContactModal(true);
+      }
+  };
+
+  const submitContactMessage = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!contactTargetUser || !user) return;
+
+      // In a real app, this would create a proper chat session or email.
+      // Here we use notifications to simulate the contact.
+      const message = `Inquiry from ${user.name}: ${contactMessage}`;
+      
+      storage.createNotification(contactTargetUser.id, message, 'INFO');
+      
+      alert(`Message sent to ${contactTargetUser.orgName || contactTargetUser.name}!`);
+      setShowContactModal(false);
+      setContactMessage('');
+      setContactTargetUser(null);
+  };
+
+  // Helper to filter postings based on current view mode
+  const getFilteredPostings = () => {
+    return postings.filter(p => {
+        const matchesSearch = !searchQuery || 
+            p.foodName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            p.donorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.donorOrg && p.donorOrg.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        if (dashboardMode === 'TASKS') {
+            const isAssigned = p.volunteerId === user?.id;
+            const isInterested = (p.interestedVolunteers || []).some(v => v.userId === user?.id);
+            return matchesSearch && (isAssigned || isInterested);
+        } else {
+            // FEED
+            const isRecentOrActive = p.status !== FoodStatus.DELIVERED || (Date.now() - p.createdAt < 86400000);
+            return isRecentOrActive && matchesSearch;
+        }
+    }).sort((a, b) => b.createdAt - a.createdAt);
+  };
+
+  const filteredPostings = getFilteredPostings();
 
   if (view === 'LOGIN') {
     return (
@@ -647,6 +703,15 @@ const App: React.FC = () => {
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                                 Map
                             </button>
+                            {user?.role === UserRole.VOLUNTEER && (
+                                <button 
+                                    onClick={() => setDashboardMode('TASKS')}
+                                    className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${dashboardMode === 'TASKS' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                    My Tasks
+                                </button>
+                            )}
                          </div>
                          {user?.role === UserRole.DONOR && (
                             <button 
@@ -659,6 +724,21 @@ const App: React.FC = () => {
                          )}
                     </div>
                 </div>
+
+                {dashboardMode !== 'MAP' && (
+                    <div className="mb-6 relative">
+                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                         </span>
+                         <input 
+                            type="text" 
+                            placeholder={dashboardMode === 'TASKS' ? "Search your tasks..." : "Search food, donors, or organizations..."}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white focus:border-emerald-500 outline-none transition-all font-medium text-slate-600 shadow-sm placeholder:text-slate-400"
+                         />
+                    </div>
+                )}
 
                 {isAddingFood && (
                     <div className="mb-8 bg-white p-6 rounded-3xl shadow-xl border border-emerald-100 animate-in slide-in-from-top-4 duration-300">
@@ -729,6 +809,20 @@ const App: React.FC = () => {
                                             className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700 mb-3"
                                             required 
                                         />
+                                        <select 
+                                            value={foodCategory} 
+                                            onChange={e => setFoodCategory(e.target.value)}
+                                            className="w-full px-4 py-3 rounded-xl border border-black focus:border-emerald-500 bg-white outline-none font-bold text-slate-700 mb-3"
+                                        >
+                                            <option value="Prepared Meal">Prepared Meal</option>
+                                            <option value="Produce">Produce</option>
+                                            <option value="Dairy">Dairy</option>
+                                            <option value="Grains">Grains</option>
+                                            <option value="Bakery">Bakery</option>
+                                            <option value="Canned Goods">Canned Goods</option>
+                                            <option value="Beverages">Beverages</option>
+                                            <option value="Other">Other</option>
+                                        </select>
                                         <div className="flex gap-2 mb-3">
                                             <input 
                                                 type="number" 
@@ -761,21 +855,24 @@ const App: React.FC = () => {
                                     <div>
                                         <div className="flex justify-between items-center mb-1.5 ml-1">
                                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Pickup Location</label>
-                                            <button 
-                                                type="button" 
-                                                onClick={handleDetectDonLocation}
-                                                disabled={isDetectingDonLocation}
-                                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
-                                            >
-                                                {isDetectingDonLocation ? 'Locating...' : '📍 Use Current Location'}
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                {isDetectingDonLocation && <span className="text-[9px] text-emerald-600 font-bold animate-pulse">{donLocationStatus}</span>}
+                                                <button 
+                                                    type="button" 
+                                                    onClick={handleDetectDonLocation}
+                                                    disabled={isDetectingDonLocation}
+                                                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                                                >
+                                                    {isDetectingDonLocation ? 'Locating...' : '📍 Auto-Fill Address'}
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="space-y-2">
-                                            <input type="text" placeholder="Line 1" value={donLine1} onChange={e => setDonLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" required />
-                                            <input type="text" placeholder="Line 2" value={donLine2} onChange={e => setDonLine2(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" required />
+                                            <input type="text" placeholder="Line 1" value={donLine1} onChange={e => setDonLine1(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
+                                            <input type="text" placeholder="Line 2" value={donLine2} onChange={e => setDonLine2(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
                                             <div className="grid grid-cols-2 gap-2">
-                                                <input type="text" placeholder="Pincode" value={donPincode} onChange={e => setDonPincode(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" required />
-                                                <input type="text" placeholder="Landmark" value={donLandmark} onChange={e => setDonLandmark(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                                                <input type="text" placeholder="Pincode" value={donPincode} onChange={e => setDonPincode(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" required />
+                                                <input type="text" placeholder="Landmark" value={donLandmark} onChange={e => setDonLandmark(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-black bg-white text-sm font-medium focus:ring-1 focus:ring-emerald-500 outline-none" />
                                             </div>
                                         </div>
                                     </div>
@@ -807,30 +904,111 @@ const App: React.FC = () => {
                                  }
                              }
                         }}
+                        onContact={handleContactRequester}
                     />
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {postings.filter(p => p.status !== FoodStatus.DELIVERED || (Date.now() - p.createdAt < 86400000)).length === 0 ? (
+                        {filteredPostings.length === 0 ? (
                             <div className="col-span-full text-center py-20 opacity-50">
-                                <svg className="w-20 h-20 mx-auto text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                                <p className="font-bold text-slate-400">No active food donations nearby.</p>
+                                <svg className="w-20 h-20 mx-auto text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                <p className="font-bold text-slate-400">
+                                    {dashboardMode === 'TASKS' ? 'No active tasks found.' : 'No matching donations found.'}
+                                </p>
+                                {dashboardMode === 'TASKS' && <p className="text-xs text-slate-400 mt-2">Express interest in donations from the Feed to see them here.</p>}
                             </div>
                         ) : (
-                            postings
-                                .filter(p => p.status !== FoodStatus.DELIVERED || (Date.now() - p.createdAt < 86400000)) // Show delivered items for 24h
-                                .sort((a, b) => b.createdAt - a.createdAt)
-                                .map(posting => (
-                                    <FoodCard 
-                                        key={posting.id} 
-                                        posting={posting} 
-                                        user={user!} 
-                                        onUpdate={updatePosting} 
-                                    />
-                                ))
+                            filteredPostings.map(posting => (
+                                <FoodCard 
+                                    key={posting.id} 
+                                    posting={posting} 
+                                    user={user!} 
+                                    onUpdate={updatePosting} 
+                                />
+                            ))
                         )}
                     </div>
                 )}
             </>
+        )}
+
+        {/* Contact Modal */}
+        {showContactModal && contactTargetUser && (
+            <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Contact Organization</h3>
+                            <p className="text-xs text-slate-500 font-medium">Sending message to <span className="text-indigo-600 font-bold">{contactTargetUser.orgName || contactTargetUser.name}</span></p>
+                        </div>
+                        <button onClick={() => setShowContactModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    
+                    {/* Organization Details with Favorite Button */}
+                    <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-sm font-bold text-slate-700">{contactTargetUser.orgName || contactTargetUser.name}</p>
+                                <p className="text-xs text-slate-500">{contactTargetUser.orgCategory}</p>
+                                {contactTargetUser.address && (
+                                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                        {contactTargetUser.address.line1}, {contactTargetUser.address.pincode}
+                                    </p>
+                                )}
+                            </div>
+                             {user?.role === UserRole.DONOR && (
+                                <button 
+                                    onClick={() => {
+                                        if (user) {
+                                            const updated = storage.toggleFavorite(user.id, contactTargetUser.id);
+                                            if (updated) {
+                                                setUser(updated);
+                                                refreshData();
+                                            }
+                                        }
+                                    }}
+                                    className={`p-2 rounded-lg border transition-all ${user.favoriteRequesterIds?.includes(contactTargetUser.id) ? 'bg-amber-100 text-amber-500 border-amber-200' : 'bg-white text-slate-300 border-slate-200 hover:text-amber-400'}`}
+                                    title={user.favoriteRequesterIds?.includes(contactTargetUser.id) ? "Remove from Favorites" : "Add to Favorites"}
+                                >
+                                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                                </button>
+                             )}
+                        </div>
+                    </div>
+                    
+                    <form onSubmit={submitContactMessage}>
+                        <div className="mb-4">
+                            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Message</label>
+                            <textarea 
+                                rows={4}
+                                required
+                                placeholder="Hi, I saw your location and wanted to check if you are accepting food donations..."
+                                value={contactMessage}
+                                onChange={(e) => setContactMessage(e.target.value)}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-slate-50 outline-none transition-all resize-none font-medium text-slate-700 text-sm"
+                            />
+                        </div>
+                        <div className="flex gap-3">
+                            <button 
+                                type="button" 
+                                onClick={() => setShowContactModal(false)}
+                                className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                type="submit" 
+                                className="flex-1 bg-indigo-600 text-white font-black py-3 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                            >
+                                Send Message
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         )}
     </Layout>
   );
