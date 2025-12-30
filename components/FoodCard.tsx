@@ -19,6 +19,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showAssignConfirm, setShowAssignConfirm] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<{id: string, name: string} | null>(null);
   
+  // Donor Profile State
+  const [showDonorProfile, setShowDonorProfile] = useState(false);
+  const [donorProfile, setDonorProfile] = useState<User | null>(null);
+
   // Proof Viewing State
   const [showProofModal, setShowProofModal] = useState(false);
   const [viewingProofType, setViewingProofType] = useState<'PICKUP' | 'DELIVERY'>('DELIVERY');
@@ -165,6 +169,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     setShowAssignConfirm(false);
     setShowVolunteerSelection(false);
     setSelectedVolunteer(null);
+  };
+
+  const handleViewDonorProfile = () => {
+     const allUsers = storage.getUsers();
+     const donor = allUsers.find(u => u.id === posting.donorId);
+     if (donor) {
+       setDonorProfile(donor);
+       setShowDonorProfile(true);
+     }
   };
 
   const handleDeliveryVerification = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -419,7 +432,17 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             })()}
             <div className="mt-1 flex items-center gap-1 text-xs text-slate-500 font-medium">
                 <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                <span>Posted by: <span className="text-slate-700 font-bold">{posting.donorName}</span> {posting.donorOrg && <span className="text-slate-400">({posting.donorOrg})</span>}</span>
+                <span>
+                    Posted by: 
+                    {user.role === UserRole.VOLUNTEER || user.role === UserRole.REQUESTER ? (
+                        <button onClick={handleViewDonorProfile} className="text-emerald-600 font-bold hover:underline ml-1">
+                            {posting.donorName}
+                        </button>
+                    ) : (
+                        <span className="text-slate-700 font-bold ml-1">{posting.donorName}</span>
+                    )}
+                    {posting.donorOrg && <span className="text-slate-400 ml-1">({posting.donorOrg})</span>}
+                </span>
             </div>
         </div>
         <div className="text-right">
@@ -589,7 +612,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {user.role === UserRole.REQUESTER && posting.status === FoodStatus.IN_TRANSIT && posting.orphanageId === user.id && (
             <button 
                 onClick={handleRequesterDelivery}
-                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 hover:shadow-emerald-300 flex items-center justify-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                 Mark as Received
@@ -959,6 +982,44 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     </button>
                 </div>
              </div>
+        </div>
+      )}
+
+      {/* Donor Profile Modal */}
+      {showDonorProfile && donorProfile && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowDonorProfile(false)}>
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Donor Profile</h3>
+                    <button onClick={() => setShowDonorProfile(false)} className="text-slate-400 hover:text-slate-600">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                
+                <div className="flex flex-col items-center mb-6">
+                    <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl font-black mb-3">
+                        {donorProfile.name.charAt(0)}
+                    </div>
+                    <h4 className="text-xl font-bold text-slate-800">{donorProfile.name}</h4>
+                    {donorProfile.orgName && <p className="text-sm text-slate-500 font-medium">{donorProfile.orgName}</p>}
+                    <span className="mt-2 px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-100">
+                        {donorProfile.role}
+                    </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Impact Score</p>
+                        <p className="text-2xl font-black text-slate-800">{donorProfile.impactScore || 0}</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Donations</p>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Status</p>
+                        <p className="text-sm font-bold text-slate-700 mt-2">Active</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Member</p>
+                    </div>
+                </div>
+            </div>
         </div>
       )}
       
