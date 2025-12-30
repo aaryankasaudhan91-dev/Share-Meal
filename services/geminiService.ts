@@ -213,3 +213,38 @@ export const getOptimizedRoute = async (origin: string, destination: string): Pr
     return null;
   }
 };
+
+export const calculateLiveEta = async (
+  origin: { lat: number; lng: number },
+  destination: string
+): Promise<number | null> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `Calculate the estimated driving time from coordinates ${origin.lat}, ${origin.lng} to "${destination}". 
+      Consider current traffic conditions.
+      Return ONLY the number of minutes as an integer.`,
+      config: {
+        tools: [{ googleMaps: {} }],
+        toolConfig: {
+          retrievalConfig: {
+            latLng: {
+              latitude: origin.lat,
+              longitude: origin.lng
+            }
+          }
+        }
+      },
+    });
+
+    const text = response.text || "";
+    // Parse response for minutes
+    const match = text.match(/(\d+)\s*mins?/);
+    if (match) return parseInt(match[1]);
+    const numberMatch = text.match(/\d+/);
+    return numberMatch ? parseInt(numberMatch[0]) : null;
+  } catch (error) {
+    console.error("ETA Calculation Error:", error);
+    return null;
+  }
+};

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus, Rating } from '../types';
-import { verifyDeliveryImage, getOptimizedRoute, RouteOptimizationResult } from '../services/geminiService';
+import { verifyDeliveryImage, getOptimizedRoute, calculateLiveEta, RouteOptimizationResult } from '../services/geminiService';
 import { storage } from '../services/storageService';
 import ChatModal from './ChatModal';
 import TrackingMap from './TrackingMap';
@@ -35,6 +35,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   // ETA Editing State
   const [isEditingEta, setIsEditingEta] = useState(false);
   const [etaInput, setEtaInput] = useState('');
+  const [isUpdatingEta, setIsUpdatingEta] = useState(false);
   
   // Route Optimization State
   const [routeData, setRouteData] = useState<RouteOptimizationResult | null>(null);
@@ -44,6 +45,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   // Location Sharing State
   const [isLiveTracking, setIsLiveTracking] = useState(false);
   const trackingInterval = useRef<any>(null);
+  const lastEtaUpdateRef = useRef<number>(0);
 
   useEffect(() => {
     const checkMessages = () => {
@@ -73,6 +75,39 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         setIsLiveTracking(false);
     }
   }, [posting.status, isLiveTracking]);
+
+  // Periodic ETA Update Effect for Volunteer
+  useEffect(() => {
+    const checkAndUpdateEta = async () => {
+        const now = Date.now();
+        // Update ETA if 60 seconds passed since last update AND we have locations
+        if (
+            posting.status === FoodStatus.IN_TRANSIT && 
+            user.role === UserRole.VOLUNTEER && 
+            posting.volunteerId === user.id &&
+            posting.volunteerLocation && 
+            posting.requesterAddress &&
+            (now - lastEtaUpdateRef.current > 60000)
+        ) {
+            setIsUpdatingEta(true);
+            try {
+                const destStr = `${posting.requesterAddress.line1}, ${posting.requesterAddress.pincode}`;
+                const minutes = await calculateLiveEta(posting.volunteerLocation, destStr);
+                if (minutes !== null) {
+                    onUpdate(posting.id, { etaMinutes: minutes });
+                    lastEtaUpdateRef.current = now;
+                }
+            } catch (error) {
+                console.error("Failed to auto-update ETA", error);
+            } finally {
+                setIsUpdatingEta(false);
+            }
+        }
+    };
+
+    checkAndUpdateEta();
+  }, [posting.volunteerLocation, posting.status, user.id, user.role, posting.requesterAddress, posting.volunteerId, onUpdate, posting.id]);
+
 
   const interestedVolunteers = posting.interestedVolunteers || [];
   const hasExpressedInterest = user.role === UserRole.VOLUNTEER && interestedVolunteers.some(v => v.userId === user.id);
@@ -390,11 +425,20 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {posting.status === FoodStatus.IN_TRANSIT && (
         <div className="mb-4 bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-                <div className="bg-blue-200 text-blue-700 p-1.5 rounded-lg">
+                <div className="bg-blue-200 text-blue-700 p-1.5 rounded-lg relative">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    {isUpdatingEta && (
+                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                           <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                        </span>
+                    )}
                 </div>
                 <div>
-                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Est. Arrival</p>
+                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest flex items-center gap-1">
+                        Est. Arrival 
+                        {isUpdatingEta && <span className="text-[8px] bg-blue-100 px-1 rounded text-blue-600">Live Traffic</span>}
+                    </p>
                     <p className="text-sm font-black text-blue-900">
                         {posting.etaMinutes ? `${posting.etaMinutes} mins` : 'Calculating...'}
                     </p>
@@ -499,17 +543,22 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         )}
 
         {/* Volunteer Actions */}
-        {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE && (
+        {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE && !hasExpressedInterest && (
             <button
                 onClick={handleExpressInterest}
-                disabled={hasExpressedInterest}
-                className={`flex-1 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-colors shadow-lg ${
-                    hasExpressedInterest 
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
-                    : 'bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200'
-                }`}
+                className="flex-1 bg-purple-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200"
             >
-                {hasExpressedInterest ? 'Interest Sent' : 'Express Interest'}
+                Express Interest
+            </button>
+        )}
+
+        {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE && hasExpressedInterest && (
+            <button
+                onClick={handleVolunteer}
+                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                Confirm Pickup
             </button>
         )}
 
