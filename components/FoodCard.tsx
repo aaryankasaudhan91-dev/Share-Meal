@@ -124,8 +124,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const hasExpressedInterest = user.role === UserRole.VOLUNTEER && interestedVolunteers.some(v => v.userId === user.id);
   const userHasRated = posting.ratings?.some(r => r.raterId === user.id);
 
-  // Logic to hide donor details from volunteers until requested
-  const showDonorDetails = !(user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE);
+  // Logic to show donor details. Always true now to allow volunteers to see donor info/org when AVAILABLE.
+  const showDonorDetails = true;
 
   const handleRequest = () => {
     if (user.role !== UserRole.REQUESTER) return;
@@ -407,26 +407,39 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         )}
 
         {/* Quick View Overlay */}
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center z-10 pointer-events-none">
-            <div className="text-center transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 p-3">
-                 <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl shadow-2xl">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                        <span className="text-lg">📦</span>
-                        <div>
-                            <p className="text-[10px] text-emerald-300 font-black uppercase tracking-widest leading-none">Quantity</p>
-                            <p className="text-white font-bold text-sm leading-tight">{posting.quantity}</p>
+        <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-[3px] rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center z-10 pointer-events-none">
+            <div className="w-full max-w-[80%] transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                 <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl shadow-2xl flex flex-col gap-3">
+                    {/* Quantity */}
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-lg shrink-0">📦</div>
+                        <div className="text-left overflow-hidden">
+                            <p className="text-[9px] text-emerald-300 font-black uppercase tracking-widest leading-none mb-0.5">Quantity</p>
+                            <p className="text-white font-bold text-sm leading-tight truncate">{posting.quantity}</p>
                         </div>
                     </div>
-                    <div className="h-px w-full bg-white/10 my-2"></div>
-                    <div className="flex items-center justify-center gap-2">
-                        <span className="text-lg">⏳</span>
-                        <div>
-                            <p className="text-[10px] text-emerald-300 font-black uppercase tracking-widest leading-none">Expires</p>
-                            <p className="text-white font-bold text-sm leading-tight">
+                    
+                    {/* Expiry */}
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-lg shrink-0">⏳</div>
+                        <div className="text-left overflow-hidden">
+                            <p className="text-[9px] text-orange-300 font-black uppercase tracking-widest leading-none mb-0.5">Expires</p>
+                            <p className="text-white font-bold text-sm leading-tight truncate">
                                 {new Date(posting.expiryDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                             </p>
                         </div>
                     </div>
+
+                    {/* Category (Optional) */}
+                    {posting.foodCategory && (
+                        <div className="flex items-center gap-3 border-t border-white/10 pt-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-lg shrink-0">🏷️</div>
+                            <div className="text-left overflow-hidden">
+                                <p className="text-[9px] text-blue-300 font-black uppercase tracking-widest leading-none mb-0.5">Category</p>
+                                <p className="text-white font-bold text-sm leading-tight truncate">{posting.foodCategory}</p>
+                            </div>
+                        </div>
+                    )}
                  </div>
             </div>
         </div>
