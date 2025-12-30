@@ -508,34 +508,38 @@ const App: React.FC = () => {
                         <input 
                             type="text" 
                             placeholder="Line 1 (House No, Building)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                             value={regLine1} 
                             onChange={e => setRegLine1(e.target.value)} 
                             required 
+                            disabled={isDetectingLocation}
                         />
                         <input 
                             type="text" 
                             placeholder="Line 2 (Street, Area)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                             value={regLine2} 
                             onChange={e => setRegLine2(e.target.value)} 
                             required 
+                            disabled={isDetectingLocation}
                         />
                         <div className="grid grid-cols-2 gap-3">
                             <input 
                                 type="text" 
                                 placeholder="Landmark (Optional)" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                                 value={regLandmark} 
                                 onChange={e => setRegLandmark(e.target.value)} 
+                                disabled={isDetectingLocation}
                             />
                             <input 
                                 type="text" 
                                 placeholder="Pincode" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                                 value={regPincode} 
                                 onChange={e => setRegPincode(e.target.value)} 
                                 required 
+                                disabled={isDetectingLocation}
                             />
                         </div>
                         {regLocationStatus && (
@@ -657,35 +661,39 @@ const App: React.FC = () => {
                            <input 
                             type="text" 
                             placeholder="Line 1 (House No, Building)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                             value={donLine1} 
                             onChange={e => setDonLine1(e.target.value)} 
                             required 
+                            disabled={isDetectingDonLocation}
                            />
                            <input 
                             type="text" 
                             placeholder="Line 2 (Street, Area)" 
-                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                            className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                             value={donLine2} 
                             onChange={e => setDonLine2(e.target.value)} 
                             required 
+                            disabled={isDetectingDonLocation}
                            />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <input 
                                 type="text" 
                                 placeholder="Landmark (Optional)" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                                 value={donLandmark} 
                                 onChange={e => setDonLandmark(e.target.value)} 
+                                disabled={isDetectingDonLocation}
                             />
                             <input 
                                 type="text" 
                                 placeholder="Pincode" 
-                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm" 
+                                className="w-full px-4 py-3 rounded-xl border border-black bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 font-medium text-sm disabled:bg-slate-50 disabled:text-slate-400" 
                                 value={donPincode} 
                                 onChange={e => setDonPincode(e.target.value)} 
                                 required 
+                                disabled={isDetectingDonLocation}
                             />
                         </div>
                         {donLocationStatus && (

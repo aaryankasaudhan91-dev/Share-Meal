@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FoodPosting, FoodStatus, UserRole, User, Address } from '../types';
-import { getFoodSafetyTips, getRouteInsights, verifyDeliveryImage } from '../services/geminiService';
+import { getFoodSafetyTips, getRouteInsights, verifyDeliveryImage, reverseGeocode } from '../services/geminiService';
 import TrackingMap from './TrackingMap';
 import ChatModal from './ChatModal';
 
@@ -20,8 +20,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showChat, setShowChat] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
+  const [showVolunteerSelection, setShowVolunteerSelection] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [refiningAddress, setRefiningAddress] = useState<'pickup' | 'dropoff' | null>(null);
   
   const [loadingRoute, setLoadingRoute] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -29,8 +31,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   // Expiration logic
   const expiryTime = new Date(posting.expiryDate).getTime();
   const now = Date.now();
-  const isExpiringSoon = (expiryTime - now) < 86400000 && (expiryTime - now) > 0 && posting.status === FoodStatus.AVAILABLE;
-  const isExpired = (expiryTime - now) <= 0 && posting.status === FoodStatus.AVAILABLE;
+  const timeToExpiry = expiryTime - now;
+
+  // Status derived states
+  const isExpired = timeToExpiry <= 0 && posting.status === FoodStatus.AVAILABLE;
+  const isUrgent = timeToExpiry > 0 && timeToExpiry < 43200000 && posting.status === FoodStatus.AVAILABLE; // < 12 hours
+  const isExpiringSoon = timeToExpiry >= 43200000 && timeToExpiry < 86400000 && posting.status === FoodStatus.AVAILABLE;
 
   // Volunteer Interest Logic
   const interestedVolunteers = posting.interestedVolunteers || [];
@@ -38,12 +44,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const interestCount = interestedVolunteers.length;
 
   useEffect(() => {
-    if (isZoomed || showTracking || showChat || showAcceptConfirm || showDetails) {
+    if (isZoomed || showTracking || showChat || showAcceptConfirm || showDetails || showVolunteerSelection) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
-  }, [isZoomed, showTracking, showChat, showAcceptConfirm, showDetails]);
+  }, [isZoomed, showTracking, showChat, showAcceptConfirm, showDetails, showVolunteerSelection]);
 
   const formatAddress = (addr: Address) => {
     return `${addr.line1}, ${addr.line2}${addr.landmark ? ` (Near ${addr.landmark})` : ''}, Pin: ${addr.pincode}`;
@@ -112,6 +118,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         interestedVolunteers: [] // Clear interest list on assignment
       });
       setShowDetails(false); // Close modal
+      setShowVolunteerSelection(false); // Close selection modal
   };
 
   // Legacy direct accept (still useful if no specific interest flow needed or for quick testing)
@@ -134,19 +141,57 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result as string;
-        const result = await verifyDeliveryImage(base64);
-        if (result.isValid) {
-          alert(result.feedback);
-          onUpdate(posting.id, { 
-            status: FoodStatus.DELIVERED, 
-            verificationImageUrl: base64 
-          });
-        } else {
-          alert("Handover photo not clear. Please try again: " + result.feedback);
+        try {
+            const result = await verifyDeliveryImage(base64);
+            if (result.isValid) {
+              alert(`Verification Successful: ${result.feedback}`);
+              onUpdate(posting.id, { 
+                status: FoodStatus.DELIVERED, 
+                verificationImageUrl: base64 
+              });
+            } else {
+              alert("Verification Failed: " + result.feedback);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Unable to verify image. Please try again.");
+        } finally {
+            setIsVerifying(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
-        setIsVerifying(false);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRefineAddress = async (type: 'pickup' | 'dropoff') => {
+    const targetAddress = type === 'pickup' ? posting.location : posting.requesterAddress;
+    if (!targetAddress?.lat || !targetAddress?.lng) return;
+
+    setRefiningAddress(type);
+    try {
+        const refined = await reverseGeocode(targetAddress.lat, targetAddress.lng);
+        if (refined) {
+            const updatedAddress: Address = {
+                ...targetAddress,
+                ...refined
+            };
+            
+            if (type === 'pickup') {
+                onUpdate(posting.id, { location: updatedAddress });
+            } else {
+                onUpdate(posting.id, { requesterAddress: updatedAddress });
+            }
+        } else {
+            alert("Could not refine address.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error refining address.");
+    } finally {
+        setRefiningAddress(null);
     }
   };
 
@@ -179,7 +224,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     isVolunteerForThis;
   
   const showChatButton = isParticipant && posting.status !== FoodStatus.AVAILABLE;
+  
+  // Track Delivery button logic
   const showTrackDeliveryButton = isVolunteerForThis && posting.status === FoodStatus.IN_TRANSIT;
+
+  // Donor can mark as collected if available and there are interested volunteers
+  const canMarkCollected = isDonorForThis && posting.status === FoodStatus.AVAILABLE && interestCount > 0;
 
   return (
     <>
@@ -216,8 +266,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                                 Expires: {new Date(posting.expiryDate).toLocaleDateString()}
                              </span>
                          )}
+                         {/* Urgent Badge for Modal */}
+                         {isUrgent && (
+                            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-100 text-red-600 border border-red-200 animate-pulse flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                URGENT: &lt; 12h Left
+                            </span>
+                         )}
+                         {/* Expiring Soon Badge (12-24h) */}
                          {isExpiringSoon && (
-                            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-700 border border-orange-200 animate-pulse">
+                            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-700 border border-orange-200">
                                 Expiring Soon
                             </span>
                          )}
@@ -286,9 +344,32 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                              </div>
                              {posting.requesterAddress && <div className="w-0.5 h-full bg-slate-200 my-1"></div>}
                          </div>
-                         <div className="pb-4">
-                             <h4 className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-1">Pickup Location</h4>
-                             <p className="text-sm font-medium text-slate-700">{formatAddress(posting.location)}</p>
+                         <div className="pb-4 w-full">
+                             <div className="flex items-center justify-between mb-1">
+                                <h4 className="text-xs font-black text-emerald-600 uppercase tracking-widest">Pickup Location</h4>
+                                {isDonorForThis && posting.location.lat && posting.location.lng && (
+                                    <button 
+                                        onClick={() => handleRefineAddress('pickup')}
+                                        disabled={refiningAddress === 'pickup'}
+                                        className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 disabled:opacity-50 transition-colors bg-emerald-50 px-2 py-0.5 rounded-full"
+                                    >
+                                        {refiningAddress === 'pickup' ? (
+                                            <>
+                                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                Refining...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                                AI Refine
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                             </div>
+                             <p className="text-sm font-medium text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                {formatAddress(posting.location)}
+                             </p>
                          </div>
                      </div>
 
@@ -299,9 +380,32 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                                  </div>
                              </div>
-                             <div>
-                                 <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Drop-off: {posting.orphanageName}</h4>
-                                 <p className="text-sm font-medium text-slate-700">{formatAddress(posting.requesterAddress)}</p>
+                             <div className="w-full">
+                                 <div className="flex items-center justify-between mb-1">
+                                    <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest">Drop-off: {posting.orphanageName}</h4>
+                                    {user.id === posting.orphanageId && posting.requesterAddress?.lat && posting.requesterAddress?.lng && (
+                                        <button 
+                                            onClick={() => handleRefineAddress('dropoff')}
+                                            disabled={refiningAddress === 'dropoff'}
+                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 disabled:opacity-50 transition-colors bg-blue-50 px-2 py-0.5 rounded-full"
+                                        >
+                                            {refiningAddress === 'dropoff' ? (
+                                                <>
+                                                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                    Refining...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                                    AI Refine
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                                 </div>
+                                 <p className="text-sm font-medium text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    {formatAddress(posting.requesterAddress)}
+                                 </p>
                              </div>
                          </div>
                      )}
@@ -321,7 +425,18 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 {/* Volunteer Info */}
                 {posting.volunteerName && (
                     <div className="bg-amber-50 rounded-2xl p-5 border border-amber-100 mb-6">
-                        <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest mb-2">Volunteer Assigned</h4>
+                        <div className="flex justify-between items-start mb-2">
+                             <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest">Volunteer Assigned</h4>
+                             {showTrackDeliveryButton && (
+                                <button 
+                                    onClick={() => setShowTracking(true)}
+                                    className="bg-white border border-amber-200 text-amber-700 hover:bg-amber-100 px-3 py-1 rounded-lg transition-all uppercase tracking-widest text-[10px] font-black flex items-center gap-1.5 shadow-sm"
+                                >
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
+                                    Track Live
+                                </button>
+                             )}
+                        </div>
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-amber-700 font-bold">
                                 {posting.volunteerName.charAt(0)}
@@ -358,6 +473,38 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                  </button>
              </div>
           </div>
+        </div>
+      )}
+      
+      {/* Volunteer Selection Modal */}
+      {showVolunteerSelection && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowVolunteerSelection(false)}>
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Select Volunteer</h3>
+                    <button onClick={() => setShowVolunteerSelection(false)} className="text-slate-400 hover:text-slate-600">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <p className="text-sm text-slate-500 mb-4 font-medium">Who collected the food?</p>
+                <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
+                    {interestedVolunteers.map((vol) => (
+                        <button
+                            key={vol.userId}
+                            onClick={() => handleApproveVolunteer(vol.userId, vol.userName)}
+                            className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 transition-all group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs group-hover:bg-emerald-200 transition-colors">
+                                    {vol.userName.charAt(0)}
+                                </div>
+                                <span className="font-bold text-slate-700 text-sm">{vol.userName}</span>
+                            </div>
+                            <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Assign</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
         </div>
       )}
 
@@ -427,7 +574,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         </div>
       )}
 
-      <div className={`bg-white rounded-xl shadow-sm border ${isExpiringSoon ? 'border-orange-500 ring-2 ring-orange-500/50' : isExpired ? 'border-red-400 opacity-75' : 'border-slate-200'} overflow-hidden hover:shadow-md transition-all flex flex-col relative`}>
+      <div className={`bg-white rounded-xl shadow-sm border ${isUrgent ? 'border-red-500 ring-2 ring-red-500/50' : isExpiringSoon ? 'border-orange-500 ring-2 ring-orange-500/50' : isExpired ? 'border-red-400 opacity-75' : 'border-slate-200'} overflow-hidden hover:shadow-md transition-all flex flex-col relative`}>
         {posting.imageUrl && (
           <div className="group relative h-48 w-full overflow-hidden bg-slate-100 border-b border-slate-100 cursor-zoom-in" onClick={() => setIsZoomed(true)}>
             <img src={posting.imageUrl} alt={posting.foodName} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -477,9 +624,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 {isExpired ? 'EXPIRED' : posting.status}
               </span>
 
-              {/* Expiring Soon Tag */}
+              {/* Urgent Tag */}
+              {isUrgent && (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 bg-red-500 text-white shadow-sm animate-pulse flex items-center gap-1">
+                    URGENT
+                </span>
+              )}
+
+              {/* Expiring Soon Tag (only if not urgent) */}
               {isExpiringSoon && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 bg-orange-100 text-orange-700 border border-orange-200 animate-pulse">
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 bg-orange-100 text-orange-700 border border-orange-200">
                     Expiring Soon
                 </span>
               )}
@@ -510,13 +664,55 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             
             <div className="space-y-2">
               <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
-                <span className="font-black text-slate-700 uppercase text-[10px] tracking-widest block mb-1">Pickup</span>
+                <div className="flex justify-between items-center mb-1">
+                    <span className="font-black text-slate-700 uppercase text-[10px] tracking-widest block">Pickup</span>
+                    {isDonorForThis && posting.location.lat && posting.location.lng && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleRefineAddress('pickup'); }}
+                            disabled={refiningAddress === 'pickup'}
+                            className="text-[9px] font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 disabled:opacity-50 transition-colors bg-white border border-emerald-100 px-1.5 py-0.5 rounded shadow-sm hover:shadow-md"
+                        >
+                            {refiningAddress === 'pickup' ? (
+                                <>
+                                   <svg className="animate-spin h-2.5 w-2.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                   Refining...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                    AI Refine
+                                </>
+                            )}
+                        </button>
+                    )}
+                </div>
                 <p className="leading-relaxed opacity-75">{formatAddress(posting.location)}</p>
               </div>
 
               {posting.requesterAddress && (
                 <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-100">
-                  <span className="font-black text-blue-700 uppercase text-[10px] tracking-widest block mb-1">Drop-off</span>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-black text-blue-700 uppercase text-[10px] tracking-widest block">Drop-off</span>
+                    {user.id === posting.orphanageId && posting.requesterAddress.lat && posting.requesterAddress.lng && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleRefineAddress('dropoff'); }}
+                            disabled={refiningAddress === 'dropoff'}
+                            className="text-[9px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 disabled:opacity-50 transition-colors bg-white border border-blue-100 px-1.5 py-0.5 rounded shadow-sm hover:shadow-md"
+                        >
+                             {refiningAddress === 'dropoff' ? (
+                                <>
+                                   <svg className="animate-spin h-2.5 w-2.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                   Refining...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                    AI Refine
+                                </>
+                            )}
+                        </button>
+                    )}
+                  </div>
                   <p className="leading-relaxed opacity-75">{formatAddress(posting.requesterAddress)}</p>
                 </div>
               )}
@@ -531,6 +727,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
           </div>
 
           <div className="flex flex-col space-y-2 mt-auto">
+            {/* Main Card View Track Button */}
             {showTrackDeliveryButton && (
               <button 
                 onClick={() => setShowTracking(true)}
@@ -539,6 +736,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
                 Track Delivery
               </button>
+            )}
+
+            {/* Mark as Collected for Donor */}
+            {canMarkCollected && (
+                <button
+                    onClick={() => setShowVolunteerSelection(true)}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                >
+                    Mark as Collected
+                </button>
             )}
 
             {canRequest && (
@@ -583,10 +790,20 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isVerifying}
-                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-2 rounded-xl transition-all shadow-md uppercase tracking-widest text-xs flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed"
               >
-                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleVerificationUpload} />
-                 Verify Handover
+                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleVerificationUpload} />
+                 {isVerifying ? (
+                    <>
+                       <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                       Verifying Proof...
+                    </>
+                 ) : (
+                    <>
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                       Upload Delivery Proof
+                    </>
+                 )}
               </button>
             )}
 
