@@ -462,13 +462,22 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 <span>
                     Posted by: 
                     {user.role === UserRole.VOLUNTEER || user.role === UserRole.REQUESTER ? (
-                        <button onClick={handleViewDonorProfile} className="text-emerald-600 font-bold hover:underline ml-1">
-                            {posting.donorName}
+                        <button 
+                            onClick={handleViewDonorProfile} 
+                            className="group inline-flex items-center gap-1 ml-1 hover:bg-slate-100 px-1.5 py-0.5 rounded-lg transition-colors"
+                        >
+                            <span className="text-emerald-700 font-bold underline decoration-emerald-200 underline-offset-2 group-hover:decoration-emerald-500">
+                                {posting.donorName}
+                            </span>
+                            {posting.donorOrg && <span className="text-slate-500 group-hover:text-slate-700">({posting.donorOrg})</span>}
+                            <svg className="w-3 h-3 text-slate-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                         </button>
                     ) : (
-                        <span className="text-slate-700 font-bold ml-1">{posting.donorName}</span>
+                        <>
+                            <span className="text-slate-700 font-bold ml-1">{posting.donorName}</span>
+                            {posting.donorOrg && <span className="text-slate-400 ml-1">({posting.donorOrg})</span>}
+                        </>
                     )}
-                    {posting.donorOrg && <span className="text-slate-400 ml-1">({posting.donorOrg})</span>}
                 </span>
             </div>
         </div>
