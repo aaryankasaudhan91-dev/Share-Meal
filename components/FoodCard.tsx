@@ -839,15 +839,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {posting.status === FoodStatus.IN_TRANSIT && (
             <button 
                 onClick={() => {
-                    if (!showRoute && !routeData) {
+                    setShowRoute(true);
+                    if (!routeData) {
                         handleOptimizeRoute();
                     }
-                    setShowRoute(!showRoute);
                 }}
-                className={`flex-1 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-colors shadow-sm border flex items-center justify-center gap-2 ${showRoute ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'}`}
+                className={`flex-1 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-colors shadow-sm border flex items-center justify-center gap-2 bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100`}
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-                {showRoute ? 'Hide Route' : 'View Route'}
+                View Route
             </button>
         )}
         
@@ -901,73 +901,6 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             </button>
         )}
       </div>
-
-      {/* Route Optimization Section - Controlled by showRoute */}
-      {showRoute && (
-        <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex justify-between items-center mb-3">
-                <h4 className="font-black text-slate-700 text-xs uppercase tracking-widest flex items-center gap-2">
-                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                    Delivery Route
-                </h4>
-                <button 
-                    onClick={handleOptimizeRoute}
-                    disabled={loadingRoute}
-                    className="text-[10px] font-bold text-slate-400 hover:text-emerald-600 transition-colors"
-                >
-                   {loadingRoute ? 'Loading...' : 'Refresh'}
-                </button>
-            </div>
-            
-            {loadingRoute ? (
-                 <div className="flex flex-col items-center justify-center py-6 text-slate-400 gap-2">
-                     <svg className="animate-spin w-6 h-6" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                     <span className="text-xs font-medium">Calculating optimal path...</span>
-                 </div>
-            ) : routeData ? (
-                <div className="space-y-3">
-                    <div className="flex gap-3">
-                        <div className="flex-1 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Est. Time</p>
-                            <p className="text-lg font-black text-slate-800">{routeData.estimatedDuration}</p>
-                        </div>
-                        <div className="flex-[2] bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Summary</p>
-                            <p className="text-sm font-bold text-slate-700">{routeData.summary}</p>
-                        </div>
-                    </div>
-                    
-                    {routeData.trafficTips && (
-                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 flex items-start gap-2">
-                             <span className="text-amber-500 mt-0.5">⚠️</span>
-                             <div>
-                                <p className="text-[9px] text-amber-700 font-bold uppercase tracking-widest">Traffic Insight</p>
-                                <p className="text-xs text-amber-900 font-medium leading-relaxed">{routeData.trafficTips}</p>
-                             </div>
-                        </div>
-                    )}
-                    
-                    <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-                         <div className="bg-slate-50 px-3 py-2 border-b border-slate-100">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Turn-by-Turn</p>
-                         </div>
-                         <ul className="divide-y divide-slate-50">
-                            {routeData.steps.map((step, idx) => (
-                                <li key={idx} className="p-3 text-xs font-medium text-slate-600 flex gap-3">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-[10px]">{idx + 1}</span>
-                                    {step}
-                                </li>
-                            ))}
-                         </ul>
-                    </div>
-                </div>
-            ) : (
-                 <div className="text-center py-4 text-xs text-slate-500">
-                    Unable to load route data.
-                 </div>
-            )}
-        </div>
-      )}
 
       {showChat && <ChatModal posting={posting} user={user} onClose={() => setShowChat(false)} />}
       
@@ -1218,6 +1151,120 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         </p>
                     </div>
                 </div>
+            </div>
+        </div>
+      )}
+
+      {/* Route Optimization Modal */}
+      {showRoute && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowRoute(false)}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+                            <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                            </span>
+                            Optimized Route
+                        </h3>
+                        <p className="text-xs text-slate-500 font-medium ml-1 mt-0.5">Powered by Google Gemini & Maps</p>
+                    </div>
+                    <button onClick={() => setShowRoute(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                    {loadingRoute ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                            <div className="relative">
+                                <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-lg">🤖</span>
+                                </div>
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-800">Calculating Best Path...</p>
+                                <p className="text-xs text-slate-500">Analyzing traffic & road conditions</p>
+                            </div>
+                        </div>
+                    ) : routeData ? (
+                        <div className="space-y-6">
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                                    <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Est. Duration</p>
+                                    <p className="text-2xl font-black text-indigo-900">{routeData.estimatedDuration}</p>
+                                </div>
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Route Via</p>
+                                    <p className="text-sm font-bold text-slate-700 leading-tight">{routeData.summary}</p>
+                                </div>
+                            </div>
+
+                            {/* Endpoints */}
+                            <div className="relative pl-4 border-l-2 border-slate-100 space-y-6 my-2">
+                                <div className="relative">
+                                    <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white shadow-sm ring-1 ring-emerald-100"></div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start</p>
+                                    <p className="text-sm font-bold text-slate-800">{posting.location.line1}</p>
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm ring-1 ring-red-100"></div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Destination</p>
+                                    <p className="text-sm font-bold text-slate-800">{posting.requesterAddress?.line1}</p>
+                                </div>
+                            </div>
+
+                            {/* Traffic Tips */}
+                            {routeData.trafficTips && (
+                                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
+                                    <span className="text-xl">🚦</span>
+                                    <div>
+                                        <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest mb-1">Traffic Insight</p>
+                                        <p className="text-xs font-medium text-amber-900 leading-relaxed">{routeData.trafficTips}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Steps */}
+                            <div>
+                                <h4 className="font-black text-slate-800 text-sm mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                    Turn-by-Turn Directions
+                                </h4>
+                                <div className="space-y-3">
+                                    {routeData.steps.map((step, idx) => (
+                                        <div key={idx} className="flex gap-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-[10px]">{idx + 1}</span>
+                                            <p className="text-xs font-medium text-slate-600 leading-relaxed">{step}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-10">
+                            <p className="text-slate-400 font-medium">Route information unavailable.</p>
+                            <button onClick={handleOptimizeRoute} className="mt-2 text-indigo-600 text-xs font-bold hover:underline">Try Again</button>
+                        </div>
+                    )}
+                </div>
+                
+                {/* Footer */}
+                {!loadingRoute && routeData && (
+                    <div className="p-4 border-t border-slate-100 bg-slate-50">
+                        <button 
+                            onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${posting.location.lat},${posting.location.lng}`)}&destination=${encodeURIComponent(`${posting.requesterAddress?.lat},${posting.requesterAddress?.lng}`)}`, '_blank')}
+                            className="w-full bg-slate-900 text-white font-black py-3.5 rounded-xl hover:bg-indigo-600 transition-all shadow-lg flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
+                        >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                            Open in Google Maps
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
       )}
