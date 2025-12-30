@@ -9,7 +9,7 @@ interface RequesterMapProps {
   currentLocation?: { lat: number; lng: number };
   user?: User;
   onToggleFavorite?: (requesterId: string) => void;
-  onContact?: (requesterId: string) => void;
+  onContact?: (requesterId: string, message?: string) => void;
   onViewDetails?: (requesterId: string) => void;
 }
 
@@ -20,6 +20,10 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
   const userMarkerRef = useRef<any>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedRequester, setSelectedRequester] = useState<User | null>(null);
+  
+  // Contact Modal State
+  const [contactRequester, setContactRequester] = useState<User | null>(null);
+  const [messageText, setMessageText] = useState('');
 
   // Get unique categories from requesters
   const categories = ['All', 'Favorites', ...Array.from(new Set(requesters.map(r => r.orgCategory || 'Other').filter(Boolean)))];
@@ -30,6 +34,20 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
         duration: 1.5
       });
     }
+  };
+
+  const openContactModal = (requester: User) => {
+      setContactRequester(requester);
+      const greeting = requester.orgName ? `Hi ${requester.orgName},` : `Hi ${requester.name},`;
+      setMessageText(`${greeting}\n\nI noticed your request and would like to help...`);
+  };
+
+  const handleSendMessage = () => {
+      if (contactRequester && onContact) {
+          onContact(contactRequester.id, messageText);
+          setContactRequester(null);
+          setMessageText('');
+      }
   };
 
   // Initialize Map
@@ -270,7 +288,7 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
                      <div className="flex gap-2">
                          <button 
                             onClick={() => {
-                                if (onContact) onContact(selectedRequester.id);
+                                openContactModal(selectedRequester);
                                 setSelectedRequester(null);
                             }}
                             className="flex-1 bg-emerald-600 text-white font-bold py-3.5 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
@@ -291,6 +309,50 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                              </button>
                          )}
+                     </div>
+                 </div>
+             </div>
+         )}
+
+         {/* Internal Contact Modal */}
+         {contactRequester && (
+             <div className="absolute inset-0 z-[600] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setContactRequester(null)}>
+                 <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm border border-slate-200" onClick={e => e.stopPropagation()}>
+                     <div className="flex justify-between items-center mb-4">
+                         <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight truncate">
+                             Contact {contactRequester.orgName || contactRequester.name}
+                         </h3>
+                         <button onClick={() => setContactRequester(null)} className="text-slate-400 hover:text-slate-600">
+                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                         </button>
+                     </div>
+                     
+                     <div className="space-y-4">
+                        <textarea 
+                            rows={5}
+                            value={messageText}
+                            onChange={(e) => setMessageText(e.target.value)}
+                            placeholder="Type your message here..."
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all resize-none text-sm font-medium text-slate-700 custom-scrollbar"
+                            autoFocus
+                        />
+                        
+                        <div className="flex gap-3">
+                             <button 
+                                onClick={() => setContactRequester(null)}
+                                className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
+                             >
+                                Cancel
+                             </button>
+                             <button 
+                                onClick={handleSendMessage}
+                                disabled={!messageText.trim()}
+                                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 uppercase tracking-widest text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none"
+                             >
+                                Send
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                             </button>
+                        </div>
                      </div>
                  </div>
              </div>

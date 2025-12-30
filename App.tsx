@@ -335,12 +335,20 @@ const App: React.FC = () => {
   };
 
   // Contact Handlers
-  const handleContactRequester = (requesterId: string) => {
+  const handleContactRequester = (requesterId: string, message?: string) => {
       const targetUser = allUsers.find(u => u.id === requesterId);
       if (targetUser) {
-          setContactTargetUser(targetUser);
-          setShowContactModal(true);
-          setShowRequesterDetailsModal(false);
+          if (message && user) {
+             // Direct send if message provided
+             const fullMessage = `Inquiry from ${user.name}: ${message}`;
+             storage.createNotification(targetUser.id, fullMessage, 'INFO');
+             alert(`Message sent to ${targetUser.orgName || targetUser.name}!`);
+          } else {
+             // Open global modal if no message (default)
+             setContactTargetUser(targetUser);
+             setShowContactModal(true);
+             setShowRequesterDetailsModal(false);
+          }
       }
   };
 

@@ -498,7 +498,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const confirmationPreviewImage = deliveryUpdatePayload?.verificationImageUrl || deliveryUpdatePayload?.pickupVerificationImageUrl;
 
   return (
-    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
+    <div className="bg-white hover:bg-slate-50 rounded-3xl p-5 border border-slate-100 hover:border-slate-200 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
       {/* Image Section */}
       <div className="relative mb-4">
         {posting.imageUrl ? (
