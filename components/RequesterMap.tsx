@@ -19,6 +19,7 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
   const markersLayerRef = useRef<any>(null);
   const userMarkerRef = useRef<any>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedRequester, setSelectedRequester] = useState<User | null>(null);
 
   // Get unique categories from requesters
   const categories = ['All', 'Favorites', ...Array.from(new Set(requesters.map(r => r.orgCategory || 'Other').filter(Boolean)))];
@@ -163,11 +164,9 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
             </div>
           `, { direction: 'top', offset: [0, -45], className: 'custom-tooltip shadow-sm border-0 rounded-lg px-2 py-1' });
 
-          // Click handler to open contact modal directly
+          // Click handler to open internal modal
           marker.on('click', () => {
-              if (onContact) {
-                  onContact(r.id);
-              }
+              setSelectedRequester(r);
           });
           
           markersToAdd.push(marker);
@@ -233,7 +232,69 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
                 </div>
                 <span>Favorites</span>
             </div>
+            <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-emerald-800 border border-white shadow-sm flex items-center justify-center text-white text-[8px]">
+                    <span>10+</span>
+                </div>
+                <span>Clusters</span>
+            </div>
         </div>
+
+        {/* Selected Requester Modal */}
+        {selectedRequester && (
+             <div className="absolute inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelectedRequester(null)}>
+                 <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-xs border border-white/50 relative overflow-hidden group" onClick={e => e.stopPropagation()}>
+                     
+                     {/* Close Button */}
+                     <button onClick={() => setSelectedRequester(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                     </button>
+
+                     {/* Content */}
+                     <div className="flex flex-col items-center text-center mb-6 mt-2">
+                        <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl font-black mb-3 border-4 border-white shadow-lg ring-1 ring-slate-100">
+                            {selectedRequester.orgName?.charAt(0) || selectedRequester.name.charAt(0)}
+                        </div>
+                        <h3 className="font-black text-slate-800 text-xl leading-tight mb-1">{selectedRequester.orgName || selectedRequester.name}</h3>
+                        <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-100">
+                            {selectedRequester.orgCategory || 'Organization'}
+                        </span>
+                        
+                        {selectedRequester.address && (
+                            <p className="text-xs text-slate-400 mt-3 max-w-[80%] leading-relaxed">
+                                {selectedRequester.address.line1}, {selectedRequester.address.pincode}
+                            </p>
+                        )}
+                     </div>
+                     
+                     <div className="flex gap-2">
+                         <button 
+                            onClick={() => {
+                                if (onContact) onContact(selectedRequester.id);
+                                setSelectedRequester(null);
+                            }}
+                            className="flex-1 bg-emerald-600 text-white font-bold py-3.5 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                         >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                            Contact
+                         </button>
+                         {/* View Details Button */}
+                         {onViewDetails && (
+                             <button
+                                onClick={() => {
+                                    onViewDetails(selectedRequester.id);
+                                    setSelectedRequester(null);
+                                }}
+                                className="px-4 bg-slate-100 text-slate-600 font-bold py-3.5 rounded-xl hover:bg-slate-200 transition-colors text-xs uppercase tracking-widest"
+                                title="View Full Profile"
+                             >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                             </button>
+                         )}
+                     </div>
+                 </div>
+             </div>
+         )}
     </div>
   );
 };
