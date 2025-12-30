@@ -78,6 +78,8 @@ export interface FoodPosting {
   volunteerLocation?: { lat: number; lng: number };
   interestedVolunteers?: { userId: string; userName: string }[]; // New: Track interested volunteers
   etaMinutes?: number;
+  isPickedUp?: boolean; // New: Track if volunteer has picked up food
+  pickupVerificationImageUrl?: string; // New: Proof of pickup
   verificationImageUrl?: string; // New: Proof of delivery
   ratings?: Rating[]; // New: Volunteer ratings
   createdAt: number;

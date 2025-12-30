@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus, Rating } from '../types';
-import { verifyDeliveryImage, getOptimizedRoute, calculateLiveEta, RouteOptimizationResult } from '../services/geminiService';
+import { verifyDeliveryImage, verifyPickupImage, getOptimizedRoute, calculateLiveEta, RouteOptimizationResult } from '../services/geminiService';
 import { storage } from '../services/storageService';
 import ChatModal from './ChatModal';
 import TrackingMap from './TrackingMap';
@@ -22,10 +22,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [showProofModal, setShowProofModal] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
   
-  // Delivery Confirmation State
+  // Delivery/Pickup Confirmation State
   const [showDeliverConfirm, setShowDeliverConfirm] = useState(false);
   const [deliveryUpdatePayload, setDeliveryUpdatePayload] = useState<Partial<FoodPosting> | null>(null);
   const [verificationFeedback, setVerificationFeedback] = useState<string>('');
+  const [verificationType, setVerificationType] = useState<'PICKUP' | 'DELIVERY' | null>(null);
 
   // Rating State
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -131,7 +132,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       volunteerId: user.id,
       volunteerName: user.name,
       volunteerLocation: user.address ? { lat: user.address.lat || 0, lng: user.address.lng || 0 } : undefined,
-      etaMinutes: 30 // Initial estimate
+      etaMinutes: 30, // Initial estimate
+      isPickedUp: false // Initially false, volunteer must verify pickup
     };
     onUpdate(posting.id, updates);
   };
@@ -154,7 +156,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         volunteerId: selectedVolunteer.id,
         volunteerName: selectedVolunteer.name,
         volunteerLocation: (posting.location.lat && posting.location.lng) ? { lat: posting.location.lat, lng: posting.location.lng } : undefined,
-        interestedVolunteers: [] // Clear list on assignment
+        interestedVolunteers: [], // Clear list on assignment
+        isPickedUp: false
     });
     setShowAssignConfirm(false);
     setShowVolunteerSelection(false);
@@ -176,6 +179,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     verificationImageUrl: base64
                 });
                 setVerificationFeedback(verification.feedback);
+                setVerificationType('DELIVERY');
                 setShowDeliverConfirm(true);
             } else {
                 alert(`Verification Failed: ${verification.feedback}`);
@@ -190,21 +194,53 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     }
   };
 
+  const handlePickupVerification = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsVerifying(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        try {
+            const verification = await verifyPickupImage(base64);
+            if (verification.isValid) {
+                setDeliveryUpdatePayload({
+                    isPickedUp: true,
+                    pickupVerificationImageUrl: base64
+                });
+                setVerificationFeedback(verification.feedback);
+                setVerificationType('PICKUP');
+                setShowDeliverConfirm(true);
+            } else {
+                alert(`Pickup Verification Failed: ${verification.feedback}`);
+            }
+        } catch (error) {
+            console.error("Pickup Verification Error", error);
+            alert("Verification failed due to an error.");
+        }
+        setIsVerifying(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleRequesterDelivery = () => {
     setDeliveryUpdatePayload({ status: FoodStatus.DELIVERED });
     setVerificationFeedback('');
+    setVerificationType('DELIVERY');
     setShowDeliverConfirm(true);
   };
 
-  const handleConfirmDelivery = () => {
+  const handleConfirmAction = () => {
     if (deliveryUpdatePayload) {
         onUpdate(posting.id, deliveryUpdatePayload);
         if (verificationFeedback) {
-            alert(`Delivery Verified! ${verificationFeedback}`);
+            alert(`${verificationType === 'PICKUP' ? 'Pickup' : 'Delivery'} Verified! ${verificationFeedback}`);
         }
         setShowDeliverConfirm(false);
         setDeliveryUpdatePayload(null);
         setVerificationFeedback('');
+        setVerificationType(null);
     }
   };
 
@@ -321,7 +357,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
     switch(posting.status) {
       case FoodStatus.REQUESTED: return <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700">Requested</span>;
-      case FoodStatus.IN_TRANSIT: return <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 animate-pulse">In Transit</span>;
+      case FoodStatus.IN_TRANSIT: 
+        return posting.isPickedUp 
+            ? <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 animate-pulse">Out for Delivery</span>
+            : <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 animate-pulse">Heading to Pickup</span>;
       case FoodStatus.DELIVERED: return <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600">Delivered</span>;
       default: return null;
     }
@@ -343,6 +382,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Safe
             </div>
+        )}
+        {posting.isPickedUp && (
+             <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm text-purple-700 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-sm flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                Picked Up
+             </div>
         )}
       </div>
 
@@ -375,14 +420,14 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
       {/* Location Info */}
       <div className="space-y-2 mb-4">
-        <div className="flex items-start gap-2 text-xs text-slate-600">
+        <div className={`flex items-start gap-2 text-xs ${posting.isPickedUp ? 'opacity-50 grayscale' : 'text-slate-600'}`}>
             <span className="mt-0.5">📍</span>
             <div>
                 <span className="font-bold text-slate-800">Pickup:</span> {posting.location.line1}, {posting.location.line2}
             </div>
         </div>
         {posting.orphanageName && (
-            <div className="flex items-start gap-2 text-xs text-slate-600">
+            <div className={`flex items-start gap-2 text-xs ${!posting.isPickedUp && posting.status === FoodStatus.IN_TRANSIT ? 'opacity-50' : 'text-slate-600'}`}>
                 <span className="mt-0.5">🏁</span>
                 <div>
                     <span className="font-bold text-slate-800">Drop-off:</span> {posting.orphanageName}
@@ -595,32 +640,51 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                              </span>
-                             Stop Sharing
+                             Stop
                          </>
                     ) : (
                         <>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            Share Live
+                            Live
                         </>
                     )}
                 </button>
 
-                <div className="relative flex-1">
-                    <input 
-                        type="file" 
-                        accept="image/*"
-                        onChange={handleDeliveryVerification}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                        disabled={isVerifying}
-                    />
-                    <button 
-                        disabled={isVerifying}
-                        className="w-full h-full bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
-                    >
-                        {isVerifying ? 'Verifying...' : 'Verify'}
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    </button>
-                </div>
+                {!posting.isPickedUp ? (
+                    <div className="relative flex-1">
+                        <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={handlePickupVerification}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            disabled={isVerifying}
+                        />
+                        <button 
+                            disabled={isVerifying}
+                            className="w-full h-full bg-purple-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200 flex items-center justify-center gap-2"
+                        >
+                            {isVerifying ? 'Scanning...' : 'Verify Pickup'}
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </button>
+                    </div>
+                ) : (
+                    <div className="relative flex-1">
+                        <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={handleDeliveryVerification}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            disabled={isVerifying}
+                        />
+                        <button 
+                            disabled={isVerifying}
+                            className="w-full h-full bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                        >
+                            {isVerifying ? 'Verifying...' : 'Verify Dropoff'}
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </button>
+                    </div>
+                )}
             </>
         )}
         
@@ -874,7 +938,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         </div>
       )}
       
-      {/* Delivery Confirmation Modal */}
+      {/* Delivery/Pickup Confirmation Modal */}
       {showDeliverConfirm && (
         <div className="fixed inset-0 z-[180] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowDeliverConfirm(false)}>
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
@@ -882,7 +946,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
                 <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">
-                    {verificationFeedback ? 'Delivery Verified' : 'Confirm Receipt'}
+                    {verificationFeedback 
+                        ? (verificationType === 'PICKUP' ? 'Pickup Verified' : 'Delivery Verified')
+                        : 'Confirm Receipt'}
                 </h3>
                 {verificationFeedback && (
                     <div className="mb-4 bg-emerald-50 p-3 rounded-xl border border-emerald-100">
@@ -891,18 +957,18 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 )}
                 <p className="text-slate-500 text-sm mb-6 leading-relaxed font-medium">
                     {verificationFeedback 
-                        ? "The proof of delivery is valid. Mark this donation as delivered?" 
+                        ? (verificationType === 'PICKUP' ? "The pickup has been verified. Proceed to delivery?" : "The proof of delivery is valid. Mark this donation as delivered?")
                         : "Are you sure you have received this donation? This action cannot be undone."}
                 </p>
                 <div className="flex flex-col gap-3">
                     <button 
-                        onClick={handleConfirmDelivery}
+                        onClick={handleConfirmAction}
                         className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest text-xs"
                     >
-                        Yes, Confirm Delivery
+                        Yes, Confirm
                     </button>
                     <button 
-                        onClick={() => { setShowDeliverConfirm(false); setDeliveryUpdatePayload(null); setVerificationFeedback(''); }}
+                        onClick={() => { setShowDeliverConfirm(false); setDeliveryUpdatePayload(null); setVerificationFeedback(''); setVerificationType(null); }}
                         className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-xs"
                     >
                         Cancel

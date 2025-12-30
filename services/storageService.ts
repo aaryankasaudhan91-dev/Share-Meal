@@ -139,6 +139,30 @@ export const storage = {
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
 
+      // Check for Pickup Confirmation
+      if (!oldPosting.isPickedUp && updates.isPickedUp) {
+         if (newPosting.orphanageId) {
+             notifications.push({
+              id: Math.random().toString(36).substr(2, 9),
+              userId: newPosting.orphanageId,
+              message: `Status Update: ${newPosting.volunteerName} has picked up "${newPosting.foodName}" and is on the way!`,
+              isRead: false,
+              createdAt: Date.now(),
+              type: 'INFO'
+            });
+         }
+         if (newPosting.donorId) {
+             notifications.push({
+              id: Math.random().toString(36).substr(2, 9),
+              userId: newPosting.donorId,
+              message: `Pickup Confirmed: ${newPosting.volunteerName} has collected the food.`,
+              isRead: false,
+              createdAt: Date.now(),
+              type: 'SUCCESS'
+            });
+         }
+      }
+
       if (oldPosting.status !== FoodStatus.DELIVERED && newPosting.status === FoodStatus.DELIVERED) {
          // Increment impact scores
          const donorIndex = users.findIndex(u => u.id === newPosting.donorId);

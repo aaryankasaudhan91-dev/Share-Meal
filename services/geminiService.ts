@@ -74,6 +74,44 @@ export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageA
   }
 };
 
+export const verifyPickupImage = async (base64Data: string): Promise<{ isValid: boolean; feedback: string }> => {
+  try {
+    const data = base64Data.split(',')[1] || base64Data;
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: data,
+            },
+          },
+          {
+            text: "This image is proof of a volunteer picking up food from a donor. Does it show food containers, boxes, or people handing over items? Respond in JSON format.",
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isValid: { type: Type.BOOLEAN, description: "Whether the image looks like a pickup proof" },
+            feedback: { type: Type.STRING, description: "Brief confirmation or feedback about the pickup" }
+          },
+          required: ["isValid", "feedback"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{"isValid": true, "feedback": "Pickup photo processed."}');
+  } catch (error) {
+    console.error("Gemini Pickup Verification Error:", error);
+    return { isValid: true, feedback: "Photo received and logged." };
+  }
+};
+
 export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid: boolean; feedback: string }> => {
   try {
     const data = base64Data.split(',')[1] || base64Data;
