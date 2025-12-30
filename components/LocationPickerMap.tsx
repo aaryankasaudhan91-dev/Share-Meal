@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { reverseGeocode, ReverseGeocodeResult } from '../services/geminiService';
 
 declare const L: any;
 
@@ -6,12 +7,14 @@ interface LocationPickerMapProps {
   lat?: number;
   lng?: number;
   onLocationSelect: (lat: number, lng: number) => void;
+  onAddressFound?: (address: ReverseGeocodeResult) => void;
 }
 
-const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocationSelect }) => {
+const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocationSelect, onAddressFound }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const [isLocating, setIsLocating] = useState(false);
 
   const defaultLat = 20.5937; // India center
   const defaultLng = 78.9629;
@@ -23,7 +26,7 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocat
       const initialZoom = lat ? 15 : 5;
 
       const map = L.map(mapContainerRef.current, {
-        zoomControl: false, // We'll add it in a better position if needed
+        zoomControl: false,
         attributionControl: false
       }).setView([initialLat, initialLng], initialZoom);
 
@@ -94,9 +97,74 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocat
     }
   }, [lat, lng]);
 
+  const handleAutoDetect = () => {
+      if (!navigator.geolocation) {
+          alert("Geolocation is not supported by your browser");
+          return;
+      }
+      setIsLocating(true);
+      navigator.geolocation.getCurrentPosition(
+          async (position) => {
+              const { latitude, longitude } = position.coords;
+              
+              // Update marker and parent
+              if (mapInstanceRef.current) {
+                  mapInstanceRef.current.setView([latitude, longitude], 16);
+                  if (markerRef.current) {
+                      markerRef.current.setLatLng([latitude, longitude]);
+                  }
+              }
+              onLocationSelect(latitude, longitude);
+
+              // Auto-fill address if handler provided
+              if (onAddressFound) {
+                  try {
+                      const address = await reverseGeocode(latitude, longitude);
+                      if (address) {
+                          onAddressFound(address);
+                      }
+                  } catch (e) {
+                      console.error("Failed to reverse geocode:", e);
+                  }
+              }
+              setIsLocating(false);
+          },
+          (error) => {
+              console.error(error);
+              alert("Unable to retrieve your location");
+              setIsLocating(false);
+          },
+          { enableHighAccuracy: true }
+      );
+  };
+
   return (
     <div className="w-full h-56 rounded-2xl overflow-hidden border border-slate-200 relative z-0 shadow-inner group">
       <div ref={mapContainerRef} className="w-full h-full" />
+      
+      {/* Auto Detect Button */}
+      <button 
+        onClick={handleAutoDetect}
+        disabled={isLocating}
+        type="button"
+        className="absolute top-2 left-2 z-[400] bg-white text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-md hover:bg-emerald-50 hover:text-emerald-600 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed border border-slate-100"
+      >
+         {isLocating ? (
+             <>
+                <svg className="animate-spin w-3 h-3 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Detecting...
+             </>
+         ) : (
+             <>
+                <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Use Current Location
+             </>
+         )}
+      </button>
+
       <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg text-[10px] text-slate-500 z-[400] font-bold shadow-sm pointer-events-none border border-white/50">
         Drag pin to adjust location
       </div>

@@ -560,6 +560,12 @@ const App: React.FC = () => {
                                     setRegLat(lat);
                                     setRegLng(lng);
                                 }}
+                                onAddressFound={(addr) => {
+                                    setRegLine1(addr.line1);
+                                    setRegLine2(addr.line2);
+                                    if (addr.landmark) setRegLandmark(addr.landmark);
+                                    setRegPincode(addr.pincode);
+                                }}
                              />
 
                              <input 
@@ -840,6 +846,12 @@ const App: React.FC = () => {
                                                 onLocationSelect={(newLat, newLng) => {
                                                     setDonLat(newLat);
                                                     setDonLng(newLng);
+                                                }}
+                                                onAddressFound={(addr) => {
+                                                    setDonLine1(addr.line1);
+                                                    setDonLine2(addr.line2);
+                                                    if (addr.landmark) setDonLandmark(addr.landmark);
+                                                    setDonPincode(addr.pincode);
                                                 }}
                                             />
                                         </div>

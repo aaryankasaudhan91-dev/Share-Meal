@@ -157,6 +157,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                             setLat(newLat);
                             setLng(newLng);
                         }}
+                        onAddressFound={(addr) => {
+                            setAddrLine1(addr.line1);
+                            setAddrLine2(addr.line2);
+                            if (addr.landmark) setLandmark(addr.landmark);
+                            setPincode(addr.pincode);
+                        }}
                    />
                 </div>
 

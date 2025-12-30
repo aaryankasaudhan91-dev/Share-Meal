@@ -467,20 +467,20 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     {showDonorDetails ? (
                         (user.role === UserRole.VOLUNTEER || user.role === UserRole.REQUESTER) ? (
                             <button 
-                                onClick={handleViewDonorProfile} 
-                                className="group inline-flex items-center gap-1 ml-1 hover:bg-slate-100 px-1.5 py-0.5 rounded-lg transition-colors"
+                                onClick={(e) => { e.stopPropagation(); handleViewDonorProfile(); }}
+                                className="inline-flex items-center gap-1.5 ml-1 px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-md transition-colors group"
+                                title="View Donor Profile"
                             >
-                                <span className="text-emerald-700 font-bold underline decoration-emerald-200 underline-offset-2 group-hover:decoration-emerald-500">
+                                <span className="font-bold text-slate-700 group-hover:text-emerald-700">
                                     {posting.donorName}
                                 </span>
-                                {posting.donorOrg && <span className="text-slate-500 group-hover:text-slate-700">({posting.donorOrg})</span>}
+                                {posting.donorOrg && <span className="text-slate-500 text-[10px] group-hover:text-emerald-600">({posting.donorOrg})</span>}
                                 <svg className="w-3 h-3 text-slate-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                             </button>
                         ) : (
-                            <>
-                                <span className="text-slate-700 font-bold ml-1">{posting.donorName}</span>
-                                {posting.donorOrg && <span className="text-slate-400 ml-1">({posting.donorOrg})</span>}
-                            </>
+                            <span className="ml-1 font-bold text-slate-700">
+                                {posting.donorName} {posting.donorOrg && <span className="font-normal text-slate-500">({posting.donorOrg})</span>}
+                            </span>
                         )
                     ) : (
                         <span className="text-slate-400 italic ml-1">Hidden until requested</span>
@@ -621,7 +621,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     onClick={() => { setRatingStars(0); setRatingFeedback(''); setShowRatingModal(true); }}
                     className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-widest hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
                 >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.784.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
                     Rate Volunteer
                 </button>
             ) : (
