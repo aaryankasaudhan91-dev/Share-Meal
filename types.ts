@@ -25,13 +25,13 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Added password field
+  password?: string;
   role: UserRole;
   address?: Address;
   orgCategory?: string;
   orgName?: string;
   favoriteRequesterIds?: string[];
-  impactScore?: number; // Total successful deliveries/donations
+  impactScore?: number;
   averageRating?: number;
   ratingsCount?: number;
 }
@@ -49,7 +49,7 @@ export interface ChatMessage {
 export interface Rating {
   raterId: string;
   raterRole: UserRole;
-  rating: number; // 1-5
+  rating: number;
   feedback?: string;
   createdAt: number;
 }
@@ -58,15 +58,15 @@ export interface FoodPosting {
   id: string;
   donorId: string;
   donorName: string;
-  donorOrg?: string; // Added donor organization
+  donorOrg?: string;
   foodName: string;
-  foodCategory?: string; // New field for categorization
+  foodCategory?: string;
   quantity: string;
   location: Address;
   expiryDate: string;
   status: FoodStatus;
   imageUrl?: string;
-  foodTags?: string[]; // New: Veg, Non-Veg, etc.
+  foodTags?: string[];
   safetyVerdict?: {
     isSafe: boolean;
     reasoning: string;
@@ -77,13 +77,13 @@ export interface FoodPosting {
   volunteerId?: string;
   volunteerName?: string;
   volunteerLocation?: { lat: number; lng: number };
-  interestedVolunteers?: { userId: string; userName: string }[]; // New: Track interested volunteers
+  interestedVolunteers?: { userId: string; userName: string }[];
   etaMinutes?: number;
-  isPickedUp?: boolean; // New: Track if volunteer has picked up food
-  pickupVerificationImageUrl?: string; // New: Proof of pickup
-  verificationImageUrl?: string; // New: Proof of delivery
-  volunteerNotes?: string; // New: Notes from volunteer
-  ratings?: Rating[]; // New: Volunteer ratings
+  isPickedUp?: boolean;
+  pickupVerificationImageUrl?: string;
+  verificationImageUrl?: string;
+  volunteerNotes?: string;
+  ratings?: Rating[];
   createdAt: number;
 }
 

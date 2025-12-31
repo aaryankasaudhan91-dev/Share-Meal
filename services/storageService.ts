@@ -6,9 +6,8 @@ const STORAGE_KEY_USERS = 'food_rescue_users';
 const STORAGE_KEY_NOTIFICATIONS = 'food_rescue_notifications';
 const STORAGE_KEY_CHATS = 'food_rescue_chats';
 
-// Helper to calculate distance between two coordinates in km (Haversine formula)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371; // Radius of the earth in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a = 
@@ -72,39 +71,32 @@ export const storage = {
     const data = localStorage.getItem(STORAGE_KEY_POSTINGS);
     return data ? JSON.parse(data) : [];
   },
-  
-  // Chat Methods
   getMessages: (postingId: string): ChatMessage[] => {
     const allChats = JSON.parse(localStorage.getItem(STORAGE_KEY_CHATS) || '{}');
     return allChats[postingId] || [];
   },
-
   saveMessage: (postingId: string, message: ChatMessage) => {
     const allChats = JSON.parse(localStorage.getItem(STORAGE_KEY_CHATS) || '{}');
     if (!allChats[postingId]) allChats[postingId] = [];
     allChats[postingId].push(message);
     localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(allChats));
   },
-
   getNotifications: (userId: string): Notification[] => {
     const all = getStoredNotifications();
     return all
       .filter(n => n.userId === userId)
       .sort((a, b) => b.createdAt - a.createdAt);
   },
-
   markNotificationRead: (notificationId: string) => {
     const all = getStoredNotifications();
     const updated = all.map(n => n.id === notificationId ? { ...n, isRead: true } : n);
     saveStoredNotifications(updated);
   },
-
   markAllNotificationsRead: (userId: string) => {
     const all = getStoredNotifications();
     const updated = all.map(n => n.userId === userId ? { ...n, isRead: true } : n);
     saveStoredNotifications(updated);
   },
-
   createNotification: (userId: string, message: string, type: 'INFO' | 'ACTION' | 'SUCCESS') => {
     const notifications = getStoredNotifications();
     notifications.push({
@@ -117,7 +109,6 @@ export const storage = {
     });
     saveStoredNotifications(notifications);
   },
-
   savePosting: (posting: FoodPosting) => {
     const postings = storage.getPostings();
     postings.unshift(posting);
@@ -131,7 +122,6 @@ export const storage = {
         let shouldNotify = false;
         let distanceText = '';
 
-        // Check if both volunteer and posting have valid coordinates
         if (u.address?.lat && u.address?.lng && posting.location.lat && posting.location.lng) {
           const distance = calculateDistance(
             posting.location.lat,
@@ -140,7 +130,7 @@ export const storage = {
             u.address.lng
           );
 
-          if (distance <= 10) { // Notify only within 10km radius
+          if (distance <= 10) {
             shouldNotify = true;
             distanceText = ` (${distance.toFixed(1)}km away)`;
           }
@@ -160,17 +150,11 @@ export const storage = {
     });
     saveStoredNotifications(notifications);
   },
-
   updatePosting: (id: string, updates: Partial<FoodPosting>) => {
     const postings = storage.getPostings();
     const index = postings.findIndex(p => p.id === id);
     if (index !== -1) {
       const oldPosting = postings[index];
-      
-      if (oldPosting.status !== FoodStatus.IN_TRANSIT && updates.status === FoodStatus.IN_TRANSIT) {
-        updates.etaMinutes = Math.floor(Math.random() * 26) + 15;
-      }
-
       const newPosting = { ...oldPosting, ...updates };
       postings[index] = newPosting;
       localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
@@ -178,80 +162,23 @@ export const storage = {
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
 
-      // Check for Pickup Confirmation
       if (!oldPosting.isPickedUp && updates.isPickedUp) {
          if (newPosting.orphanageId) {
              notifications.push({
               id: Math.random().toString(36).substr(2, 9),
               userId: newPosting.orphanageId,
-              message: `Status Update: ${newPosting.volunteerName} has picked up "${newPosting.foodName}" and is on the way!`,
-              isRead: false,
-              createdAt: Date.now(),
-              type: 'INFO'
-            });
-         }
-         if (newPosting.donorId) {
-             notifications.push({
-              id: Math.random().toString(36).substr(2, 9),
-              userId: newPosting.donorId,
-              message: `Pickup Confirmed: ${newPosting.volunteerName} has collected the food.`,
-              isRead: false,
-              createdAt: Date.now(),
-              type: 'SUCCESS'
+              message: `Status Update: ${newPosting.volunteerName} has picked up "${newPosting.foodName}"!`,
+              isRead: false, createdAt: Date.now(), type: 'INFO'
             });
          }
       }
 
       if (oldPosting.status !== FoodStatus.DELIVERED && newPosting.status === FoodStatus.DELIVERED) {
-         // Increment impact scores
          const donorIndex = users.findIndex(u => u.id === newPosting.donorId);
          const volunteerIndex = users.findIndex(u => u.id === newPosting.volunteerId);
-         
-         if (donorIndex !== -1) {
-           users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
-         }
-         if (volunteerIndex !== -1) {
-           users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
-         }
+         if (donorIndex !== -1) users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
+         if (volunteerIndex !== -1) users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
          localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-
-         notifications.push({
-          id: Math.random().toString(36).substr(2, 9),
-          userId: newPosting.donorId,
-          message: `Success! Your donation "${newPosting.foodName}" was delivered. Impact +1!`,
-          isRead: false,
-          createdAt: Date.now(),
-          type: 'SUCCESS'
-        });
-
-        if (newPosting.volunteerId) {
-             notifications.push({
-              id: Math.random().toString(36).substr(2, 9),
-              userId: newPosting.volunteerId,
-              message: `Fantastic work! Delivery verified for ${newPosting.foodName}. Impact +1!`,
-              isRead: false,
-              createdAt: Date.now(),
-              type: 'SUCCESS'
-            });
-        }
-      }
-
-      // Handle Ratings
-      if (updates.ratings && updates.ratings.length > (oldPosting.ratings?.length || 0)) {
-         // A new rating was added
-         const newRating = updates.ratings[updates.ratings.length - 1]; // Assume newly added is last
-         if (newPosting.volunteerId) {
-             const vIndex = users.findIndex(u => u.id === newPosting.volunteerId);
-             if (vIndex !== -1) {
-                 const vol = users[vIndex];
-                 const currentTotal = (vol.averageRating || 0) * (vol.ratingsCount || 0);
-                 const newCount = (vol.ratingsCount || 0) + 1;
-                 vol.ratingsCount = newCount;
-                 vol.averageRating = parseFloat(((currentTotal + newRating.rating) / newCount).toFixed(1));
-                 users[vIndex] = vol;
-                 localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-             }
-         }
       }
 
       saveStoredNotifications(notifications);

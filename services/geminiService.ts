@@ -1,6 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Use API_KEY directly from environment variables as per guidelines
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getFoodSafetyTips = async (foodName: string): Promise<string> => {
@@ -29,7 +29,6 @@ export interface ImageAnalysisResult {
 export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageAnalysisResult> => {
   try {
     const data = base64Data.split(',')[1] || base64Data;
-    // Updated contents to use { parts: [...] } structure for multimodal requests
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -87,7 +86,7 @@ export const verifyPickupImage = async (base64Data: string): Promise<{ isValid: 
             },
           },
           {
-            text: "Analyze this image to verify a food pickup. It MUST show food containers, boxes, bags of food, or people handing over items. If the image is black, blurry, or shows something irrelevant (like a floor, ceiling, or selfie without food), set isValid to false. Respond in JSON format.",
+            text: "Analyze this image to verify a food pickup. It MUST show food containers, boxes, bags of food, or people handing over items. If the image is black, blurry, or shows something irrelevant, set isValid to false. Respond in JSON format.",
           }
         ]
       },
@@ -114,7 +113,6 @@ export const verifyPickupImage = async (base64Data: string): Promise<{ isValid: 
 export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid: boolean; feedback: string }> => {
   try {
     const data = base64Data.split(',')[1] || base64Data;
-    // Updated contents to use { parts: [...] } structure for multimodal requests
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -161,18 +159,7 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<ReverseG
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `You are an expert delivery coordinator for a food rescue mission.
-      The user is at coordinates: ${lat}, ${lng}.
-      
-      Please find the most accurate address for this location using Google Maps data.
-      
-      IMPORTANT: To help volunteers locate this spot quickly, identify a specific, highly visible "Landmark" nearby (e.g., "Opposite City Hospital", "Near Central Metro Station Gate 2", "Behind St. Mary's School").
-      
-      Return a VALID JSON object (no markdown) with these fields:
-      - line1: Building/House Number & Name
-      - line2: Street & Locality
-      - landmark: The best navigation landmark
-      - pincode: 6-digit postal code`,
+      contents: `You are an expert delivery coordinator. The user is at: ${lat}, ${lng}. Find accurate address details and a specific landmark nearby. Return VALID JSON with: line1, line2, landmark, pincode.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -202,19 +189,13 @@ export const getAddressFromPincode = async (pincode: string): Promise<ReverseGeo
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Find the location details for the Indian Pincode "${pincode}". 
-      Return a VALID JSON object (no markdown) with these fields:
-      - line1: A representative local area or locality name for this pincode.
-      - line2: The District, City, and State.
-      - landmark: A major, well-known landmark in this pincode area (or leave empty if unknown).
-      - pincode: The pincode itself.`,
+      contents: `Find the location details for the Indian Pincode "${pincode}". Return a VALID JSON object with: line1, line2, landmark, pincode.`,
       config: {
         tools: [{ googleMaps: {} }],
       },
     });
 
     const text = response.text || "";
-    // Regex to extract JSON block if wrapped in markdown
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
@@ -230,7 +211,7 @@ export const getRouteInsights = async (location: string, userLat?: number, userL
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Provide a quick summary of the location: "${location}". Identify any major landmarks nearby to help a delivery volunteer find it. If coordinates are provided, consider them the starting point.`,
+      contents: `Provide a quick summary of the location: "${location}". Identify major landmarks.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -243,13 +224,13 @@ export const getRouteInsights = async (location: string, userLat?: number, userL
 
     const mapsUrl = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.find(c => c.maps)?.maps?.uri;
     return {
-      text: response.text || "Location found. Use map for precise navigation.",
+      text: response.text || "Location found.",
       mapsUrl: mapsUrl || `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location)}`
     };
   } catch (error) {
     console.error("Maps Grounding Error:", error);
     return {
-      text: "Check location on Google Maps for the best route.",
+      text: "Check location on Google Maps.",
       mapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location)}`
     };
   }
@@ -266,18 +247,9 @@ export const getOptimizedRoute = async (origin: string, destination: string): Pr
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `You are a logistics expert. Plan the most efficient driving route from "${origin}" to "${destination}". 
-      Consider standard traffic patterns for a delivery. 
-      Respond in VALID JSON format with the following structure:
-      {
-        "summary": "Brief overview of the route (e.g., Via Main St)",
-        "estimatedDuration": "Estimated time (e.g., 15 mins)",
-        "steps": ["Step 1", "Step 2", ...],
-        "trafficTips": "Advice on potential bottlenecks or shortcuts"
-      }`,
+      contents: `Plan the most efficient driving route from "${origin}" to "${destination}". Return VALID JSON with: summary, estimatedDuration, steps, trafficTips.`,
       config: {
-        tools: [{ googleMaps: {} }], // Use grounding for location context
-        // responseMimeType: "application/json" // Incompatible with googleMaps tool
+        tools: [{ googleMaps: {} }],
       },
     });
     
@@ -300,9 +272,7 @@ export const calculateLiveEta = async (
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Calculate the estimated driving time from coordinates ${origin.lat}, ${origin.lng} to "${destination}". 
-      Consider current traffic conditions.
-      Return ONLY the number of minutes as an integer. Do not include 'mins' or 'minutes' or any other text.`,
+      contents: `Calculate the estimated driving time from ${origin.lat}, ${origin.lng} to "${destination}". Return ONLY the number of minutes as an integer.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -317,11 +287,8 @@ export const calculateLiveEta = async (
     });
 
     const text = response.text || "";
-    // Parse response for minutes
-    const match = text.match(/(\d+)\s*mins?/);
-    if (match) return parseInt(match[1]);
-    const numberMatch = text.match(/\d+/);
-    return numberMatch ? parseInt(numberMatch[0]) : null;
+    const match = text.match(/(\d+)/);
+    return match ? parseInt(match[1]) : null;
   } catch (error) {
     console.error("ETA Calculation Error:", error);
     return null;
