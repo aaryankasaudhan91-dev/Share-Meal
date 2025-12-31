@@ -1,5 +1,5 @@
 
-import { User, FoodPosting, FoodStatus, UserRole, Notification, ChatMessage } from '../types';
+import { User, FoodPosting, FoodStatus, UserRole, Notification, ChatMessage, Rating } from '../types';
 
 const STORAGE_KEY_POSTINGS = 'food_rescue_postings';
 const STORAGE_KEY_USERS = 'food_rescue_users';
@@ -31,9 +31,13 @@ export const storage = {
     const data = localStorage.getItem(STORAGE_KEY_USERS);
     return data ? JSON.parse(data) : [];
   },
+  getUser: (id: string): User | undefined => {
+    const users = storage.getUsers();
+    return users.find(u => u.id === id);
+  },
   saveUser: (user: User) => {
     const users = storage.getUsers();
-    users.push({ ...user, impactScore: 0 });
+    users.push({ ...user, impactScore: 0, averageRating: 0, ratingsCount: 0 });
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
   },
   updateUser: (id: string, updates: Partial<User>) => {
@@ -183,6 +187,49 @@ export const storage = {
 
       saveStoredNotifications(notifications);
       return newPosting;
+    }
+    return null;
+  },
+  addVolunteerRating: (postingId: string, rating: Rating) => {
+    const postings = storage.getPostings();
+    const pIndex = postings.findIndex(p => p.id === postingId);
+    
+    if (pIndex !== -1) {
+      const posting = postings[pIndex];
+      // 1. Add rating to posting
+      const newRatings = [...(posting.ratings || []), rating];
+      posting.ratings = newRatings;
+      postings[pIndex] = posting;
+      localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
+
+      // 2. Update Volunteer Stats
+      if (posting.volunteerId) {
+        const users = storage.getUsers();
+        const vIndex = users.findIndex(u => u.id === posting.volunteerId);
+        if (vIndex !== -1) {
+          const volunteer = users[vIndex];
+          const currentCount = volunteer.ratingsCount || 0;
+          const currentAvg = volunteer.averageRating || 0;
+          
+          // Calculate new average
+          const newCount = currentCount + 1;
+          const newAvg = ((currentAvg * currentCount) + rating.rating) / newCount;
+          
+          volunteer.ratingsCount = newCount;
+          volunteer.averageRating = newAvg;
+          
+          users[vIndex] = volunteer;
+          localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+          
+          // Notify Volunteer
+          storage.createNotification(
+             volunteer.id,
+             `You received a ${rating.rating}-star rating for delivering ${posting.foodName}!`,
+             'SUCCESS'
+          );
+        }
+      }
+      return posting;
     }
     return null;
   }

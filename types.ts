@@ -34,6 +34,7 @@ export interface User {
   impactScore?: number;
   averageRating?: number;
   ratingsCount?: number;
+  profilePictureUrl?: string;
 }
 
 export interface ChatMessage {

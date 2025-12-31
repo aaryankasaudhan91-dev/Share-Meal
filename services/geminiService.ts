@@ -294,3 +294,28 @@ export const calculateLiveEta = async (
     return null;
   }
 };
+
+export const generateAvatar = async (userName: string): Promise<string | null> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          {
+            text: `Generate a creative, colorful, abstract profile avatar for a user named "${userName}". The style should be modern, minimalist vector art. Circular composition.`,
+          },
+        ],
+      },
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Avatar Generation Error:", error);
+    return null;
+  }
+};
