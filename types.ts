@@ -61,6 +61,7 @@ export interface FoodPosting {
   donorName: string;
   donorOrg?: string;
   foodName: string;
+  description?: string;
   foodCategory?: string;
   quantity: string;
   location: Address;

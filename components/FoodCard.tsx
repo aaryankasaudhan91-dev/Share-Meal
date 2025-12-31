@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus } from '../types';
-import { verifyDeliveryImage } from '../services/geminiService';
+import { verifyDeliveryImage, verifyPickupImage } from '../services/geminiService';
 import ChatModal from './ChatModal';
 import DirectionsModal from './DirectionsModal';
 import LiveTrackingModal from './LiveTrackingModal';
@@ -22,7 +22,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
   const [showTracking, setShowTracking] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isPickingUp, setIsPickingUp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pickupInputRef = useRef<HTMLInputElement>(null);
   
   const expiryTimestamp = new Date(posting.expiryDate).getTime();
   const hoursLeft = (expiryTimestamp - Date.now()) / (1000 * 60 * 60);
@@ -30,6 +32,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
 
   // Check if current user has already rated this specific posting
   const hasRated = posting.ratings?.some(r => r.raterId === user.id);
+  const isSafetyUnknownOrUnsafe = posting.safetyVerdict && !posting.safetyVerdict.isSafe;
 
   const handleRequest = () => {
     onUpdate(posting.id, {
@@ -43,6 +46,50 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
   const handleExpressInterest = () => {
     const updated = [...(posting.interestedVolunteers || []), { userId: user.id, userName: user.name }];
     onUpdate(posting.id, { interestedVolunteers: updated });
+  };
+
+  const handleManualSafetyOverride = () => {
+    if (confirm("Are you sure you want to mark this food as safe? This will override the AI safety warning.")) {
+        onUpdate(posting.id, {
+            safetyVerdict: {
+                isSafe: true,
+                reasoning: "Manually verified by donor as safe."
+            }
+        });
+    }
+  };
+
+  const handlePickupUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsPickingUp(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        try {
+            const result = await verifyPickupImage(base64);
+            if (result.isValid) {
+                alert(`Pickup Verified: ${result.feedback}`);
+                onUpdate(posting.id, { 
+                    status: FoodStatus.IN_TRANSIT, 
+                    pickupVerificationImageUrl: base64,
+                    volunteerId: user.id,
+                    volunteerName: user.name,
+                    volunteerLocation: currentLocation
+                });
+            } else {
+                alert(`Pickup Verification Failed: ${result.feedback}`);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error verifying pickup image.");
+        } finally {
+            setIsPickingUp(false);
+            if (pickupInputRef.current) pickupInputRef.current.value = '';
+        }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleVerificationUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,6 +136,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
       return '';
   };
 
+  const getPickupString = () => {
+      const addr = posting.location;
+      return `${addr.line1}, ${addr.line2}, ${addr.landmark || ''}, ${addr.pincode}`;
+  };
+
   return (
     <div className={`group rounded-[2.5rem] p-5 bg-white transition-all duration-300 relative overflow-hidden flex flex-col h-full ${isUrgent ? 'ring-2 ring-rose-100 shadow-xl shadow-rose-50' : 'border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-200 hover:-translate-y-1'}`}>
       
@@ -118,15 +170,40 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
                  {isUrgent && <span className="bg-rose-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold uppercase animate-pulse">Expires Soon</span>}
             </div>
         </div>
+
+        {/* Safety Warning Overlay */}
+        {isSafetyUnknownOrUnsafe && (
+             <div className="absolute inset-0 bg-rose-900/40 backdrop-blur-sm flex items-center justify-center p-6 text-center z-10">
+                 <div>
+                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-2 text-rose-500 shadow-xl">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                     </div>
+                     <p className="text-white font-black text-sm uppercase tracking-wider mb-2">Safety Check Failed</p>
+                     {user.role === UserRole.DONOR && posting.donorId === user.id && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleManualSafetyOverride(); }}
+                            className="bg-white text-rose-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-50 transition-colors shadow-lg"
+                        >
+                            Mark Verified Safe
+                        </button>
+                     )}
+                 </div>
+             </div>
+        )}
       </div>
 
       {/* Content Section */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col ${isSafetyUnknownOrUnsafe ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="mb-4">
             <h3 className="font-black text-xl leading-tight text-slate-800 mb-1 line-clamp-1" title={posting.foodName}>{posting.foodName}</h3>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">
                 By {posting.donorOrg || posting.donorName}
             </p>
+            {posting.description && (
+                <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <p className="text-xs text-slate-600 font-medium italic">"{posting.description}"</p>
+                </div>
+            )}
           </div>
 
           <div className="space-y-3 mb-6 flex-1">
@@ -209,6 +286,32 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
                 Volunteer
               </button>
             )}
+
+            {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.REQUESTED && (
+              <>
+                <button
+                  onClick={() => pickupInputRef.current?.click()}
+                  disabled={isPickingUp}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 px-4 rounded-xl uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 disabled:opacity-50 transition-colors"
+                >
+                  {isPickingUp ? (
+                     <>
+                       <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                       </svg>
+                       Verifying Pickup...
+                     </>
+                  ) : (
+                     <>
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                       Verify Pickup
+                     </>
+                  )}
+                </button>
+                <input type="file" ref={pickupInputRef} className="hidden" accept="image/*" onChange={handlePickupUpload} />
+              </>
+            )}
             
             {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && posting.status === FoodStatus.IN_TRANSIT && posting.requesterAddress && (
                  <button 
@@ -238,6 +341,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
           <DirectionsModal 
             origin={getOriginString()} 
             destination={getDestinationString()} 
+            waypoint={getPickupString()}
             onClose={() => setShowDirections(false)} 
           />
       )}

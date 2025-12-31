@@ -49,10 +49,12 @@ const App: React.FC = () => {
   // Post Food Modal State
   const [isAddingFood, setIsAddingFood] = useState(false);
   const [foodName, setFoodName] = useState('');
+  const [foodDescription, setFoodDescription] = useState('');
   const [quantityNum, setQuantityNum] = useState('');
   const [unit, setUnit] = useState('meals');
   const [expiryDate, setExpiryDate] = useState('');
   const [foodImage, setFoodImage] = useState<string | null>(null);
+  const [safetyVerdict, setSafetyVerdict] = useState<{isSafe: boolean, reasoning: string} | undefined>(undefined);
   
   // Post Food - Address State
   const [foodLine1, setFoodLine1] = useState('');
@@ -134,12 +136,14 @@ const App: React.FC = () => {
             setFoodLandmark('');
             setFoodPincode('');
         }
+        setSafetyVerdict(undefined);
     }
   }, [isAddingFood, user]);
 
   const startCamera = async () => {
     setIsCameraOpen(true);
     setFoodImage(null);
+    setSafetyVerdict(undefined);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       if (videoRef.current) {
@@ -175,14 +179,19 @@ const App: React.FC = () => {
             stopCamera();
             setFoodImage(base64);
             setIsAnalyzing(true);
+            setSafetyVerdict(undefined);
             
             // AI Analysis
             const analysis = await analyzeFoodSafetyImage(base64);
             setIsAnalyzing(false);
+            setSafetyVerdict({ isSafe: analysis.isSafe, reasoning: analysis.reasoning });
             
             if (!analysis.isSafe) {
-                alert(`Safety Warning: ${analysis.reasoning}. Please retain only safe food.`);
-                setFoodImage(null);
+                const keep = window.confirm(`Safety Warning: ${analysis.reasoning}.\n\nDo you want to keep this photo anyway?`);
+                if (!keep) {
+                    setFoodImage(null);
+                    setSafetyVerdict(undefined);
+                }
             }
         }
     }
@@ -196,15 +205,20 @@ const App: React.FC = () => {
         const base64 = reader.result as string;
         setFoodImage(base64);
         setIsAnalyzing(true);
+        setSafetyVerdict(undefined);
         
         // AI Analysis
         const analysis = await analyzeFoodSafetyImage(base64);
         setIsAnalyzing(false);
+        setSafetyVerdict({ isSafe: analysis.isSafe, reasoning: analysis.reasoning });
         
         if (!analysis.isSafe) {
-            alert(`Safety Warning: ${analysis.reasoning}. Please retain only safe food.`);
-            setFoodImage(null);
-            if(fileInputRef.current) fileInputRef.current.value = '';
+            const keep = window.confirm(`Safety Warning: ${analysis.reasoning}.\n\nDo you want to keep this photo anyway?`);
+            if (!keep) {
+                setFoodImage(null);
+                setSafetyVerdict(undefined);
+                if(fileInputRef.current) fileInputRef.current.value = '';
+            }
         }
       };
       reader.readAsDataURL(file);
@@ -359,6 +373,7 @@ const App: React.FC = () => {
       donorName: user.name, 
       donorOrg: user.orgName, // Pass org name if exists
       foodName, 
+      description: foodDescription,
       quantity: `${quantityNum} ${unit}`,
       location: {
         line1: foodLine1,
@@ -369,6 +384,7 @@ const App: React.FC = () => {
       expiryDate, 
       status: FoodStatus.AVAILABLE, 
       imageUrl: foodImage, 
+      safetyVerdict,
       createdAt: Date.now()
     };
     storage.savePosting(newPost);
@@ -377,8 +393,10 @@ const App: React.FC = () => {
     
     // Reset Form
     setFoodName('');
+    setFoodDescription('');
     setQuantityNum('');
     setFoodImage(null);
+    setSafetyVerdict(undefined);
     setExpiryDate('');
     setFoodLine1('');
     setFoodLine2('');
@@ -521,6 +539,15 @@ const App: React.FC = () => {
                                         </div>
                                     )}
                                     <button type="button" onClick={() => setFoodImage(null)} className="absolute top-4 right-4 bg-slate-900/80 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold z-10 backdrop-blur-md transition-colors">Retake Photo</button>
+                                    {safetyVerdict && !safetyVerdict.isSafe && !isAnalyzing && (
+                                        <div className="absolute bottom-4 left-4 right-4 bg-rose-500/90 backdrop-blur-md p-3 rounded-xl text-white text-xs font-bold border border-rose-400 shadow-lg">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                Safety Warning
+                                            </div>
+                                            {safetyVerdict.reasoning}
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <div className="flex items-center gap-8">
@@ -552,6 +579,11 @@ const App: React.FC = () => {
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">What are you donating?</label>
                             <input type="text" placeholder="e.g. 5 Boxes of Veg Pizza" value={foodName} onChange={e => setFoodName(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" required />
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Message / Description</label>
+                            <textarea placeholder="e.g. Prepared this morning, contains nuts. Please consume within 4 hours." value={foodDescription} onChange={e => setFoodDescription(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all resize-none h-24" />
                         </div>
                         
                         <div className="flex gap-4">

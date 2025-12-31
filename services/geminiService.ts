@@ -243,11 +243,15 @@ export interface RouteOptimizationResult {
   trafficTips: string;
 }
 
-export const getOptimizedRoute = async (origin: string, destination: string): Promise<RouteOptimizationResult | null> => {
+export const getOptimizedRoute = async (origin: string, destination: string, waypoint?: string): Promise<RouteOptimizationResult | null> => {
   try {
+    const routeDesc = waypoint 
+      ? `from "${origin}" to "${destination}" via "${waypoint}"`
+      : `from "${origin}" to "${destination}"`;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Plan the most efficient driving route from "${origin}" to "${destination}". Return VALID JSON with: summary, estimatedDuration, steps, trafficTips.`,
+      contents: `Plan the most efficient driving route ${routeDesc}. Return VALID JSON with: summary, estimatedDuration, steps, trafficTips.`,
       config: {
         tools: [{ googleMaps: {} }],
       },

@@ -52,16 +52,32 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
     const { location: pickup, requesterAddress: dropoff, volunteerLocation } = livePosting;
 
     // Helper to create/update marker with custom HTML icons
-    const updateMarker = (id: string, lat: number, lng: number, iconEmoji: string, color: string) => {
+    const updateMarker = (id: string, lat: number, lng: number, iconEmoji: string, color: string, isLive: boolean = false) => {
+        const pulseHtml = isLive ? `
+            <div style="position: absolute; inset: -8px; background-color: ${color}; border-radius: 50%; opacity: 0.5; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="position: absolute; inset: -4px; background-color: ${color}; border-radius: 50%; opacity: 0.3;"></div>
+        ` : '';
+
+        const markerHtml = `
+            <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                ${pulseHtml}
+                <div style="position: relative; z-index: 10; background-color: ${color}; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); font-size: 20px;">
+                    ${iconEmoji}
+                </div>
+            </div>
+        `;
+
+        const icon = L.divIcon({
+            className: 'custom-marker-icon', // Use a custom class to avoid Leaflet defaults interfering
+            html: markerHtml,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+        });
+
         if (markersRef.current[id]) {
             markersRef.current[id].setLatLng([lat, lng]);
+            markersRef.current[id].setIcon(icon); // Update icon to ensure animation persists/updates
         } else {
-            const icon = L.divIcon({
-                className: 'custom-div-icon',
-                html: `<div style="background-color: ${color}; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); font-size: 20px;">${iconEmoji}</div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 18]
-            });
             markersRef.current[id] = L.marker([lat, lng], { icon }).addTo(map);
         }
     };
@@ -76,11 +92,16 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
         updateMarker('requester', dropoff.lat, dropoff.lng, '📍', '#f97316');
     }
 
-    // Volunteer Marker (Blue)
+    // Volunteer Marker (Blue) - Live
     if (volunteerLocation?.lat && volunteerLocation?.lng) {
-        updateMarker('volunteer', volunteerLocation.lat, volunteerLocation.lng, '🚴', '#3b82f6');
-        // Center map on volunteer if we have their location
-        map.panTo([volunteerLocation.lat, volunteerLocation.lng], { animate: true });
+        updateMarker('volunteer', volunteerLocation.lat, volunteerLocation.lng, '🚴', '#3b82f6', true);
+        
+        // Ensure map follows volunteer smoothly
+        map.panTo([volunteerLocation.lat, volunteerLocation.lng], { 
+            animate: true, 
+            duration: 1.0,
+            easeLinearity: 0.5 
+        });
     } else if (pickup?.lat && pickup?.lng && !markersRef.current['volunteer']) {
         // Fallback center if no volunteer location yet
         map.setView([pickup.lat, pickup.lng], 13);

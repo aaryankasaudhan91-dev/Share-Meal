@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { User } from '../types';
+import { User, UserRole } from '../types';
 import { generateAvatar } from '../services/geminiService';
 
 interface ProfileViewProps {
@@ -85,6 +85,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                     <div className="text-center">
                         <div className="font-black text-xl">{user.ratingsCount || 0}</div>
                         <span className="text-[10px] font-bold uppercase opacity-80">Reviews</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Impact Score (Only for Donors) */}
+            {user.role === UserRole.DONOR && (
+                <div className="absolute bottom-4 right-8 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex gap-4 text-white border border-white/20">
+                    <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 font-black text-xl">
+                            {user.impactScore || 0}
+                            <svg className="w-4 h-4 text-emerald-300" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase opacity-80">Lives Touched</span>
                     </div>
                 </div>
             )}

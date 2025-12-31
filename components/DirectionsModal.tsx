@@ -5,10 +5,11 @@ import { getOptimizedRoute, RouteOptimizationResult } from '../services/geminiSe
 interface DirectionsModalProps {
   origin: string;
   destination: string;
+  waypoint?: string; // Optional intermediate stop (Pickup)
   onClose: () => void;
 }
 
-const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, onClose }) => {
+const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, waypoint, onClose }) => {
   const [route, setRoute] = useState<RouteOptimizationResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -16,7 +17,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, 
   useEffect(() => {
     const fetchRoute = async () => {
       try {
-        const result = await getOptimizedRoute(origin, destination);
+        const result = await getOptimizedRoute(origin, destination, waypoint);
         if (result) {
           setRoute(result);
         } else {
@@ -29,7 +30,11 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, 
       }
     };
     fetchRoute();
-  }, [origin, destination]);
+  }, [origin, destination, waypoint]);
+
+  const mapsUrl = waypoint 
+    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${encodeURIComponent(waypoint)}`
+    : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
@@ -37,7 +42,9 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, 
         <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
           <div>
             <h3 className="font-black text-lg uppercase tracking-wider">Directions</h3>
-            <p className="text-xs text-slate-400 font-bold mt-1">To: {destination.split(',')[0]}</p>
+            <p className="text-xs text-slate-400 font-bold mt-1">
+                {waypoint ? 'Pickup & Delivery Route' : `To: ${destination.split(',')[0]}`}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -54,7 +61,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, 
             <div className="text-center py-10">
                 <p className="text-red-500 font-bold mb-4">{error}</p>
                 <a 
-                    href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`}
+                    href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block bg-emerald-600 text-white font-black py-3 px-6 rounded-xl uppercase text-xs"
@@ -77,6 +84,17 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, 
                 </div>
                 <p className="text-sm font-bold text-slate-600">{route.summary}</p>
               </div>
+
+              {/* Waypoint Info */}
+              {waypoint && (
+                 <div className="flex flex-col gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="flex items-center gap-2 text-blue-800 font-bold text-xs uppercase tracking-wide">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        Via Pickup
+                    </div>
+                    <p className="text-xs font-medium text-slate-700 ml-4 truncate">{waypoint}</p>
+                 </div>
+              )}
 
               {/* Traffic Tips */}
               {route.trafficTips && (
@@ -111,7 +129,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({ origin, destination, 
 
         <div className="p-4 bg-white border-t border-slate-200">
             <a 
-                href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`}
+                href={mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-center uppercase tracking-widest text-xs hover:bg-slate-800 transition-all shadow-lg"
