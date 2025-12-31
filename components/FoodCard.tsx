@@ -63,6 +63,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const [notes, setNotes] = useState(posting.volunteerNotes || '');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
+  // Calculate Urgency
+  const expiryTimestamp = new Date(posting.expiryDate).getTime();
+  const now = Date.now();
+  const hoursLeft = (expiryTimestamp - now) / (1000 * 60 * 60);
+  const isUrgent = posting.status === FoodStatus.AVAILABLE && hoursLeft > 0 && hoursLeft < 12;
+
   useEffect(() => {
     const checkMessages = () => {
         const msgs = storage.getMessages(posting.id);
@@ -468,11 +474,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
   const getStatusBadge = () => {
     if (posting.status === FoodStatus.AVAILABLE) {
-        const expiry = new Date(posting.expiryDate).getTime();
-        const now = Date.now();
-        const hoursLeft = (expiry - now) / (1000 * 60 * 60);
-
-        if (hoursLeft > 0 && hoursLeft < 12) {
+        if (isUrgent) {
              return (
                 <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-600 border border-rose-200 flex items-center gap-1 shadow-sm animate-pulse">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -498,7 +500,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const confirmationPreviewImage = deliveryUpdatePayload?.verificationImageUrl || deliveryUpdatePayload?.pickupVerificationImageUrl;
 
   return (
-    <div className="bg-white hover:bg-slate-50 rounded-3xl p-5 border border-slate-100 hover:border-slate-200 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
+    <div className={`rounded-3xl p-5 border shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group ${
+        isUrgent 
+        ? 'bg-rose-50/40 border-rose-300 hover:border-rose-400 hover:bg-rose-50 ring-1 ring-rose-100 hover:ring-rose-200' 
+        : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-200'
+    }`}>
       {/* Image Section */}
       <div className="relative mb-4">
         {posting.imageUrl ? (
@@ -575,9 +581,6 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             <h3 className="font-black text-lg text-slate-800 leading-tight">{posting.foodName}</h3>
             {(() => {
                 const expiry = new Date(posting.expiryDate);
-                const now = Date.now();
-                const hoursLeft = (expiry.getTime() - now) / (1000 * 60 * 60);
-                const isUrgent = posting.status === FoodStatus.AVAILABLE && hoursLeft > 0 && hoursLeft < 12;
                 
                 return (
                     <p className={`text-sm font-medium ${isUrgent ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
