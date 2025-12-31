@@ -30,6 +30,19 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
   const hoursLeft = (expiryTimestamp - Date.now()) / (1000 * 60 * 60);
   const isUrgent = posting.status === FoodStatus.AVAILABLE && hoursLeft > 0 && hoursLeft < 12;
 
+  // Visual expiry indicator logic
+  const getExpiryStatus = () => {
+      if (hoursLeft <= 0) return { color: 'text-slate-400', bar: 'bg-slate-300', label: 'Expired' };
+      if (hoursLeft < 4) return { color: 'text-rose-600', bar: 'bg-rose-500', label: 'Critical' };
+      if (hoursLeft < 12) return { color: 'text-orange-600', bar: 'bg-orange-500', label: 'Urgent' };
+      if (hoursLeft < 24) return { color: 'text-amber-600', bar: 'bg-amber-500', label: 'Expiring Soon' };
+      return { color: 'text-emerald-600', bar: 'bg-emerald-500', label: 'Fresh' };
+  };
+  
+  const expiryStatus = getExpiryStatus();
+  // Calculate width percentage: 0 hours = 0%, 48+ hours = 100%
+  const timeRemainingPercent = Math.max(5, Math.min(100, (hoursLeft / 48) * 100));
+
   // Check if current user has already rated this specific posting
   const hasRated = posting.ratings?.some(r => r.raterId === user.id);
   const isSafetyUnknownOrUnsafe = posting.safetyVerdict && !posting.safetyVerdict.isSafe;
@@ -141,6 +154,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
       return `${addr.line1}, ${addr.line2}, ${addr.landmark || ''}, ${addr.pincode}`;
   };
 
+  const mapsQuery = encodeURIComponent(`${posting.location.line1}, ${posting.location.line2}, ${posting.location.landmark || ''}, ${posting.location.pincode}`);
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+
   return (
     <div className={`group rounded-[2.5rem] p-5 bg-white transition-all duration-300 relative overflow-hidden flex flex-col h-full ${isUrgent ? 'ring-2 ring-rose-100 shadow-xl shadow-rose-50' : 'border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-200 hover:-translate-y-1'}`}>
       
@@ -158,10 +174,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
         {/* Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
         
-        <div className="absolute top-3 right-3">
+        <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
              <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-md shadow-lg ${posting.status === FoodStatus.AVAILABLE ? 'bg-emerald-500/90 text-white' : 'bg-white/90 text-slate-800'}`}>
                 {posting.status.replace('_', ' ')}
              </span>
+             {posting.etaMinutes && (
+                 <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-md shadow-lg bg-blue-500/90 text-white flex items-center gap-1">
+                    <svg className="w-3 h-3 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    ETA: {posting.etaMinutes} mins
+                 </span>
+             )}
         </div>
 
         <div className="absolute bottom-4 left-4 text-white">
@@ -199,13 +221,36 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">
                 By {posting.donorOrg || posting.donorName}
             </p>
+
+            {/* Expiry Indicator */}
+            {posting.status === FoodStatus.AVAILABLE && hoursLeft > 0 && (
+                <div className="mt-3 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 shrink-0">
+                        <svg className={`w-4 h-4 ${expiryStatus.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                             <span className={`text-[10px] font-black uppercase ${expiryStatus.color}`}>{expiryStatus.label}</span>
+                             <span className="text-[10px] font-bold text-slate-400">
+                                 {hoursLeft < 24 
+                                    ? `${Math.floor(hoursLeft)}h ${Math.floor((hoursLeft % 1) * 60)}m left` 
+                                    : `${Math.floor(hoursLeft / 24)} days left`}
+                             </span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                             <div className={`h-full rounded-full transition-all duration-1000 ${expiryStatus.bar}`} style={{ width: `${timeRemainingPercent}%` }}></div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {posting.description && (
                 <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <p className="text-xs text-slate-600 font-medium italic">"{posting.description}"</p>
                 </div>
             )}
           </div>
-
+          
           <div className="space-y-3 mb-6 flex-1">
               {posting.volunteerName && (
                   <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl">
@@ -231,13 +276,26 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
                   </div>
               )}
 
-              <div className="flex items-start gap-3">
-                 <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center shrink-0 text-slate-400">
+              <div 
+                  className="flex items-start gap-3 group/location cursor-pointer p-2 -mx-2 rounded-xl hover:bg-slate-50 transition-colors" 
+                  onClick={() => window.open(mapsUrl, '_blank')}
+                  title="Open in Google Maps"
+              >
+                 <div className="w-8 h-8 rounded-full bg-slate-50 group-hover/location:bg-white flex items-center justify-center shrink-0 text-slate-400 group-hover/location:text-emerald-500 transition-colors border border-transparent group-hover/location:border-emerald-100 shadow-sm">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                  </div>
-                 <div>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Pickup Location</p>
-                     <p className="text-xs font-bold text-slate-700 leading-snug line-clamp-2">{posting.location.line1}</p>
+                 <div className="flex-1 min-w-0">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                        Pickup Location
+                        <svg className="w-3 h-3 opacity-0 group-hover/location:opacity-100 transition-opacity text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                     </p>
+                     <p className="text-xs font-bold text-slate-700 leading-snug truncate">{posting.location.line1}</p>
+                     {posting.location.line2 && <p className="text-xs text-slate-500 leading-snug truncate">{posting.location.line2}</p>}
+                     {posting.location.landmark && (
+                         <p className="text-[10px] font-medium text-slate-500 mt-1 flex items-center gap-1 bg-slate-100 w-fit px-1.5 py-0.5 rounded">
+                             <span className="text-slate-400">Near:</span> {posting.location.landmark}
+                         </p>
+                     )}
                  </div>
               </div>
           </div>
@@ -262,11 +320,30 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
             {user.role === UserRole.REQUESTER && (posting.status === FoodStatus.IN_TRANSIT || posting.status === FoodStatus.DELIVERED) && (
               <>
                 <button 
-                  onClick={() => fileInputRef.current?.click()} 
-                  disabled={isVerifying}
-                  className="bg-teal-600 hover:bg-teal-700 text-white font-black py-3 px-4 rounded-xl uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-teal-200 disabled:opacity-50"
+                  onClick={() => !posting.verificationImageUrl && fileInputRef.current?.click()} 
+                  disabled={isVerifying || !!posting.verificationImageUrl}
+                  className={`font-black py-3 px-4 rounded-xl uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
+                    posting.verificationImageUrl 
+                      ? 'bg-slate-100 text-slate-400 shadow-none cursor-default border border-slate-200' 
+                      : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-200 hover:-translate-y-0.5'
+                  }`}
                 >
-                  {isVerifying ? 'Verifying...' : (posting.verificationImageUrl ? 'Verified' : 'Verify Delivery')}
+                  {isVerifying ? (
+                     <>
+                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Verifying...
+                     </>
+                  ) : posting.verificationImageUrl ? (
+                     <>
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                       Verified
+                     </>
+                  ) : (
+                     <>
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                       {posting.status === FoodStatus.IN_TRANSIT ? 'Verify & Receive' : 'Upload Proof'}
+                     </>
+                  )}
                 </button>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleVerificationUpload} />
               </>

@@ -54,24 +54,31 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
     // Helper to create/update marker with custom HTML icons
     const updateMarker = (id: string, lat: number, lng: number, iconEmoji: string, color: string, isLive: boolean = false) => {
         const pulseHtml = isLive ? `
-            <div style="position: absolute; inset: -8px; background-color: ${color}; border-radius: 50%; opacity: 0.5; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <div style="position: absolute; inset: -4px; background-color: ${color}; border-radius: 50%; opacity: 0.3;"></div>
+            <div style="position: absolute; inset: -12px; background-color: ${color}; border-radius: 50%; opacity: 0.3; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="position: absolute; inset: -6px; background-color: ${color}; border-radius: 50%; opacity: 0.5;"></div>
+        ` : '';
+
+        const badgeHtml = isLive ? `
+            <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 99px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; z-index: 20;">
+                LIVE
+            </div>
         ` : '';
 
         const markerHtml = `
-            <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+            <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                 ${pulseHtml}
-                <div style="position: relative; z-index: 10; background-color: ${color}; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); font-size: 20px;">
+                <div style="position: relative; z-index: 10; background-color: ${color}; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); font-size: 20px;">
                     ${iconEmoji}
                 </div>
+                ${badgeHtml}
             </div>
         `;
 
         const icon = L.divIcon({
             className: 'custom-marker-icon', // Use a custom class to avoid Leaflet defaults interfering
             html: markerHtml,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18]
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
         });
 
         if (markersRef.current[id]) {
@@ -99,8 +106,8 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
         // Ensure map follows volunteer smoothly
         map.panTo([volunteerLocation.lat, volunteerLocation.lng], { 
             animate: true, 
-            duration: 1.0,
-            easeLinearity: 0.5 
+            duration: 1.5,
+            easeLinearity: 0.2 
         });
     } else if (pickup?.lat && pickup?.lng && !markersRef.current['volunteer']) {
         // Fallback center if no volunteer location yet
