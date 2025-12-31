@@ -65,7 +65,7 @@ export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageA
   } catch (error) {
     console.error("Gemini Image Analysis Error:", error);
     return {
-      isSafe: true,
+      isSafe: false,
       reasoning: "Visual check unavailable. Please manually ensure food is fresh and safe.",
       detectedFoodName: "",
       confidence: 0
@@ -302,7 +302,7 @@ export const calculateLiveEta = async (
       model: "gemini-2.5-flash",
       contents: `Calculate the estimated driving time from coordinates ${origin.lat}, ${origin.lng} to "${destination}". 
       Consider current traffic conditions.
-      Return ONLY the number of minutes as an integer.`,
+      Return ONLY the number of minutes as an integer. Do not include 'mins' or 'minutes' or any other text.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {

@@ -132,6 +132,7 @@ const App: React.FC = () => {
   // Pre-fill donor address when adding food
   useEffect(() => {
     if (isAddingFood) {
+        setDonErrors({}); // Clear errors when opening
         if (user?.address) {
            setDonLine1(user.address.line1);
            setDonLine2(user.address.line2);
@@ -154,7 +155,15 @@ const App: React.FC = () => {
            }
         }
     }
-  }, [isAddingFood]); // Run only when modal state toggles
+  }, [isAddingFood, user, userLocation]);
+
+  // Auto-fill location if userLocation becomes available while modal is open and no location set
+  useEffect(() => {
+    if (isAddingFood && !user?.address && donLat === undefined && userLocation) {
+        setDonLat(userLocation.lat);
+        setDonLng(userLocation.lng);
+    }
+  }, [userLocation, isAddingFood, donLat, user?.address]);
 
   const refreshData = () => {
     setPostings(storage.getPostings());
@@ -208,13 +217,17 @@ const App: React.FC = () => {
             return;
         }
 
+        // Use nullish checks or explicit checks to allow 0 coordinates
+        const finalRegLat = regLat !== undefined ? regLat : (userLocation?.lat || 28.6139);
+        const finalRegLng = regLng !== undefined ? regLng : (userLocation?.lng || 77.2090);
+
         userAddress = {
             line1: regLine1,
             line2: regLine2,
             landmark: regLandmark,
             pincode: regPincode,
-            lat: regLat || userLocation?.lat || 28.6139,
-            lng: regLng || userLocation?.lng || 77.2090
+            lat: finalRegLat,
+            lng: finalRegLng
         };
     }
 
@@ -235,7 +248,7 @@ const App: React.FC = () => {
     refreshData();
   };
 
-  const handlePostFood = async (e: React.FormEvent) => {
+  const handlePostFood = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!user) return;
     setDonErrors({});
@@ -332,7 +345,6 @@ const App: React.FC = () => {
     }
   };
 
-  // ... rest of the file remains similar
   const updatePosting = (id: string, updates: Partial<FoodPosting>) => {
     storage.updatePosting(id, updates);
     refreshData();
@@ -626,7 +638,7 @@ const App: React.FC = () => {
                     Cancel
                 </button>
                 <button 
-                    onClick={handlePostFood as any}
+                    onClick={handlePostFood}
                     disabled={isAnalyzing}
                     className="px-8 py-4 rounded-xl bg-emerald-600 text-white font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center gap-2 disabled:opacity-50 disabled:shadow-none"
                 >
@@ -638,7 +650,6 @@ const App: React.FC = () => {
     </div>
   );
 
-  // ... rest of the component
   if (view === 'LOGIN') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-slate-100 flex items-center justify-center p-6 relative overflow-hidden">
@@ -725,7 +736,6 @@ const App: React.FC = () => {
     );
   }
 
-  // ... rest of the file
   return (
     <Layout 
       user={user} 
@@ -758,6 +768,7 @@ const App: React.FC = () => {
                 onBack={() => setView('DASHBOARD')}
             />
         ) : (
+            // Dashboard Content
             <>
                 <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>

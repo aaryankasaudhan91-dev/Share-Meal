@@ -6,6 +6,19 @@ const STORAGE_KEY_USERS = 'food_rescue_users';
 const STORAGE_KEY_NOTIFICATIONS = 'food_rescue_notifications';
 const STORAGE_KEY_CHATS = 'food_rescue_chats';
 
+// Helper to calculate distance between two coordinates in km (Haversine formula)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  return R * c;
+};
+
 const getStoredNotifications = (): Notification[] => {
   return JSON.parse(localStorage.getItem(STORAGE_KEY_NOTIFICATIONS) || '[]');
 };
@@ -115,14 +128,34 @@ export const storage = {
     
     users.forEach(u => {
       if (u.role === UserRole.VOLUNTEER) {
-        notifications.push({
-          id: Math.random().toString(36).substr(2, 9),
-          userId: u.id,
-          message: `New food donation: ${posting.foodName} near ${posting.location.landmark || posting.location.pincode}`,
-          isRead: false,
-          createdAt: Date.now(),
-          type: 'INFO'
-        });
+        let shouldNotify = false;
+        let distanceText = '';
+
+        // Check if both volunteer and posting have valid coordinates
+        if (u.address?.lat && u.address?.lng && posting.location.lat && posting.location.lng) {
+          const distance = calculateDistance(
+            posting.location.lat,
+            posting.location.lng,
+            u.address.lat,
+            u.address.lng
+          );
+
+          if (distance <= 10) { // Notify only within 10km radius
+            shouldNotify = true;
+            distanceText = ` (${distance.toFixed(1)}km away)`;
+          }
+        }
+
+        if (shouldNotify) {
+          notifications.push({
+            id: Math.random().toString(36).substr(2, 9),
+            userId: u.id,
+            message: `New food donation: ${posting.foodName} near ${posting.location.landmark || posting.location.pincode}${distanceText}`,
+            isRead: false,
+            createdAt: Date.now(),
+            type: 'INFO'
+          });
+        }
       }
     });
     saveStoredNotifications(notifications);
