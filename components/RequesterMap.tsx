@@ -112,6 +112,13 @@ const RequesterMap: React.FC<RequesterMapProps> = ({ requesters, currentLocation
       markersLayerRef.current = markersLayer;
       mapInstanceRef.current = map;
     }
+
+    return () => {
+        if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+        }
+    };
   }, []); // Run once on mount
 
   // Update User Location Marker

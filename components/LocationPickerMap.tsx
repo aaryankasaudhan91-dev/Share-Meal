@@ -16,6 +16,12 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocat
   const markerRef = useRef<any>(null);
   const [isLocating, setIsLocating] = useState(false);
 
+  // Store handlers in refs to access fresh versions in event listeners
+  const handlersRef = useRef({ onLocationSelect, onAddressFound });
+  useEffect(() => {
+    handlersRef.current = { onLocationSelect, onAddressFound };
+  }, [onLocationSelect, onAddressFound]);
+
   const defaultLat = 20.5937; // India center
   const defaultLng = 78.9629;
 
@@ -24,6 +30,10 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocat
       const initialLat = lat || defaultLat;
       const initialLng = lng || defaultLng;
       const initialZoom = lat ? 15 : 5;
+
+      // Sync parent state with initial map position immediately
+      // This ensures if the user doesn't move the pin, the default (or provided) location is still captured
+      handlersRef.current.onLocationSelect(initialLat, initialLng);
 
       const map = L.map(mapContainerRef.current, {
         zoomControl: false,
@@ -62,18 +72,34 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocat
 
       markerRef.current = marker;
 
-      // Event Listeners
-      marker.on('dragend', () => {
+      const handleDragEnd = async () => {
         const pos = marker.getLatLng();
-        onLocationSelect(pos.lat, pos.lng);
+        handlersRef.current.onLocationSelect(pos.lat, pos.lng);
         map.panTo(pos);
-      });
+        
+        // Reverse geocode on drag end
+        if (handlersRef.current.onAddressFound) {
+            try {
+                const address = await reverseGeocode(pos.lat, pos.lng);
+                if (address) {
+                    handlersRef.current.onAddressFound(address);
+                }
+            } catch (e) {
+                console.error("Reverse geocode failed on drag", e);
+            }
+        }
+      };
+
+      // Event Listeners
+      marker.on('dragend', handleDragEnd);
 
       map.on('click', (e: any) => {
         const { lat, lng } = e.latlng;
         marker.setLatLng([lat, lng]);
-        onLocationSelect(lat, lng);
+        handlersRef.current.onLocationSelect(lat, lng);
         map.panTo([lat, lng]);
+        // Trigger dragend logic for click too to sync address
+        handleDragEnd(); 
       });
 
       mapInstanceRef.current = map;
@@ -83,11 +109,19 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({ lat, lng, onLocat
         map.invalidateSize();
       }, 100);
     }
+
+    // Cleanup
+    return () => {
+        if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+        }
+    };
   }, []);
 
   // Sync external prop changes (e.g., from Auto-Detect button)
   useEffect(() => {
-    if (mapInstanceRef.current && markerRef.current && lat && lng) {
+    if (mapInstanceRef.current && markerRef.current && lat !== undefined && lng !== undefined) {
       const currentPos = markerRef.current.getLatLng();
       // Only update if significantly different to avoid drag loops
       if (Math.abs(currentPos.lat - lat) > 0.0001 || Math.abs(currentPos.lng - lng) > 0.0001) {

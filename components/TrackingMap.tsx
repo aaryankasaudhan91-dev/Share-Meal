@@ -63,6 +63,15 @@ const TrackingMap: React.FC<TrackingMapProps> = ({
 
       mapInstanceRef.current = map;
     }
+
+    return () => {
+        if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+            markersRef.current = {};
+            routeLineRef.current = null;
+        }
+    };
   }, [pickupLocation]);
 
   useEffect(() => {
