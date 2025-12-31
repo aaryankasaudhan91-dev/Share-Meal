@@ -6,6 +6,7 @@ import { analyzeFoodSafetyImage, reverseGeocode } from './services/geminiService
 import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
 import ProfileView from './components/ProfileView';
+import VerificationRequestModal from './components/VerificationRequestModal';
 
 const LOGO_URL = 'https://cdn-icons-png.flaticon.com/512/2921/2921822.png';
 
@@ -28,6 +29,9 @@ const App: React.FC = () => {
   const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
   
+  // Pending Verification State for Donors
+  const [pendingVerificationPosting, setPendingVerificationPosting] = useState<FoodPosting | null>(null);
+
   // Login/Registration States
   const [loginName, setLoginName] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -117,6 +121,31 @@ const App: React.FC = () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
     };
   }, [user]);
+
+  // Poll for postings that require Donor Verification
+  useEffect(() => {
+      if (!user || user.role !== UserRole.DONOR) return;
+
+      const checkPendingVerifications = () => {
+          const currentPostings = storage.getPostings();
+          const pending = currentPostings.find(p => 
+              p.donorId === user.id && 
+              p.status === FoodStatus.PICKUP_VERIFICATION_PENDING
+          );
+          
+          // Only update state if it's different to avoid loops/flicker
+          if (pending && (!pendingVerificationPosting || pendingVerificationPosting.id !== pending.id)) {
+              setPendingVerificationPosting(pending);
+          } else if (!pending && pendingVerificationPosting) {
+              setPendingVerificationPosting(null);
+          }
+      };
+
+      checkPendingVerifications();
+      const interval = setInterval(checkPendingVerifications, 3000);
+      return () => clearInterval(interval);
+  }, [user, pendingVerificationPosting]);
+
 
   // Clean up camera on unmount or modal close
   useEffect(() => {
@@ -417,6 +446,31 @@ const App: React.FC = () => {
     setFoodPincode('');
   };
 
+  const handleDonorApprove = () => {
+      if (pendingVerificationPosting) {
+          storage.updatePosting(pendingVerificationPosting.id, {
+              status: FoodStatus.IN_TRANSIT
+          });
+          setPendingVerificationPosting(null);
+          handleRefresh();
+          alert("Pickup Approved! Volunteer can now proceed.");
+      }
+  };
+
+  const handleDonorReject = () => {
+      if (pendingVerificationPosting) {
+          storage.updatePosting(pendingVerificationPosting.id, {
+              status: FoodStatus.REQUESTED, // Revert to requested
+              pickupVerificationImageUrl: undefined, // Clear image
+              volunteerId: undefined, // Optionally clear volunteer or keep them assigned
+              volunteerName: undefined
+          });
+          setPendingVerificationPosting(null);
+          handleRefresh();
+          alert("Pickup Rejected. Posting is back to Requested status.");
+      }
+  };
+
   if (showSplash) return <SplashScreen />;
 
   if (view === 'LOGIN' || view === 'REGISTER') {
@@ -541,6 +595,13 @@ const App: React.FC = () => {
 
   return (
     <Layout user={user} onLogout={() => { setUser(null); setView('LOGIN'); }} onProfileClick={() => setView('PROFILE')} onLogoClick={() => setView('DASHBOARD')} notifications={notifications}>
+        {pendingVerificationPosting && (
+            <VerificationRequestModal 
+                posting={pendingVerificationPosting}
+                onApprove={handleDonorApprove}
+                onReject={handleDonorReject}
+            />
+        )}
         {isAddingFood && (
             <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
                 <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl relative">

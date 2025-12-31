@@ -2,7 +2,6 @@
 import React, { useState, useRef } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus } from '../types';
 import { verifyDeliveryImage, verifyPickupImage } from '../services/geminiService';
-import ChatModal from './ChatModal';
 import DirectionsModal from './DirectionsModal';
 import LiveTrackingModal from './LiveTrackingModal';
 import RatingModal from './RatingModal';
@@ -17,7 +16,6 @@ interface FoodCardProps {
 }
 
 const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLocation, onRateVolunteer, volunteerProfile }) => {
-  const [showChat, setShowChat] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [showTracking, setShowTracking] = useState(false);
   const [showRating, setShowRating] = useState(false);
@@ -72,6 +70,25 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
     }
   };
 
+  const handleShare = async () => {
+    try {
+      const shareData = {
+        title: `Food Rescue: ${posting.foodName}`,
+        text: `Help rescue food! ${posting.quantity} of ${posting.foodName} available at ${posting.location.line1}.`,
+        url: window.location.href
+      };
+
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.title}\n${shareData.text}`);
+        alert('Details copied to clipboard!');
+      }
+    } catch (err) {
+      console.log('Share cancelled or failed');
+    }
+  };
+
   const handlePickupUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -83,14 +100,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
         try {
             const result = await verifyPickupImage(base64);
             if (result.isValid) {
-                alert(`Pickup Verified: ${result.feedback}`);
+                // Change status to PENDING for Donor Verification instead of IN_TRANSIT
                 onUpdate(posting.id, { 
-                    status: FoodStatus.IN_TRANSIT, 
+                    status: FoodStatus.PICKUP_VERIFICATION_PENDING, 
                     pickupVerificationImageUrl: base64,
                     volunteerId: user.id,
                     volunteerName: user.name,
                     volunteerLocation: currentLocation
                 });
+                alert("Pickup proof uploaded! Waiting for Donor approval.");
             } else {
                 alert(`Pickup Verification Failed: ${result.feedback}`);
             }
@@ -176,7 +194,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
         
         <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
              <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-md shadow-lg ${posting.status === FoodStatus.AVAILABLE ? 'bg-emerald-500/90 text-white' : 'bg-white/90 text-slate-800'}`}>
-                {posting.status.replace('_', ' ')}
+                {posting.status.replace(/_/g, ' ')}
              </span>
              {posting.etaMinutes && (
                  <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-md shadow-lg bg-blue-500/90 text-white flex items-center gap-1">
@@ -390,13 +408,30 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
               </>
             )}
             
-            {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && posting.status === FoodStatus.IN_TRANSIT && posting.requesterAddress && (
-                 <button 
-                    onClick={() => setShowDirections(true)} 
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-black py-3 px-4 rounded-xl uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
-                 >
-                    Get Directions
-                 </button>
+            {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && (
+                 <div className="bg-amber-50 text-amber-700 font-bold px-4 py-3 rounded-xl text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 w-full border border-amber-100">
+                     <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                     Waiting for Donor Approval
+                 </div>
+            )}
+            
+            {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && posting.status === FoodStatus.IN_TRANSIT && (
+                <div className="flex gap-2 w-full">
+                    {posting.requesterAddress && (
+                        <button 
+                            onClick={() => setShowDirections(true)} 
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-3 px-4 rounded-xl uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
+                        >
+                            Directions
+                        </button>
+                    )}
+                    <button 
+                        onClick={() => onUpdate(posting.id, { status: FoodStatus.DELIVERED })}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-4 rounded-xl uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-200"
+                    >
+                        Mark Delivered
+                    </button>
+                </div>
             )}
 
             {/* Fallback for Donor View or inactive states */}
@@ -406,14 +441,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
                 </div>
             )}
 
-            <button onClick={() => setShowChat(true)} className="w-12 h-12 flex items-center justify-center bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-emerald-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            </button>
+            <div className="flex items-center gap-2">
+                <button onClick={handleShare} className="w-12 h-12 flex items-center justify-center bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-blue-600 transition-colors" title="Share">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                </button>
+            </div>
           </div>
       </div>
 
       {/* Modals */}
-      {showChat && <ChatModal posting={posting} user={user} onClose={() => setShowChat(false)} />}
       {showDirections && (
           <DirectionsModal 
             origin={getOriginString()} 
