@@ -12,13 +12,18 @@ interface ProfileViewProps {
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => {
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
+  const [contactNo, setContactNo] = useState(user.contactNo || '');
   const [profilePictureUrl, setProfilePictureUrl] = useState(user.profilePictureUrl);
   const [isGenerating, setIsGenerating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate({ name, email, profilePictureUrl });
+    if (contactNo && !/^\d{10}$/.test(contactNo)) {
+      alert("Please enter a valid 10-digit Contact Number.");
+      return;
+    }
+    onUpdate({ name, email, contactNo, profilePictureUrl });
     alert("Profile updated!");
   };
 
@@ -163,6 +168,24 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
               <div className="space-y-2">
                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Email Address</label>
                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Contact Number</label>
+                 <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                        <span className="text-slate-500 font-bold text-sm border-r border-slate-300 pr-2">+91</span>
+                    </div>
+                    <input 
+                        type="tel" 
+                        maxLength={10}
+                        value={contactNo} 
+                        onChange={e => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            if(val.length <= 10) setContactNo(val);
+                        }}
+                        className="w-full pl-20 pr-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" 
+                    />
+                 </div>
               </div>
               
               <div className="pt-4">

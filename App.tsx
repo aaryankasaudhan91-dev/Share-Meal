@@ -34,6 +34,7 @@ const App: React.FC = () => {
   
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regContactNo, setRegContactNo] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState<UserRole>(UserRole.DONOR);
   
@@ -309,6 +310,12 @@ const App: React.FC = () => {
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate Contact No
+    if (!/^\d{10}$/.test(regContactNo)) {
+      alert("Please enter a valid 10-digit Contact Number.");
+      return;
+    }
+    
     // Validate Pincode ONLY for Requesters
     if (regRole === UserRole.REQUESTER && !/^\d{6}$/.test(regPincode)) {
         alert("Please enter a valid 6-digit Pincode.");
@@ -319,6 +326,7 @@ const App: React.FC = () => {
         id: Math.random().toString(36).substr(2, 9), 
         name: regName, 
         email: regEmail, 
+        contactNo: regContactNo,
         password: regPassword,
         role: regRole,
         // Only add Org details if Requester
@@ -452,6 +460,25 @@ const App: React.FC = () => {
               {/* Basic Info */}
               <input type="text" placeholder="Full Name" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regName} onChange={e => setRegName(e.target.value)} required />
               <input type="email" placeholder="Email" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regEmail} onChange={e => setRegEmail(e.target.value)} required />
+              
+              <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                      <span className="text-slate-500 font-bold text-sm border-r border-slate-300 pr-2">+91</span>
+                  </div>
+                  <input 
+                      type="tel" 
+                      placeholder="Contact Number" 
+                      maxLength={10} 
+                      className="w-full pl-20 pr-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" 
+                      value={regContactNo} 
+                      onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          if(val.length <= 10) setRegContactNo(val);
+                      }} 
+                      required 
+                  />
+              </div>
+
               <input type="password" placeholder="Password" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regPassword} onChange={e => setRegPassword(e.target.value)} required />
               
               {/* Organization Details (Requester Only) */}
