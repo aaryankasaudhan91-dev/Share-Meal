@@ -361,6 +361,11 @@ const App: React.FC = () => {
      alert("Thank you for your feedback!");
   };
 
+  const handleRefresh = () => {
+    setPostings(storage.getPostings());
+    if (user) setNotifications(storage.getNotifications(user.id));
+  };
+
   const handlePostFood = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -670,12 +675,21 @@ const App: React.FC = () => {
                         <h2 className="text-4xl font-black tracking-tight text-slate-900">Live <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">Donations</span></h2>
                         <p className="text-slate-500 font-medium mt-1">Real-time food rescue opportunities near you.</p>
                     </div>
-                    {user?.role === UserRole.DONOR && (
-                        <button onClick={() => setIsAddingFood(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-emerald-200 transform hover:-translate-y-1 transition-all flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                            Donate Food
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={handleRefresh} 
+                            className="bg-white hover:bg-slate-50 text-slate-600 p-4 rounded-2xl shadow-sm border border-slate-200 transition-all group hover:border-emerald-200 hover:text-emerald-600" 
+                            title="Refresh Feed"
+                        >
+                            <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         </button>
-                    )}
+                        {user?.role === UserRole.DONOR && (
+                            <button onClick={() => setIsAddingFood(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-emerald-200 transform hover:-translate-y-1 transition-all flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                                Donate Food
+                            </button>
+                        )}
+                    </div>
                 </div>
                 
                 {postings.length === 0 ? (
