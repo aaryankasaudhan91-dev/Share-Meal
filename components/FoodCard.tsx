@@ -476,22 +476,22 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
     if (posting.status === FoodStatus.AVAILABLE) {
         if (isUrgent) {
              return (
-                <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-600 border border-rose-200 flex items-center gap-1 shadow-sm animate-pulse">
+                <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-600 border border-rose-200 flex items-center gap-1 shadow-sm animate-pulse">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     Urgent
                 </span>
              );
         }
-        return <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">Available</span>;
+        return <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200">Available</span>;
     }
 
     switch(posting.status) {
-      case FoodStatus.REQUESTED: return <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700">Requested</span>;
+      case FoodStatus.REQUESTED: return <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 border border-blue-200">Requested</span>;
       case FoodStatus.IN_TRANSIT: 
         return posting.isPickedUp 
-            ? <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 animate-pulse">Out for Delivery</span>
-            : <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 animate-pulse">Heading to Pickup</span>;
-      case FoodStatus.DELIVERED: return <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600">Delivered</span>;
+            ? <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1 animate-pulse"><span className="w-2 h-2 rounded-full bg-amber-500"></span>Out for Delivery</span>
+            : <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1 animate-pulse"><span className="w-2 h-2 rounded-full bg-purple-500"></span>Heading to Pickup</span>;
+      case FoodStatus.DELIVERED: return <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 border border-slate-200">Delivered</span>;
       default: return null;
     }
   };
@@ -500,309 +500,206 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
   const confirmationPreviewImage = deliveryUpdatePayload?.verificationImageUrl || deliveryUpdatePayload?.pickupVerificationImageUrl;
 
   return (
-    <div className={`rounded-3xl p-5 border shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group ${
+    <div className={`rounded-[2.5rem] p-6 border transition-all duration-500 relative overflow-hidden group ${
         isUrgent 
-        ? 'bg-rose-50/40 border-rose-300 hover:border-rose-400 hover:bg-rose-50 ring-1 ring-rose-100 hover:ring-rose-200' 
-        : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-200'
+        ? 'bg-rose-50/30 border-rose-200 shadow-lg shadow-rose-100 hover:shadow-xl hover:shadow-rose-200 hover:-translate-y-1' 
+        : 'bg-white border-slate-100 shadow-lg hover:shadow-xl hover:-translate-y-1'
     }`}>
       {/* Image Section */}
-      <div className="relative mb-4">
-        {posting.imageUrl ? (
-          <img src={posting.imageUrl} alt={posting.foodName} className="w-full h-48 object-cover rounded-2xl" />
-        ) : (
-          <div className="w-full h-48 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300">
-             <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          </div>
-        )}
+      <div className="relative mb-5 group-hover:scale-[1.02] transition-transform duration-500">
+        <div className="rounded-3xl overflow-hidden shadow-sm relative h-56">
+            {posting.imageUrl ? (
+            <img src={posting.imageUrl} alt={posting.foodName} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+            ) : (
+            <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
+                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            )}
+            
+            {/* Gradient Overlay for Text Visibility */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60"></div>
+        </div>
 
         {/* Share Button (Top Left) */}
         <button 
             onClick={handleShare}
-            className="absolute top-2 left-2 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-sm text-slate-600 hover:text-emerald-600 hover:bg-white transition-all transform hover:scale-110 active:scale-95"
+            className="absolute top-3 left-3 z-20 bg-white/90 backdrop-blur-md p-2.5 rounded-full shadow-sm text-slate-600 hover:text-emerald-600 hover:bg-white transition-all transform hover:scale-110 active:scale-95"
             title="Share Donation"
         >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
         </button>
 
-        {/* Quick View Overlay */}
-        <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-[3px] rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center z-10 pointer-events-none">
-            <div className="w-full max-w-[80%] transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                 <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl shadow-2xl flex flex-col gap-3">
-                    {/* Quantity */}
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-lg shrink-0">📦</div>
-                        <div className="text-left overflow-hidden">
-                            <p className="text-[9px] text-emerald-300 font-black uppercase tracking-widest leading-none mb-0.5">Quantity</p>
-                            <p className="text-white font-bold text-sm leading-tight truncate">{posting.quantity}</p>
-                        </div>
-                    </div>
-                    
-                    {/* Expiry */}
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-lg shrink-0">⏳</div>
-                        <div className="text-left overflow-hidden">
-                            <p className="text-[9px] text-orange-300 font-black uppercase tracking-widest leading-none mb-0.5">Expires</p>
-                            <p className="text-white font-bold text-sm leading-tight truncate">
-                                {new Date(posting.expiryDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Category (Optional) */}
-                    {posting.foodCategory && (
-                        <div className="flex items-center gap-3 border-t border-white/10 pt-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-lg shrink-0">🏷️</div>
-                            <div className="text-left overflow-hidden">
-                                <p className="text-[9px] text-blue-300 font-black uppercase tracking-widest leading-none mb-0.5">Category</p>
-                                <p className="text-white font-bold text-sm leading-tight truncate">{posting.foodCategory}</p>
-                            </div>
-                        </div>
-                    )}
-                 </div>
-            </div>
-        </div>
-
-        {posting.safetyVerdict?.isSafe && (
-            <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-20">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                Safe
-            </div>
-        )}
-        {posting.isPickedUp && (
-             <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm text-purple-700 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-sm flex items-center gap-1 z-20">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                Picked Up
+        {/* Quick Stats Overlay */}
+        <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end z-20 text-white">
+             <div>
+                 <p className="text-2xl font-black leading-none drop-shadow-md">{posting.quantity}</p>
+                 <p className="text-[10px] font-bold uppercase tracking-wider opacity-90 drop-shadow-sm">{posting.foodCategory || 'Food'}</p>
              </div>
-        )}
-      </div>
-
-      <div className="flex justify-between items-start mb-2">
-        <div>
-            <h3 className="font-black text-lg text-slate-800 leading-tight">{posting.foodName}</h3>
-            {(() => {
-                const expiry = new Date(posting.expiryDate);
-                
-                return (
-                    <p className={`text-sm font-medium ${isUrgent ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
-                        {posting.quantity} • {isUrgent ? `Expiring in < ${Math.ceil(hoursLeft)} hrs` : `Expires ${expiry.toLocaleDateString()}`}
-                    </p>
-                )
-            })()}
-            <div className="mt-1 flex items-center gap-1 text-xs text-slate-500 font-medium">
-                <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                <span>
-                    Posted by: 
-                    {showDonorDetails ? (
-                        (user.role === UserRole.VOLUNTEER || user.role === UserRole.REQUESTER) ? (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); handleViewDonorProfile(); }}
-                                className="inline-flex items-center gap-1.5 ml-1 px-2 py-0.5 bg-slate-100 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-md transition-colors group"
-                                title="View Donor Profile"
-                            >
-                                <span className="font-bold text-slate-700 group-hover:text-emerald-700">
-                                    {posting.donorName}
-                                </span>
-                                {posting.donorOrg && <span className="text-slate-500 text-[10px] group-hover:text-emerald-600">({posting.donorOrg})</span>}
-                                <svg className="w-3 h-3 text-slate-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                            </button>
-                        ) : (
-                            <span className="ml-1 font-bold text-slate-700">
-                                {posting.donorName} {posting.donorOrg && <span className="font-normal text-slate-500">({posting.donorOrg})</span>}
-                            </span>
-                        )
-                    ) : (
-                        <span className="text-slate-400 italic ml-1">Hidden until requested</span>
-                    )}
-                </span>
-            </div>
-        </div>
-        <div className="text-right">
-             {getStatusBadge()}
+             {posting.safetyVerdict?.isSafe && (
+                <div className="bg-emerald-500/90 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Verified Safe</span>
+                </div>
+             )}
         </div>
       </div>
 
-      {/* Location Info */}
-      <div className="space-y-2 mb-4">
-        <div className={`flex items-start gap-2 text-xs ${posting.isPickedUp ? 'opacity-50 grayscale' : 'text-slate-600'}`}>
-            <span className="mt-0.5">📍</span>
-            <div>
-                <span className="font-bold text-slate-800">Pickup:</span> {posting.location.line1}, {posting.location.line2}
+      <div className="mb-6">
+        <div className="flex justify-between items-start mb-2">
+            <h3 className="font-black text-xl text-slate-800 leading-tight flex-1 mr-2">{posting.foodName}</h3>
+            {getStatusBadge()}
+        </div>
+        
+        <div className="flex items-center justify-between text-xs text-slate-500 font-medium border-b border-slate-50 pb-4 mb-4">
+            <div className="flex items-center gap-1.5">
+                <span className="bg-slate-100 p-1 rounded-full"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></span>
+                {isUrgent ? <span className="text-rose-600 font-bold">Expires in {Math.ceil(hoursLeft)} hrs</span> : <span>Expires {new Date(posting.expiryDate).toLocaleDateString()}</span>}
+            </div>
+            <div className="flex items-center gap-1">
+                <span>By:</span>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); handleViewDonorProfile(); }}
+                    className="font-bold text-slate-700 hover:text-emerald-600 hover:underline transition-all"
+                >
+                    {posting.donorOrg || posting.donorName}
+                </button>
             </div>
         </div>
-        {posting.orphanageName && (
-            <div className={`flex items-start gap-2 text-xs ${!posting.isPickedUp && posting.status === FoodStatus.IN_TRANSIT ? 'opacity-50' : 'text-slate-600'}`}>
-                <span className="mt-0.5">🏁</span>
+
+        {/* Location Info Grid */}
+        <div className="grid grid-cols-1 gap-3">
+            <div className={`flex items-start gap-3 p-3 rounded-2xl ${posting.isPickedUp ? 'bg-slate-50 opacity-60' : 'bg-emerald-50/50'}`}>
+                <div className="bg-white p-1.5 rounded-xl shadow-sm text-emerald-600 mt-0.5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
                 <div>
-                    <span className="font-bold text-slate-800">Drop-off:</span> {posting.orphanageName}
-                    {posting.requesterAddress && <span className="text-slate-400 block">{posting.requesterAddress.line1}</span>}
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800/60 mb-0.5">Pickup From</p>
+                    <p className="text-xs font-bold text-slate-700 leading-tight">
+                        {posting.location.line1}
+                        <span className="block font-normal text-slate-500">{posting.location.landmark}</span>
+                    </p>
                 </div>
             </div>
-        )}
+            
+            {posting.orphanageName && (
+                <div className={`flex items-start gap-3 p-3 rounded-2xl ${!posting.isPickedUp && posting.status === FoodStatus.IN_TRANSIT ? 'bg-slate-50 opacity-60' : 'bg-blue-50/50'}`}>
+                    <div className="bg-white p-1.5 rounded-xl shadow-sm text-blue-600 mt-0.5">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 21v-8a2 2 0 012-2h14a2 2 0 012 2v8M12 11V3m0 0l-3 3m3-3l3 3" /></svg>
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-blue-800/60 mb-0.5">Deliver To</p>
+                        <p className="text-xs font-bold text-slate-700 leading-tight">
+                            {posting.orphanageName}
+                            <span className="block font-normal text-slate-500">{posting.requesterAddress?.line1}</span>
+                        </p>
+                    </div>
+                </div>
+            )}
+        </div>
       </div>
 
       {/* Volunteer Display */}
       {posting.volunteerName && (
-        <div className="flex items-center gap-1.5 mb-4 flex-wrap bg-slate-50 p-2 rounded-xl border border-slate-100">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${posting.status === FoodStatus.DELIVERED ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+        <div className="flex items-center gap-3 mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm border-2 border-white ${posting.status === FoodStatus.DELIVERED ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Delivery Hero</p>
-                <p className="text-xs font-bold text-slate-700 truncate">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Delivery Partner</p>
+                <p className="text-sm font-black text-slate-800 truncate">
                     {posting.volunteerName}
                 </p>
             </div>
             
             {posting.status === FoodStatus.IN_TRANSIT && (
-                    <span className="flex items-center gap-1 bg-amber-100 text-amber-700 text-[9px] px-2 py-1 rounded-lg font-black tracking-wider border border-amber-200 animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                    ON WAY
-                    </span>
-            )}
-            
-            {posting.status === FoodStatus.DELIVERED && (
-                    <span className="flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[9px] px-2 py-1 rounded-lg font-black tracking-wider border border-emerald-200 animate-in fade-in zoom-in duration-300">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-                    DONE
-                    </span>
+                <div className="text-right">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest animate-pulse">In Progress</p>
+                    <p className="text-xs font-bold text-slate-500">ETA: {posting.etaMinutes || '--'} min</p>
+                </div>
             )}
         </div>
       )}
 
-      {/* ETA Display and Edit */}
-      {posting.status === FoodStatus.IN_TRANSIT && (
-        <div className="mb-4 bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                <div className="bg-blue-200 text-blue-700 p-1.5 rounded-lg relative">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    {isUpdatingEta && (
-                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                           <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                        </span>
-                    )}
+      {/* Volunteer Notes Section - Integrated */}
+      {isInvolved && (posting.status === FoodStatus.IN_TRANSIT || posting.status === FoodStatus.DELIVERED) && (
+        <div className="mb-6">
+            <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 relative group/notes">
+                <div className="absolute top-4 left-4 text-amber-300">
+                    <svg className="w-6 h-6 opacity-20" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21L14.017 18C14.017 16.8954 13.1216 16 12.017 16H9.01703V21H14.017ZM16.017 21V16H19.017C19.5693 16 20.017 16.4477 20.017 17V20C20.017 20.5523 19.5693 21 19.017 21H16.017ZM7.01703 16H4.01703V20C4.01703 20.5523 4.46475 21 5.01703 21H7.01703V16ZM7.01703 7.00001L7.01703 14H5.01703C4.46475 14 4.01703 13.5523 4.01703 13V8.00001C4.01703 7.44772 4.46475 7.00001 5.01703 7.00001H7.01703ZM9.01703 14V3.00001H12.017C13.1216 3.00001 14.017 3.89544 14.017 5.00001V14H9.01703ZM16.017 14V5.00001C16.017 3.89544 16.9125 3.00001 18.017 3.00001H19.017C19.5693 3.00001 20.017 3.44772 20.017 4.00001V13C20.017 13.5523 19.5693 14 19.017 14H16.017Z" /></svg>
                 </div>
-                <div>
-                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest flex items-center gap-1">
-                        Est. Arrival 
-                        {isUpdatingEta && <span className="text-[8px] bg-blue-100 px-1 rounded text-blue-600">Live Traffic</span>}
-                    </p>
-                    <p className="text-sm font-black text-blue-900">
-                        {posting.etaMinutes ? `${posting.etaMinutes} mins` : 'Calculating...'}
-                    </p>
-                </div>
-            </div>
-            
-            {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && (
-                <div className="flex items-center gap-1">
-                     <button 
-                        onClick={handleRecalculateEta}
-                        disabled={isUpdatingEta}
-                        className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border border-blue-200 transition-all shadow-sm flex items-center gap-1 ${isUpdatingEta ? 'bg-blue-50 text-blue-400' : 'bg-white text-blue-600 hover:bg-blue-50'}`}
-                        title="Recalculate ETA based on traffic"
-                    >
-                        <svg className={`w-3 h-3 ${isUpdatingEta ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        {isUpdatingEta ? 'Calc...' : 'Refresh'}
-                    </button>
-                    
-                    {isEditingEta ? (
-                        <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-blue-200 shadow-sm animate-in fade-in zoom-in-95 duration-200">
-                            <input 
-                                type="number" 
-                                className="w-12 text-xs font-bold p-1 outline-none text-slate-700"
-                                placeholder="Min"
-                                value={etaInput}
-                                onChange={(e) => setEtaInput(e.target.value)}
-                                autoFocus
-                            />
-                            <button onClick={saveEta} className="bg-emerald-500 text-white p-1 rounded hover:bg-emerald-600 transition-colors">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                            </button>
-                            <button onClick={() => setIsEditingEta(false)} className="text-slate-400 hover:text-red-500 p-1 transition-colors">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                    ) : (
+                
+                <div className="flex justify-between items-center mb-2 pl-8">
+                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Delivery Notes</p>
+                    {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && (
                         <button 
-                            onClick={() => { setEtaInput(posting.etaMinutes?.toString() || ''); setIsEditingEta(true); }}
-                            className="text-[10px] font-bold bg-white text-blue-600 px-2 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
+                            onClick={() => isEditingNotes ? saveNotes() : setIsEditingNotes(true)} 
+                            className="text-[10px] font-bold bg-white px-2 py-1 rounded-lg shadow-sm text-amber-600 hover:text-amber-700 transition-all border border-amber-100"
                         >
-                            Edit
+                            {isEditingNotes ? 'Save Note' : 'Edit'}
                         </button>
                     )}
                 </div>
-            )}
-        </div>
-      )}
-
-      {/* Volunteer Notes Section */}
-      {isInvolved && (posting.status === FoodStatus.IN_TRANSIT || posting.status === FoodStatus.DELIVERED) && (
-        <div className="mb-4 bg-yellow-50 p-3 rounded-xl border border-yellow-100">
-            <div className="flex justify-between items-start mb-2">
-                <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-widest flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    Volunteer Notes
-                </p>
-                {user.role === UserRole.VOLUNTEER && posting.volunteerId === user.id && (
-                    !isEditingNotes ? (
-                        <button onClick={() => setIsEditingNotes(true)} className="text-[10px] font-bold text-yellow-700 hover:underline">Edit</button>
+                
+                <div className="pl-8">
+                    {isEditingNotes ? (
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            className="w-full p-2 text-xs bg-white border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 text-slate-700 font-medium"
+                            placeholder="Enter gate codes, contact info, or special instructions..."
+                            rows={2}
+                            autoFocus
+                        />
                     ) : (
-                        <button onClick={saveNotes} className="text-[10px] font-bold text-emerald-600 hover:underline">Save</button>
-                    )
-                )}
+                        <p className="text-xs text-slate-600 font-medium whitespace-pre-wrap leading-relaxed">
+                            {posting.volunteerNotes || <span className="text-slate-400 italic">No special instructions added yet.</span>}
+                        </p>
+                    )}
+                </div>
             </div>
-            
-            {isEditingNotes ? (
-                <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full p-2 text-xs bg-white border border-yellow-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-yellow-400"
-                    placeholder="Add notes about pickup or delivery (e.g., Gate code, contact person)..."
-                    rows={2}
-                />
-            ) : (
-                <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap">
-                    {posting.volunteerNotes || <span className="text-slate-400 italic">No notes added.</span>}
-                </p>
-            )}
         </div>
       )}
 
       {/* Interested Volunteers (Visible to Donor) */}
       {user.role === UserRole.DONOR && posting.status === FoodStatus.AVAILABLE && interestedVolunteers.length > 0 && (
-        <div className="mb-4">
-             <div onClick={() => setShowVolunteerSelection(true)} className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors">
-                <div className="flex items-center gap-2">
-                    <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
-                    </span>
-                    <span className="text-xs font-bold text-purple-700">{interestedVolunteers.length} Volunteer{interestedVolunteers.length > 1 ? 's' : ''} Interested</span>
+        <div className="mb-6">
+             <div onClick={() => setShowVolunteerSelection(true)} className="flex items-center justify-between p-4 bg-purple-50 rounded-2xl border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors group">
+                <div className="flex items-center gap-3">
+                    <div className="flex -space-x-2">
+                        {interestedVolunteers.slice(0,3).map((vol, i) => (
+                            <div key={i} className="w-8 h-8 rounded-full bg-purple-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-purple-700">
+                                {vol.userName.charAt(0)}
+                            </div>
+                        ))}
+                    </div>
+                    <span className="text-xs font-bold text-purple-700 group-hover:underline decoration-purple-300 underline-offset-2">{interestedVolunteers.length} Volunteer{interestedVolunteers.length > 1 ? 's' : ''} Interested</span>
                 </div>
-                <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                <div className="bg-white p-2 rounded-full shadow-sm text-purple-400 group-hover:text-purple-600 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                </div>
              </div>
         </div>
       )}
       
       {/* Rate Volunteer Section */}
       {posting.status === FoodStatus.DELIVERED && posting.volunteerId && isInvolved && user.role !== UserRole.VOLUNTEER && (
-         <div className="mb-4">
+         <div className="mb-6">
             {!userHasRated ? (
                 <button 
                     onClick={() => { setRatingStars(0); setRatingFeedback(''); setShowRatingModal(true); }}
-                    className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-widest hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-4 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-widest hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
                 >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.784.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.784.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
                     Rate Volunteer
                 </button>
             ) : (
-                <div className="text-center p-2 bg-slate-50 rounded-xl border border-slate-100">
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">You rated this volunteer</p>
-                    <div className="flex justify-center text-amber-400 gap-0.5 mt-1">
+                <div className="text-center p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">You rated this delivery</p>
+                    <div className="flex justify-center text-amber-400 gap-1 mt-1">
                         {[1,2,3,4,5].map(star => {
                             const myRating = posting.ratings?.find(r => r.raterId === user.id)?.rating || 0;
                             return (
-                                <svg key={star} className={`w-3 h-3 ${star <= myRating ? 'fill-current' : 'text-slate-200 fill-current'}`} viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                <svg key={star} className={`w-4 h-4 ${star <= myRating ? 'fill-current' : 'text-slate-200 fill-current'}`} viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
                             );
                         })}
                     </div>
@@ -812,11 +709,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 pt-2 border-t border-slate-100">
+      <div className="flex gap-3 pt-4 border-t border-slate-100">
         {user.role === UserRole.REQUESTER && posting.status === FoodStatus.AVAILABLE && (
             <button 
                 onClick={handleRequest}
-                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-0.5"
             >
                 Request Food
             </button>
@@ -826,7 +723,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {user.role === UserRole.REQUESTER && posting.status === FoodStatus.IN_TRANSIT && posting.orphanageId === user.id && (
             <button 
                 onClick={handleRequesterDelivery}
-                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 hover:shadow-emerald-300 flex items-center justify-center gap-2 animate-pulse"
+                className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 hover:shadow-emerald-300 flex items-center justify-center gap-2 animate-pulse"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                 Mark as Received
@@ -838,13 +735,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             <>
                 <button
                     onClick={handleExpressInterest}
-                    className="flex-1 bg-purple-50 text-purple-600 border border-purple-200 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-100 transition-colors"
+                    className="flex-1 bg-purple-50 text-purple-600 border-2 border-purple-100 font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-purple-100 hover:border-purple-200 transition-all"
                 >
-                    Interest Only
+                    Interested
                 </button>
                 <button
                     onClick={handleVolunteer}
-                    className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                    className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 hover:-translate-y-0.5"
                 >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     Quick Accept
@@ -855,7 +752,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.AVAILABLE && hasExpressedInterest && (
             <button
                 onClick={handleVolunteer}
-                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                 Accept & Start Pickup
@@ -865,7 +762,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.REQUESTED && (
             <button 
                 onClick={handleVolunteer}
-                className="flex-1 bg-amber-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-amber-600 transition-colors shadow-lg shadow-amber-200"
+                className="flex-1 bg-amber-500 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 hover:-translate-y-0.5"
             >
                 Accept Delivery
             </button>
@@ -875,7 +772,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
             <>
                 <button 
                     onClick={() => setShowMap(true)}
-                    className="flex-1 bg-slate-800 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-slate-900 transition-colors shadow-lg flex items-center justify-center gap-2"
+                    className="flex-1 bg-slate-800 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-slate-900 transition-all shadow-lg flex items-center justify-center gap-2"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                     Track
@@ -883,24 +780,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 
                 <button 
                     onClick={toggleLiveTracking}
-                    className={`flex-1 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-colors shadow-lg flex items-center justify-center gap-2 ${
+                    className={`flex-1 font-black py-4 rounded-2xl uppercase tracking-widest text-xs transition-all shadow-lg flex items-center justify-center gap-2 ${
                         isLiveTracking 
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100 shadow-red-200' 
+                            ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 shadow-rose-200' 
                             : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
                     }`}
                 >
                     {isLiveTracking ? (
                          <>
                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                              </span>
-                             Stop Tracking
+                             Stop
                          </>
                     ) : (
                         <>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            Live Track
+                            Live
                         </>
                     )}
                 </button>
@@ -918,9 +815,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         />
                         <button 
                             disabled={isVerifying}
-                            className="w-full h-full bg-purple-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200 flex items-center justify-center gap-2"
+                            className="w-full h-full bg-purple-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-purple-700 transition-all shadow-lg shadow-purple-200 flex items-center justify-center gap-2"
                         >
-                            {isVerifying ? 'Scanning...' : 'Verify Pickup'}
+                            {isVerifying ? 'Scanning...' : 'Pickup'}
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         </button>
                     </div>
@@ -937,9 +834,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         />
                         <button 
                             disabled={isVerifying}
-                            className="w-full h-full bg-emerald-600 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                            className="w-full h-full bg-emerald-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
                         >
-                            {isVerifying ? 'Verifying with AI...' : 'Verify Delivery'}
+                            {isVerifying ? 'Verifying...' : 'Deliver'}
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         </button>
                     </div>
@@ -956,10 +853,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         handleOptimizeRoute();
                     }
                 }}
-                className={`flex-1 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-colors shadow-sm border flex items-center justify-center gap-2 bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100`}
+                className={`flex-1 font-black py-4 rounded-2xl uppercase tracking-widest text-xs transition-all shadow-sm border flex items-center justify-center gap-2 bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100`}
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-                View Route
+                Route
             </button>
         )}
         
@@ -968,10 +865,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
              <button 
                 onClick={() => handleViewProof('DELIVERY')}
                 title="View delivery verification photo"
-                className="flex-1 bg-emerald-50 text-emerald-700 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-emerald-100 transition-colors shadow-sm border border-emerald-100 flex items-center justify-center gap-2"
+                className="flex-1 bg-emerald-50 text-emerald-700 font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-emerald-100 transition-all shadow-sm border border-emerald-100 flex items-center justify-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                Delivery Proof
+                Proof
             </button>
         )}
 
@@ -980,22 +877,22 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
              <button 
                 onClick={() => handleViewProof('PICKUP')}
                 title="View pickup verification photo"
-                className="flex-1 bg-purple-50 text-purple-700 font-black py-3 rounded-xl uppercase tracking-widest text-[10px] hover:bg-purple-100 transition-colors shadow-sm border border-purple-100 flex items-center justify-center gap-2"
+                className="flex-1 bg-purple-50 text-purple-700 font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-purple-100 transition-all shadow-sm border border-purple-100 flex items-center justify-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                Pickup Proof
+                Proof
             </button>
         )}
 
         {isInvolved && (
             <button 
                 onClick={() => setShowChat(true)}
-                className="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors relative"
+                className="bg-slate-100 text-slate-500 p-4 rounded-2xl hover:bg-slate-200 transition-colors relative hover:text-slate-700"
                 title="Chat"
             >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                 {messageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
                         {messageCount}
                     </span>
                 )}
@@ -1006,7 +903,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
         {isInvolved && (posting.status === FoodStatus.IN_TRANSIT || posting.status === FoodStatus.DELIVERED) && !(user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.IN_TRANSIT && posting.volunteerId === user.id) && (
              <button 
                 onClick={() => setShowMap(true)}
-                className="bg-blue-50 text-blue-600 p-3 rounded-xl hover:bg-blue-100 transition-colors"
+                className="bg-blue-50 text-blue-600 p-4 rounded-2xl hover:bg-blue-100 transition-colors"
                 title="Track"
             >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
@@ -1018,8 +915,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       
       {showMap && (
         <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
-             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl h-[500px] flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
-                <button onClick={() => setShowMap(false)} className="absolute top-4 right-4 z-10 bg-white p-2 rounded-full shadow-md hover:bg-slate-50">
+             <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl h-[500px] flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200 border border-white/50">
+                <button onClick={() => setShowMap(false)} className="absolute top-4 right-4 z-10 bg-white p-3 rounded-full shadow-md hover:bg-slate-50 border border-slate-100">
                     <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
                 <TrackingMap 
@@ -1038,26 +935,26 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {/* Volunteer Selection Modal */}
       {showVolunteerSelection && (
         <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowVolunteerSelection(false)}>
-            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
+            <div className="bg-white rounded-[2rem] w-full max-w-sm p-6 shadow-2xl border border-white/50 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Select Volunteer</h3>
                     <button onClick={() => setShowVolunteerSelection(false)} className="text-slate-400 hover:text-slate-600">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
-                <p className="text-sm text-slate-500 mb-4 font-medium">Who will collect this food?</p>
+                <p className="text-sm text-slate-500 mb-4 font-medium px-1">Who will collect this food?</p>
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
                     {interestedVolunteers.map((vol) => (
                         <button
                             key={vol.userId}
                             onClick={() => initiateAssignment(vol.userId, vol.userName)}
-                            className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 transition-all group"
+                            className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 transition-all group bg-white"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs group-hover:bg-emerald-200 transition-colors">
+                                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm group-hover:bg-emerald-200 transition-colors">
                                     {vol.userName.charAt(0)}
                                 </div>
-                                <span className="font-bold text-slate-700 text-sm">{vol.userName}</span>
+                                <span className="font-bold text-slate-700">{vol.userName}</span>
                             </div>
                             <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Assign</span>
                         </button>
@@ -1070,12 +967,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {/* Confirmation Modal */}
       {showAssignConfirm && selectedVolunteer && (
         <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowAssignConfirm(false)}>
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-white/50" onClick={(e) => e.stopPropagation()}>
                 <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                 </div>
                 <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Confirm Pickup</h3>
-                <p className="text-slate-500 text-sm mb-6 leading-relaxed font-medium">
+                <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
                     Assign <b>{selectedVolunteer.name}</b> to pick up this donation?
                 </p>
                 <div className="flex flex-col gap-3">
@@ -1083,7 +980,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         onClick={confirmAssignment}
                         className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest text-xs"
                     >
-                        Yes, Assign Volunteer
+                        Yes, Assign
                     </button>
                     <button 
                         onClick={() => { setShowAssignConfirm(false); setSelectedVolunteer(null); }}
@@ -1099,27 +996,27 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {/* Rating Modal */}
       {showRatingModal && (
         <div className="fixed inset-0 z-[190] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowRatingModal(false)}>
-             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Rate Volunteer</h3>
+             <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-white/50" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Rate Delivery</h3>
                 <p className="text-slate-500 text-sm mb-6 font-medium">
-                    How was the delivery service provided by {posting.volunteerName}?
+                    How was the service provided by {posting.volunteerName}?
                 </p>
                 
-                <div className="flex justify-center gap-2 mb-6">
+                <div className="flex justify-center gap-3 mb-8">
                     {[1, 2, 3, 4, 5].map((star) => (
                         <button 
                             key={star}
                             onClick={() => setRatingStars(star)}
-                            className={`transition-transform hover:scale-110 focus:outline-none ${star <= ratingStars ? 'text-amber-400' : 'text-slate-200'}`}
+                            className={`transition-transform hover:scale-125 focus:outline-none ${star <= ratingStars ? 'text-amber-400' : 'text-slate-200'}`}
                         >
-                            <svg className="w-8 h-8 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                            <svg className="w-10 h-10 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
                         </button>
                     ))}
                 </div>
                 
                 <textarea 
                     rows={3}
-                    className="w-full p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-200 mb-6 resize-none"
+                    className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-200 mb-6 resize-none font-medium"
                     placeholder="Optional feedback..."
                     value={ratingFeedback}
                     onChange={(e) => setRatingFeedback(e.target.value)}
@@ -1146,7 +1043,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {/* Donor Profile Modal */}
       {showDonorProfile && donorProfile && (
         <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowDonorProfile(false)}>
-            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-[2rem] w-full max-w-sm p-6 shadow-2xl border border-white/50 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Donor Profile</h3>
                     <button onClick={() => setShowDonorProfile(false)} className="text-slate-400 hover:text-slate-600">
@@ -1154,27 +1051,25 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                     </button>
                 </div>
                 
-                <div className="flex flex-col items-center mb-6">
-                    <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl font-black mb-3">
+                <div className="flex flex-col items-center mb-8">
+                    <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl font-black mb-4 border-4 border-white shadow-xl">
                         {donorProfile.name.charAt(0)}
                     </div>
-                    <h4 className="text-xl font-bold text-slate-800">{donorProfile.name}</h4>
+                    <h4 className="text-2xl font-bold text-slate-800">{donorProfile.name}</h4>
                     {donorProfile.orgName && <p className="text-sm text-slate-500 font-medium">{donorProfile.orgName}</p>}
-                    <span className="mt-2 px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-100">
+                    <span className="mt-3 px-4 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-100">
                         {donorProfile.role}
                     </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Impact Score</p>
-                        <p className="text-2xl font-black text-slate-800">{donorProfile.impactScore || 0}</p>
-                        <p className="text-[10px] text-slate-400 font-medium">Donations</p>
+                <div className="grid grid-cols-2 gap-4 mb-2">
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Impact Score</p>
+                        <p className="text-3xl font-black text-slate-800">{donorProfile.impactScore || 0}</p>
                     </div>
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Status</p>
-                        <p className="text-sm font-bold text-slate-700 mt-2">Active</p>
-                        <p className="text-[10px] text-slate-400 font-medium">Member</p>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Status</p>
+                        <p className="text-sm font-bold text-emerald-600 mt-2">Active</p>
                     </div>
                 </div>
             </div>
@@ -1184,7 +1079,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {/* Delivery/Pickup Confirmation Modal */}
       {showDeliverConfirm && (
         <div className="fixed inset-0 z-[180] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={cancelConfirmAction}>
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-8 text-center animate-in zoom-in-95 duration-200 border border-white/50" onClick={(e) => e.stopPropagation()}>
                 <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
@@ -1194,23 +1089,23 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                         : 'Confirm Receipt'}
                 </h3>
                 {verificationFeedback && (
-                    <div className="mb-4 bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                        <p className="text-xs text-emerald-800 font-bold">{verificationFeedback}</p>
+                    <div className="mb-6 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                        <p className="text-xs text-emerald-800 font-bold leading-relaxed">{verificationFeedback}</p>
                     </div>
                 )}
                 
                 {/* Show Image Preview */}
                 {(deliveryUpdatePayload?.verificationImageUrl || deliveryUpdatePayload?.pickupVerificationImageUrl) && (
-                    <div className="mb-6 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                    <div className="mb-6 rounded-2xl overflow-hidden border border-slate-200 shadow-md">
                         <img 
                             src={deliveryUpdatePayload.verificationImageUrl || deliveryUpdatePayload.pickupVerificationImageUrl} 
                             alt="Verification Proof" 
-                            className="w-full h-40 object-cover" 
+                            className="w-full h-48 object-cover" 
                         />
                     </div>
                 )}
 
-                <p className="text-slate-500 text-sm mb-6 leading-relaxed font-medium">
+                <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
                     {verificationFeedback 
                         ? (verificationType === 'PICKUP' ? "The pickup has been verified. Proceed to delivery?" : "The proof of delivery is valid. Mark this donation as delivered?")
                         : "Are you sure you have received this donation? This action cannot be undone."}
@@ -1237,25 +1132,25 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {showProofModal && proofImageToShow && (
         <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowProofModal(false)}>
             <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center animate-in zoom-in-95 duration-200">
-                <button onClick={() => setShowProofModal(false)} className="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition-colors backdrop-blur-sm">
+                <button onClick={() => setShowProofModal(false)} className="absolute -top-14 right-0 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors backdrop-blur-md">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-                <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10" onClick={(e) => e.stopPropagation()}>
+                <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white/10" onClick={(e) => e.stopPropagation()}>
                     <img 
                         src={proofImageToShow} 
                         alt={viewingProofType === 'DELIVERY' ? "Proof of Delivery" : "Proof of Pickup"} 
                         className="max-w-full max-h-[80vh] object-contain"
                     />
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 text-white">
-                        <div className="flex items-center gap-2 mb-1">
-                            <div className={`${viewingProofType === 'DELIVERY' ? 'bg-emerald-500' : 'bg-purple-500'} p-1.5 rounded-full`}>
-                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-8 text-white">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className={`${viewingProofType === 'DELIVERY' ? 'bg-emerald-500' : 'bg-purple-500'} p-2 rounded-full shadow-lg`}>
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
                             </div>
-                            <h4 className="font-black uppercase tracking-widest text-sm">
+                            <h4 className="font-black uppercase tracking-widest text-lg">
                                 {viewingProofType === 'DELIVERY' ? 'Delivery Verified' : 'Pickup Verified'}
                             </h4>
                         </div>
-                        <p className="text-xs text-slate-300 font-medium ml-8">
+                        <p className="text-sm text-slate-300 font-medium ml-10">
                             {viewingProofType === 'DELIVERY' 
                                 ? `Delivered by ${posting.volunteerName}`
                                 : `Picked up by ${posting.volunteerName}`
@@ -1270,17 +1165,17 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
       {/* Route Optimization Modal */}
       {showRoute && (
         <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowRoute(false)}>
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                 {/* Header */}
-                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
-                        <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
-                            <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg">
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                            <span className="bg-indigo-100 text-indigo-600 p-2 rounded-xl">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                             </span>
-                            Optimized Route
+                            Route
                         </h3>
-                        <p className="text-xs text-slate-500 font-medium ml-1 mt-0.5">Powered by Google Gemini & Maps</p>
+                        <p className="text-xs text-slate-500 font-bold ml-1 mt-1 uppercase tracking-wide opacity-70">AI Optimized Path</p>
                     </div>
                     <button onClick={() => setShowRoute(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1288,52 +1183,52 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                     {loadingRoute ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                        <div className="flex flex-col items-center justify-center py-16 text-center space-y-6">
                             <div className="relative">
-                                <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                                <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                    <span className="text-lg">🤖</span>
+                                    <span className="text-xl">🤖</span>
                                 </div>
                             </div>
                             <div>
-                                <p className="font-bold text-slate-800">Calculating Best Path...</p>
-                                <p className="text-xs text-slate-500">Analyzing traffic & road conditions</p>
+                                <p className="font-bold text-slate-800 text-lg">Calculating Path...</p>
+                                <p className="text-sm text-slate-500 mt-1">Checking traffic & road conditions</p>
                             </div>
                         </div>
                     ) : routeData ? (
-                        <div className="space-y-6">
+                        <div className="space-y-8">
                             {/* Summary Cards */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
-                                    <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Est. Duration</p>
-                                    <p className="text-2xl font-black text-indigo-900">{routeData.estimatedDuration}</p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
+                                    <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Est. Time</p>
+                                    <p className="text-3xl font-black text-indigo-900">{routeData.estimatedDuration}</p>
                                 </div>
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Route Via</p>
+                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Via Route</p>
                                     <p className="text-sm font-bold text-slate-700 leading-tight">{routeData.summary}</p>
                                 </div>
                             </div>
 
                             {/* Endpoints */}
-                            <div className="relative pl-4 border-l-2 border-slate-100 space-y-6 my-2">
+                            <div className="relative pl-6 border-l-2 border-slate-100 space-y-8 my-4 ml-2">
                                 <div className="relative">
-                                    <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white shadow-sm ring-1 ring-emerald-100"></div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start</p>
-                                    <p className="text-sm font-bold text-slate-800">{posting.location.line1}</p>
+                                    <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-md ring-4 ring-emerald-50"></div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Point</p>
+                                    <p className="text-sm font-bold text-slate-800 leading-snug">{posting.location.line1}</p>
                                 </div>
                                 <div className="relative">
-                                    <div className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm ring-1 ring-red-100"></div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Destination</p>
-                                    <p className="text-sm font-bold text-slate-800">{posting.requesterAddress?.line1}</p>
+                                    <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-md ring-4 ring-red-50"></div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Destination</p>
+                                    <p className="text-sm font-bold text-slate-800 leading-snug">{posting.requesterAddress?.line1}</p>
                                 </div>
                             </div>
 
                             {/* Traffic Tips */}
                             {routeData.trafficTips && (
-                                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
-                                    <span className="text-xl">🚦</span>
+                                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 flex gap-4">
+                                    <span className="text-2xl">🚦</span>
                                     <div>
                                         <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest mb-1">Traffic Insight</p>
                                         <p className="text-xs font-medium text-amber-900 leading-relaxed">{routeData.trafficTips}</p>
@@ -1343,13 +1238,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
 
                             {/* Steps */}
                             <div>
-                                <h4 className="font-black text-slate-800 text-sm mb-3 flex items-center gap-2">
+                                <h4 className="font-black text-slate-800 text-sm mb-4 flex items-center gap-2">
                                     <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                                    Turn-by-Turn Directions
+                                    Navigation Steps
                                 </h4>
                                 <div className="space-y-3">
                                     {routeData.steps.map((step, idx) => (
-                                        <div key={idx} className="flex gap-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                                        <div key={idx} className="flex gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-[10px]">{idx + 1}</span>
                                             <p className="text-xs font-medium text-slate-600 leading-relaxed">{step}</p>
                                         </div>
@@ -1358,21 +1253,21 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate }) => {
                             </div>
                         </div>
                     ) : (
-                        <div className="text-center py-10">
+                        <div className="text-center py-16">
                             <p className="text-slate-400 font-medium">Route information unavailable.</p>
-                            <button onClick={handleOptimizeRoute} className="mt-2 text-indigo-600 text-xs font-bold hover:underline">Try Again</button>
+                            <button onClick={handleOptimizeRoute} className="mt-4 px-6 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors">Try Again</button>
                         </div>
                     )}
                 </div>
                 
                 {/* Footer */}
                 {!loadingRoute && routeData && (
-                    <div className="p-4 border-t border-slate-100 bg-slate-50">
+                    <div className="p-6 border-t border-slate-100 bg-slate-50">
                         <button 
                             onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${posting.location.lat},${posting.location.lng}`)}&destination=${encodeURIComponent(`${posting.requesterAddress?.lat},${posting.requesterAddress?.lng}`)}`, '_blank')}
-                            className="w-full bg-slate-900 text-white font-black py-3.5 rounded-xl hover:bg-indigo-600 transition-all shadow-lg flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
+                            className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-indigo-600 transition-all shadow-lg flex items-center justify-center gap-2 text-xs uppercase tracking-widest group"
                         >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                            <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
                             Open in Google Maps
                         </button>
                     </div>
