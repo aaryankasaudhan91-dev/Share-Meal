@@ -294,26 +294,32 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
                   </div>
               )}
 
-              <div 
-                  className="flex items-start gap-3 group/location cursor-pointer p-2 -mx-2 rounded-xl hover:bg-slate-50 transition-colors" 
-                  onClick={() => window.open(mapsUrl, '_blank')}
-                  title="Open in Google Maps"
-              >
-                 <div className="w-8 h-8 rounded-full bg-slate-50 group-hover/location:bg-white flex items-center justify-center shrink-0 text-slate-400 group-hover/location:text-emerald-500 transition-colors border border-transparent group-hover/location:border-emerald-100 shadow-sm">
+              <div className="flex items-start gap-3 p-2 -mx-2 rounded-xl bg-slate-50/50 border border-slate-100/50">
+                 <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 text-emerald-500 shadow-sm border border-emerald-100">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                  </div>
                  <div className="flex-1 min-w-0">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                        Pickup Location
-                        <svg className="w-3 h-3 opacity-0 group-hover/location:opacity-100 transition-opacity text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Pickup Location</p>
+                     <p className="text-xs font-bold text-slate-700 leading-snug line-clamp-2">
+                        {posting.location.line1}
+                        {posting.location.line2 && `, ${posting.location.line2}`}
                      </p>
-                     <p className="text-xs font-bold text-slate-700 leading-snug truncate">{posting.location.line1}</p>
-                     {posting.location.line2 && <p className="text-xs text-slate-500 leading-snug truncate">{posting.location.line2}</p>}
                      {posting.location.landmark && (
-                         <p className="text-[10px] font-medium text-slate-500 mt-1 flex items-center gap-1 bg-slate-100 w-fit px-1.5 py-0.5 rounded">
-                             <span className="text-slate-400">Near:</span> {posting.location.landmark}
+                         <p className="text-[10px] font-medium text-emerald-600 mt-1.5 flex items-center gap-1">
+                             <span className="font-bold text-slate-400 uppercase text-[9px]">Landmark:</span> 
+                             {posting.location.landmark}
                          </p>
                      )}
+                     <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(mapsUrl, '_blank');
+                        }}
+                        className="mt-2 text-[10px] font-black uppercase tracking-wider text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline"
+                    >
+                        Open in Google Maps
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </button>
                  </div>
               </div>
           </div>
