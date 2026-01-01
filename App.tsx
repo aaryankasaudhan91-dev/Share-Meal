@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Notification, Rating } from './types';
 import { storage } from './services/storageService';
@@ -98,6 +99,12 @@ const App: React.FC = () => {
         else setActiveTab('browse');
     }
     
+    // Global Polling for real-time updates
+    const interval = setInterval(() => {
+        setPostings(storage.getPostings());
+        if (user) setNotifications(storage.getNotifications(user.id));
+    }, 3000);
+
     // Location Logic
     let watchId: number;
     
@@ -131,6 +138,7 @@ const App: React.FC = () => {
     }
     
     return () => {
+        clearInterval(interval);
         if (watchId) navigator.geolocation.clearWatch(watchId);
     };
   }, [user]);
