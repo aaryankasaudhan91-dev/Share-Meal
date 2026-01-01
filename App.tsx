@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Notification, Rating } from './types';
 import { storage } from './services/storageService';
 import { analyzeFoodSafetyImage, reverseGeocode } from './services/geminiService';
@@ -11,13 +10,13 @@ import VerificationRequestModal from './components/VerificationRequestModal';
 const LOGO_URL = 'https://cdn-icons-png.flaticon.com/512/2921/2921822.png';
 
 const SplashScreen: React.FC = () => (
-  <div className="fixed inset-0 bg-gradient-to-br from-emerald-600 to-teal-800 z-[1000] flex flex-col items-center justify-center text-white">
-    <div className="relative mb-6">
-        <div className="absolute inset-0 bg-white/20 blur-2xl rounded-full scale-150 animate-pulse"></div>
-        <img src={LOGO_URL} className="w-24 h-24 relative z-10 animate-bounce-slow drop-shadow-2xl" />
+  <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-400 via-emerald-600 to-teal-900 z-[1000] flex flex-col items-center justify-center text-white">
+    <div className="relative mb-8">
+        <div className="absolute inset-0 bg-white/30 blur-3xl rounded-full scale-150 animate-pulse"></div>
+        <img src={LOGO_URL} className="w-28 h-28 relative z-10 animate-bounce-slow drop-shadow-2xl" />
     </div>
-    <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-3 animate-fade-in-up">ShareMeal</h1>
-    <p className="text-emerald-100 font-bold tracking-[0.2em] text-xs uppercase animate-fade-in-up-delay bg-white/10 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10">Rescue. Feed. Protect.</p>
+    <h1 className="text-5xl md:text-6xl font-black tracking-tighter mb-4 animate-fade-in-up drop-shadow-sm">ShareMeal</h1>
+    <p className="text-emerald-50 font-bold tracking-[0.3em] text-xs uppercase animate-fade-in-up-delay bg-white/20 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/20 shadow-lg">Rescue. Feed. Protect.</p>
   </div>
 );
 
@@ -28,6 +27,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<string>('default');
   
   // Pending Verification State for Donors
   const [pendingVerificationPosting, setPendingVerificationPosting] = useState<FoodPosting | null>(null);
@@ -35,6 +35,13 @@ const App: React.FC = () => {
   // Login/Registration States
   const [loginName, setLoginName] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [showFacebookModal, setShowFacebookModal] = useState(false);
+  
+  // Forgot Password States
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetStep, setResetStep] = useState<'INPUT' | 'SUCCESS'>('INPUT');
   
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -83,7 +90,13 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setPostings(storage.getPostings());
-    if (user) setNotifications(storage.getNotifications(user.id));
+    if (user) {
+        setNotifications(storage.getNotifications(user.id));
+        // Reset tab when user logs in/changes
+        if (user.role === UserRole.DONOR) setActiveTab('active');
+        else if (user.role === UserRole.VOLUNTEER) setActiveTab('opportunities');
+        else setActiveTab('browse');
+    }
     
     // Location Logic
     let watchId: number;
@@ -169,6 +182,58 @@ const App: React.FC = () => {
         setSafetyVerdict(undefined);
     }
   }, [isAddingFood, user]);
+
+  // Filtered Postings based on Tab and Role
+  const filteredPostings = useMemo(() => {
+    if (!user) return [];
+    
+    let filtered = [...postings];
+
+    if (user.role === UserRole.DONOR) {
+        if (activeTab === 'active') {
+            return filtered.filter(p => p.donorId === user.id && p.status !== FoodStatus.DELIVERED);
+        } else if (activeTab === 'history') {
+            return filtered.filter(p => p.donorId === user.id && p.status === FoodStatus.DELIVERED);
+        }
+    } else if (user.role === UserRole.VOLUNTEER) {
+        if (activeTab === 'opportunities') {
+            // Show Available or Requested items (not yet picked up)
+            return filtered.filter(p => (p.status === FoodStatus.AVAILABLE || (p.status === FoodStatus.REQUESTED && !p.volunteerId)));
+        } else if (activeTab === 'mytasks') {
+            return filtered.filter(p => p.volunteerId === user.id && p.status !== FoodStatus.DELIVERED);
+        } else if (activeTab === 'history') {
+             return filtered.filter(p => p.volunteerId === user.id && p.status === FoodStatus.DELIVERED);
+        }
+    } else if (user.role === UserRole.REQUESTER) {
+        if (activeTab === 'browse') {
+            return filtered.filter(p => p.status === FoodStatus.AVAILABLE);
+        } else if (activeTab === 'myrequests') {
+            return filtered.filter(p => p.orphanageId === user.id);
+        }
+    }
+    
+    return [];
+  }, [postings, user, activeTab]);
+
+  // Stats Logic
+  const stats = useMemo(() => {
+      if (!user) return null;
+      if (user.role === UserRole.DONOR) {
+          const totalDonations = postings.filter(p => p.donorId === user.id).length;
+          const completed = postings.filter(p => p.donorId === user.id && p.status === FoodStatus.DELIVERED).length;
+          return { total: totalDonations, active: totalDonations - completed, completed };
+      }
+      if (user.role === UserRole.VOLUNTEER) {
+          const tasks = postings.filter(p => p.volunteerId === user.id);
+          return { total: tasks.length, active: tasks.filter(p => p.status !== FoodStatus.DELIVERED).length, completed: tasks.filter(p => p.status === FoodStatus.DELIVERED).length };
+      }
+      if (user.role === UserRole.REQUESTER) {
+          const reqs = postings.filter(p => p.orphanageId === user.id);
+          return { total: reqs.length, active: reqs.filter(p => p.status !== FoodStatus.DELIVERED).length, received: reqs.filter(p => p.status === FoodStatus.DELIVERED).length };
+      }
+      return null;
+  }, [postings, user]);
+
 
   const startCamera = async () => {
     setIsCameraOpen(true);
@@ -336,6 +401,92 @@ const App: React.FC = () => {
     } else alert("User not found.");
   };
 
+  const handleDemoLogin = (role: UserRole) => {
+    // Check if a demo user exists
+    const users = storage.getUsers();
+    let demoUser = users.find(u => u.role === role && u.id.startsWith('demo-'));
+    
+    if (!demoUser) {
+        // Create one on the fly
+        demoUser = {
+            id: `demo-${role.toLowerCase()}-${Math.floor(Math.random() * 1000)}`,
+            name: `Demo ${role.charAt(0) + role.slice(1).toLowerCase()}`,
+            email: `demo.${role.toLowerCase()}@sharemeal.com`,
+            contactNo: '9876543210',
+            password: 'demo',
+            role: role,
+            impactScore: role === UserRole.DONOR ? 125 : 0,
+            averageRating: 4.8,
+            ratingsCount: 24,
+            address: role === UserRole.REQUESTER ? {
+                line1: "12 Sunshine Orphanage",
+                line2: "Happy Valley, MG Road",
+                landmark: "Near Central Park",
+                pincode: "560001"
+            } : undefined,
+            orgName: role === UserRole.REQUESTER ? "Sunshine Orphanage" : undefined,
+            orgCategory: role === UserRole.REQUESTER ? "Orphanage" : undefined
+        };
+        storage.saveUser(demoUser);
+    }
+    setUser(demoUser);
+    setView('DASHBOARD');
+  };
+
+  const handleGoogleSignIn = (selectedUser: User) => {
+      setUser(selectedUser);
+      setShowGoogleModal(false);
+      setView('DASHBOARD');
+  };
+
+  const createGoogleUser = () => {
+      const randomId = Math.random().toString(36).substr(2, 5);
+      const newGoogleUser: User = {
+          id: `google-${randomId}`,
+          name: `Google User ${randomId}`,
+          email: `user${randomId}@gmail.com`,
+          role: UserRole.DONOR, // Default role
+          password: 'google-oauth-token',
+          impactScore: 0,
+          averageRating: 0,
+          ratingsCount: 0
+      };
+      storage.saveUser(newGoogleUser);
+      handleGoogleSignIn(newGoogleUser);
+  };
+
+  const handleFacebookSignIn = (selectedUser: User) => {
+      setUser(selectedUser);
+      setShowFacebookModal(false);
+      setView('DASHBOARD');
+  };
+
+  const createFacebookUser = () => {
+      const randomId = Math.random().toString(36).substr(2, 5);
+      const newFacebookUser: User = {
+          id: `fb-${randomId}`,
+          name: `Facebook User ${randomId}`,
+          email: `user${randomId}@facebook.com`,
+          role: UserRole.DONOR, // Default role
+          password: 'fb-oauth-token',
+          impactScore: 0,
+          averageRating: 0,
+          ratingsCount: 0,
+          profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomId}`
+      };
+      storage.saveUser(newFacebookUser);
+      handleFacebookSignIn(newFacebookUser);
+  };
+
+  const handleResetPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if(!forgotEmail) return;
+    // Simulate API call
+    setTimeout(() => {
+        setResetStep('SUCCESS');
+    }, 1000);
+  };
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -475,60 +626,127 @@ const App: React.FC = () => {
 
   if (view === 'LOGIN' || view === 'REGISTER') {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-100 to-teal-50 flex items-center justify-center p-6 relative overflow-hidden">
         {/* Background Decor */}
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-emerald-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-[-20%] left-[20%] w-[600px] h-[600px] bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-emerald-200/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-200/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
 
-        <div className="glass-panel p-10 rounded-[2.5rem] shadow-2xl w-full max-w-lg relative z-10 my-10 max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div className="glass-panel p-8 md:p-12 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] w-full max-w-lg relative z-10 max-h-[90vh] overflow-y-auto custom-scrollbar border border-white/60">
           <div className="text-center mb-10">
-              <div className="inline-block p-4 bg-emerald-50 rounded-3xl mb-4 shadow-inner">
-                  <img src={LOGO_URL} className="h-16 w-16" />
+              <div className="inline-block p-4 bg-emerald-100/50 rounded-[2rem] mb-6 shadow-sm ring-1 ring-emerald-50">
+                  <img src={LOGO_URL} className="h-14 w-14" />
               </div>
-              <h1 className="text-3xl font-black text-slate-800 tracking-tight">{view === 'LOGIN' ? 'Welcome Back' : 'Join the Mission'}</h1>
-              <p className="text-slate-500 font-medium mt-2 text-sm">{view === 'LOGIN' ? 'Sign in to continue rescuing food.' : 'Create an account to start helping.'}</p>
+              <h1 className="text-4xl font-black text-slate-800 tracking-tight leading-tight">{view === 'LOGIN' ? 'Welcome Back' : 'Join the Mission'}</h1>
+              <p className="text-slate-500 font-medium mt-2 text-base">{view === 'LOGIN' ? 'Sign in to continue rescuing food.' : 'Create an account to start helping.'}</p>
           </div>
           
           {view === 'LOGIN' ? (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Username</label>
-                 <input type="text" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={loginName} onChange={e => setLoginName(e.target.value)} required />
+            <div className="animate-fade-in-up">
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                   <label className="text-xs font-bold text-slate-500 uppercase ml-1 tracking-wider">Username</label>
+                   <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      </div>
+                      <input type="text" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" placeholder="Enter your username" value={loginName} onChange={e => setLoginName(e.target.value)} required />
+                   </div>
+                </div>
+                <div className="space-y-2">
+                   <label className="text-xs font-bold text-slate-500 uppercase ml-1 tracking-wider">Password</label>
+                   <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                      </div>
+                      <input type="password" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" placeholder="Enter your password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
+                   </div>
+                </div>
+
+                <div className="flex justify-end">
+                    <button type="button" onClick={() => setShowForgotPasswordModal(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">Forgot Password?</button>
+                </div>
+                
+                <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 rounded-2xl uppercase tracking-widest text-sm shadow-xl shadow-emerald-200/50 hover:shadow-emerald-300/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all mt-4">Sign In</button>
+              </form>
+              
+              <div className="my-8 flex items-center gap-4">
+                  <div className="h-px bg-slate-200 flex-1"></div>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Or continue with</span>
+                  <div className="h-px bg-slate-200 flex-1"></div>
               </div>
-              <div className="space-y-2">
-                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Password</label>
-                 <input type="password" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
+
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                  <button type="button" onClick={() => setShowGoogleModal(true)} className="py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm shadow-sm relative overflow-hidden group">
+                     <div className="absolute inset-0 bg-slate-100 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                     <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 relative z-10" alt="Google" />
+                     <span className="relative z-10">Google</span>
+                  </button>
+                  <button type="button" onClick={() => setShowFacebookModal(true)} className="py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm shadow-sm relative overflow-hidden group">
+                     <div className="absolute inset-0 bg-[#1877F2]/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                     <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" className="w-5 h-5 relative z-10" alt="Facebook" />
+                     <span className="relative z-10 group-hover:text-[#1877F2] transition-colors">Facebook</span>
+                  </button>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center mb-3">Quick Demo Access</p>
+                  <div className="flex gap-2">
+                      <button onClick={() => handleDemoLogin(UserRole.DONOR)} className="flex-1 py-2 bg-white border border-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-50 transition-colors">Donor</button>
+                      <button onClick={() => handleDemoLogin(UserRole.VOLUNTEER)} className="flex-1 py-2 bg-white border border-blue-100 text-blue-700 rounded-xl text-[10px] font-black uppercase hover:bg-blue-50 transition-colors">Volunteer</button>
+                      <button onClick={() => handleDemoLogin(UserRole.REQUESTER)} className="flex-1 py-2 bg-white border border-orange-100 text-orange-700 rounded-xl text-[10px] font-black uppercase hover:bg-orange-50 transition-colors">Requester</button>
+                  </div>
               </div>
               
-              <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transform hover:-translate-y-1 transition-all mt-6">Sign In</button>
-              
-              <div className="text-center mt-6">
-                <span className="text-slate-400 text-sm font-medium">New here? </span>
-                <button type="button" onClick={() => setView('REGISTER')} className="text-emerald-600 font-bold text-sm hover:underline">Create Account</button>
+              <div className="text-center mt-8">
+                <span className="text-slate-500 text-sm font-medium">New here? </span>
+                <button type="button" onClick={() => setView('REGISTER')} className="text-emerald-600 font-bold text-sm hover:underline decoration-2 underline-offset-4">Create Account</button>
               </div>
-            </form>
+            </div>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="grid grid-cols-3 gap-2 mb-6 bg-slate-100 p-1 rounded-2xl">
-                  {[UserRole.DONOR, UserRole.VOLUNTEER, UserRole.REQUESTER].map(role => (
-                      <button key={role} type="button" onClick={() => setRegRole(role)} className={`py-2 rounded-xl text-[10px] font-black uppercase transition-all ${regRole === role ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>{role}</button>
+            <form onSubmit={handleRegister} className="space-y-6">
+              <div className="grid grid-cols-3 gap-3 mb-8 bg-slate-100/80 p-2 rounded-3xl">
+                  {[
+                      { role: UserRole.DONOR, label: 'Donor', icon: '🎁' },
+                      { role: UserRole.VOLUNTEER, label: 'Volunteer', icon: '🤝' },
+                      { role: UserRole.REQUESTER, label: 'Requester', icon: '🏠' }
+                  ].map(({ role, label, icon }) => (
+                      <button 
+                        key={role} 
+                        type="button" 
+                        onClick={() => setRegRole(role)} 
+                        className={`flex flex-col items-center justify-center py-4 rounded-2xl transition-all ${regRole === role ? 'bg-white text-emerald-600 shadow-lg scale-100 ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 scale-95'}`}
+                      >
+                          <span className="text-2xl mb-1 filter drop-shadow-sm">{icon}</span>
+                          <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
+                      </button>
                   ))}
               </div>
 
               {/* Basic Info */}
-              <input type="text" placeholder="Full Name" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regName} onChange={e => setRegName(e.target.value)} required />
-              <input type="email" placeholder="Email" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regEmail} onChange={e => setRegEmail(e.target.value)} required />
+              <div className="space-y-4">
+                 <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </div>
+                    <input type="text" placeholder="Full Name" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regName} onChange={e => setRegName(e.target.value)} required />
+                 </div>
+                 
+                 <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    </div>
+                    <input type="email" placeholder="Email Address" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regEmail} onChange={e => setRegEmail(e.target.value)} required />
+                 </div>
               
-              <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                      <span className="text-slate-500 font-bold text-sm border-r border-slate-300 pr-2">+91</span>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                      <span className="font-bold text-sm border-r border-slate-300 pr-3 mr-1">+91</span>
                   </div>
                   <input 
                       type="tel" 
                       placeholder="Contact Number" 
                       maxLength={10} 
-                      className="w-full pl-20 pr-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" 
+                      className="w-full pl-24 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" 
                       value={regContactNo} 
                       onChange={e => {
                           const val = e.target.value.replace(/\D/g, '');
@@ -536,57 +754,249 @@ const App: React.FC = () => {
                       }} 
                       required 
                   />
-              </div>
+                </div>
 
-              <input type="password" placeholder="Password" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regPassword} onChange={e => setRegPassword(e.target.value)} required />
+                <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    </div>
+                    <input type="password" placeholder="Password" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regPassword} onChange={e => setRegPassword(e.target.value)} required />
+                </div>
+              </div>
               
               {/* Organization Details (Requester Only) */}
               {regRole === UserRole.REQUESTER && (
-                <div className="space-y-4 pt-2 animate-fade-in-up">
-                    <div className="flex items-center gap-2 mb-1">
-                        <div className="h-px bg-slate-200 flex-1"></div>
-                        <span className="text-[10px] font-black uppercase text-slate-400">Organization Details</span>
-                        <div className="h-px bg-slate-200 flex-1"></div>
+                <div className="space-y-4 pt-4 animate-fade-in-up">
+                    <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                            </div>
+                            <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Organization & Address</span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            <input type="text" placeholder="Organization Name" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} required />
+                            <div className="relative">
+                                <select value={regOrgCategory} onChange={e => setRegOrgCategory(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all appearance-none cursor-pointer">
+                                    <option value="Orphanage">Orphanage</option>
+                                    <option value="Old Age Home">Old Age Home</option>
+                                    <option value="NGO">NGO</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-5 pointer-events-none text-slate-500">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-end">
+                                <button type="button" onClick={handleAutoDetectLocation} disabled={isAutoDetecting} className="flex items-center gap-1.5 text-blue-600 text-[10px] font-black uppercase hover:text-blue-700 transition-colors disabled:opacity-50 tracking-wider">
+                                    {isAutoDetecting ? (
+                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    ) : (
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    )}
+                                    Auto Detect Location
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <input type="text" placeholder="Line 1 (House/Flat No)" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regLine1} onChange={e => setRegLine1(e.target.value)} required />
+                                <input type="text" placeholder="Line 2 (Street/Area)" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regLine2} onChange={e => setRegLine2(e.target.value)} required />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input type="text" placeholder="Landmark" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regLandmark} onChange={e => setRegLandmark(e.target.value)} />
+                                    <input type="text" placeholder="Pincode" maxLength={6} className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regPincode} onChange={e => setRegPincode(e.target.value)} required />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <input type="text" placeholder="Organization Name" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} required />
-                    <select value={regOrgCategory} onChange={e => setRegOrgCategory(e.target.value)} className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all appearance-none cursor-pointer">
-                        <option value="Orphanage">Orphanage</option>
-                        <option value="Old Age Home">Old Age Home</option>
-                        <option value="NGO">NGO</option>
-                        <option value="Other">Other</option>
-                    </select>
                 </div>
               )}
-
-              {/* Address Section - Only for Requester */}
-              {regRole === UserRole.REQUESTER && (
-              <div className="space-y-3 pt-2">
-                 <div className="flex items-center justify-between mb-2">
-                     <span className="text-[10px] font-black uppercase text-slate-400 ml-2">Address Details</span>
-                     <button type="button" onClick={handleAutoDetectLocation} disabled={isAutoDetecting} className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase hover:bg-blue-100 transition-colors disabled:opacity-50">
-                        {isAutoDetecting ? (
-                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        ) : (
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        )}
-                        Auto Detect
-                     </button>
-                 </div>
-                 <input type="text" placeholder="Line 1 (House/Flat No)" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regLine1} onChange={e => setRegLine1(e.target.value)} required />
-                 <input type="text" placeholder="Line 2 (Street/Area)" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regLine2} onChange={e => setRegLine2(e.target.value)} required />
-                 <div className="flex gap-3">
-                     <input type="text" placeholder="Landmark (Optional)" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regLandmark} onChange={e => setRegLandmark(e.target.value)} />
-                     <input type="text" placeholder="Pincode (6 digits)" maxLength={6} className="w-32 px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" value={regPincode} onChange={e => setRegPincode(e.target.value)} required />
-                 </div>
-              </div>
-              )}
               
-              <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transform hover:-translate-y-1 transition-all mt-6">Create Account</button>
+              <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 rounded-2xl uppercase tracking-widest text-sm shadow-xl shadow-emerald-200/50 hover:shadow-emerald-300/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all mt-6">Create Account</button>
               
-              <div className="text-center mt-4">
-                 <button type="button" onClick={() => setView('LOGIN')} className="text-slate-400 font-bold text-sm hover:text-emerald-600 transition-colors">Back to Login</button>
+              <div className="text-center mt-6">
+                 <button type="button" onClick={() => setView('LOGIN')} className="text-slate-500 font-bold text-sm hover:text-emerald-600 transition-colors">Back to Login</button>
               </div>
             </form>
+          )}
+
+          {/* Google Login Simulation Modal */}
+          {showGoogleModal && (
+            <div className="absolute inset-0 z-50 bg-white rounded-[2.5rem] p-8 flex flex-col items-center animate-fade-in-up">
+                <div className="w-full max-w-sm">
+                    <button onClick={() => setShowGoogleModal(false)} className="absolute top-8 left-8 text-slate-400 hover:text-slate-600">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    </button>
+                    <div className="text-center mb-8 mt-4">
+                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-12 h-12 mx-auto mb-4" />
+                        <h3 className="text-2xl font-black text-slate-800">Choose an account</h3>
+                        <p className="text-slate-500 text-sm font-medium">to continue to ShareMeal</p>
+                    </div>
+
+                    <div className="space-y-2 mb-6">
+                        {storage.getUsers().length > 0 ? (
+                            storage.getUsers().slice(0, 4).map(u => (
+                                <button 
+                                    key={u.id}
+                                    onClick={() => handleGoogleSignIn(u)}
+                                    className="w-full flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl border border-transparent hover:border-slate-100 transition-all text-left group"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm shrink-0">
+                                        {u.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-slate-800 text-sm truncate group-hover:text-emerald-700">{u.name}</p>
+                                        <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                                    </div>
+                                </button>
+                            ))
+                        ) : (
+                            <div className="text-center py-4 text-slate-400 text-sm italic">
+                                No detected accounts.
+                            </div>
+                        )}
+                    </div>
+
+                    <button 
+                        onClick={createGoogleUser}
+                        className="w-full flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl border-t border-slate-100 transition-all text-left"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-lg shrink-0">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-slate-700 text-sm">Use another account</p>
+                            <p className="text-xs text-slate-400">Creates a new Google user</p>
+                        </div>
+                    </button>
+                    
+                    <div className="mt-8 text-center text-[10px] text-slate-400 leading-tight">
+                        To continue, Google will share your name, email address, and language preference with ShareMeal.
+                    </div>
+                </div>
+            </div>
+          )}
+
+          {/* Facebook Login Simulation Modal */}
+          {showFacebookModal && (
+            <div className="absolute inset-0 z-50 bg-white rounded-[2.5rem] p-0 flex flex-col animate-fade-in-up overflow-hidden">
+                {/* Facebook Blue Header */}
+                <div className="bg-[#1877F2] p-6 text-white relative">
+                    <button onClick={() => setShowFacebookModal(false)} className="absolute top-6 left-6 text-white/80 hover:text-white">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    </button>
+                    <div className="text-center mt-2">
+                        <h3 className="text-xl font-bold">Facebook</h3>
+                        <p className="text-blue-200 text-xs">Log in to ShareMeal</p>
+                    </div>
+                </div>
+
+                <div className="p-8 flex-1 flex flex-col items-center">
+                    <div className="text-center mb-8">
+                        <p className="text-slate-600 font-bold text-lg">Continue as...</p>
+                    </div>
+
+                    <div className="space-y-3 w-full max-w-sm mb-6">
+                        {storage.getUsers().length > 0 ? (
+                            storage.getUsers().slice(0, 4).map(u => (
+                                <button 
+                                    key={u.id}
+                                    onClick={() => handleFacebookSignIn(u)}
+                                    className="w-full flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl border border-slate-100 hover:border-[#1877F2]/30 transition-all text-left group"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+                                        {u.profilePictureUrl ? <img src={u.profilePictureUrl} className="w-full h-full object-cover" /> : <span className="text-slate-500">{u.name.charAt(0)}</span>}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-slate-800 text-sm truncate group-hover:text-[#1877F2]">{u.name}</p>
+                                        <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                                    </div>
+                                </button>
+                            ))
+                        ) : (
+                            <div className="text-center py-4 text-slate-400 text-sm italic">
+                                No active sessions found.
+                            </div>
+                        )}
+                    </div>
+
+                    <button 
+                        onClick={createFacebookUser}
+                        className="w-full max-w-sm bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.791-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                        Create New Account
+                    </button>
+                    
+                    <div className="mt-auto text-center text-[10px] text-slate-400 pt-8">
+                        ShareMeal will receive your name and profile picture.
+                    </div>
+                </div>
+            </div>
+          )}
+
+          {/* Forgot Password Modal */}
+          {showForgotPasswordModal && (
+            <div className="absolute inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
+                <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl relative overflow-hidden">
+                    {resetStep === 'INPUT' && (
+                        <form onSubmit={handleResetPassword}>
+                            <div className="text-center mb-6">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-800 mb-2">Forgot Password?</h3>
+                                <p className="text-slate-500 text-sm font-medium">No worries! Enter your email and we'll send you reset instructions.</p>
+                            </div>
+                            
+                            <div className="space-y-4 mb-6">
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" /></svg>
+                                    </div>
+                                    <input 
+                                        type="email" 
+                                        placeholder="Enter your email" 
+                                        className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" 
+                                        value={forgotEmail} 
+                                        onChange={e => setForgotEmail(e.target.value)} 
+                                        required 
+                                    />
+                                </div>
+                            </div>
+
+                            <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transform hover:-translate-y-0.5 transition-all">
+                                Send Reset Link
+                            </button>
+                            
+                            <button type="button" onClick={() => setShowForgotPasswordModal(false)} className="w-full mt-4 py-3 text-slate-400 font-bold text-xs hover:text-slate-600 transition-colors">
+                                Back to Login
+                            </button>
+                        </form>
+                    )}
+
+                    {resetStep === 'SUCCESS' && (
+                        <div className="text-center py-4">
+                            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce-slow">
+                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 mb-2">Check your mail</h3>
+                            <p className="text-slate-500 text-sm font-medium mb-8">We have sent password recovery instructions to your email.</p>
+                            <button 
+                                onClick={() => {
+                                    setShowForgotPasswordModal(false);
+                                    setResetStep('INPUT');
+                                    setForgotEmail('');
+                                }} 
+                                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl transition-all"
+                            >
+                                Back to Login
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
           )}
         </div>
       </div>
@@ -594,193 +1004,264 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout user={user} onLogout={() => { setUser(null); setView('LOGIN'); }} onProfileClick={() => setView('PROFILE')} onLogoClick={() => setView('DASHBOARD')} notifications={notifications}>
-        {pendingVerificationPosting && (
-            <VerificationRequestModal 
+    <Layout user={user!} onLogout={() => { setUser(null); setView('LOGIN'); }} onProfileClick={() => setView('PROFILE')} onLogoClick={() => setView('DASHBOARD')} notifications={notifications}>
+      {view === 'PROFILE' && user ? (
+        <ProfileView 
+          user={user} 
+          onUpdate={(updates) => {
+            const updated = storage.updateUser(user.id, updates);
+            if (updated) setUser(updated);
+          }}
+          onBack={() => setView('DASHBOARD')}
+        />
+      ) : (
+        <>
+          {/* Dashboard Content */}
+          {/* If Donor and Verification Pending, show modal */}
+          {pendingVerificationPosting && (
+              <VerificationRequestModal 
                 posting={pendingVerificationPosting}
                 onApprove={handleDonorApprove}
                 onReject={handleDonorReject}
-            />
-        )}
-        {isAddingFood && (
-            <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-                <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl relative">
-                    <button onClick={() => setIsAddingFood(false)} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                    <h3 className="text-2xl font-black mb-1 text-slate-800">Donate Food</h3>
-                    <p className="text-slate-400 text-sm font-bold mb-6">Details help volunteers connect faster.</p>
-                    
-                    <form onSubmit={handlePostFood} className="space-y-5">
-                        
-                        {/* Camera UI */}
-                        <div className={`rounded-3xl overflow-hidden border-2 relative h-64 flex flex-col items-center justify-center transition-all ${isCameraOpen ? 'border-emerald-500 shadow-xl' : 'border-dashed border-slate-300 bg-slate-50'}`}>
-                            {isCameraOpen ? (
-                                <>
-                                    <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
-                                    <button type="button" onClick={capturePhoto} className="absolute bottom-6 bg-white rounded-full p-1 shadow-2xl">
-                                        <div className="w-16 h-16 border-4 border-white rounded-full bg-red-500 flex items-center justify-center"></div>
-                                    </button>
-                                </>
-                            ) : foodImage ? (
-                                <>
-                                    <img src={foodImage} alt="Captured" className="absolute inset-0 w-full h-full object-cover" />
-                                    {isAnalyzing && (
-                                        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center backdrop-blur-sm p-6 text-center">
-                                            <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin mb-3"></div>
-                                            <div className="text-white font-bold text-sm animate-pulse">AI is checking food safety...</div>
-                                        </div>
-                                    )}
-                                    <button type="button" onClick={() => setFoodImage(null)} className="absolute top-4 right-4 bg-slate-900/80 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold z-10 backdrop-blur-md transition-colors">Retake Photo</button>
-                                    {safetyVerdict && !safetyVerdict.isSafe && !isAnalyzing && (
-                                        <div className="absolute bottom-4 left-4 right-4 bg-rose-500/90 backdrop-blur-md p-3 rounded-xl text-white text-xs font-bold border border-rose-400 shadow-lg">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                                Safety Warning
-                                            </div>
-                                            {safetyVerdict.reasoning}
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="flex items-center gap-8">
-                                    <button type="button" onClick={startCamera} className="flex flex-col items-center text-slate-400 gap-3 group">
-                                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                                            <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                        </div>
-                                        <span className="font-bold text-sm group-hover:text-emerald-600 transition-colors">Camera</span>
-                                    </button>
+              />
+          )}
 
-                                    <button type="button" onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center text-slate-400 gap-3 group">
-                                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                                            <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                        </div>
-                                        <span className="font-bold text-sm group-hover:text-blue-600 transition-colors">Upload</span>
-                                    </button>
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef} 
-                                        accept="image/*" 
-                                        className="hidden" 
-                                        onChange={handleFileUpload} 
-                                    />
+          {/* Welcome & Stats Section */}
+          <div className="mb-8">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+                <div>
+                    <h2 className="text-3xl font-black text-slate-800">Hello, {user?.name.split(' ')[0]}! 👋</h2>
+                    <p className="text-slate-500 font-medium">
+                        {user?.role === UserRole.DONOR ? "Ready to make a difference today?" : 
+                        user?.role === UserRole.VOLUNTEER ? "Thanks for being a hero on wheels." : 
+                        "Find fresh food nearby."}
+                    </p>
+                </div>
+                {/* Role Specific Stats Tags */}
+                {stats && (
+                    <div className="flex gap-2">
+                         <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
+                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total</p>
+                             <p className="text-xl font-black text-slate-800">{stats.total}</p>
+                         </div>
+                         <div className="bg-emerald-50 px-4 py-2 rounded-2xl border border-emerald-100 shadow-sm">
+                             <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Active</p>
+                             <p className="text-xl font-black text-emerald-800">{stats.active}</p>
+                         </div>
+                         <div className="bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shadow-sm">
+                             <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest">
+                                 {user?.role === UserRole.REQUESTER ? 'Received' : 'Completed'}
+                             </p>
+                             <p className="text-xl font-black text-blue-800">{stats.completed !== undefined ? stats.completed : stats.received}</p>
+                         </div>
+                    </div>
+                )}
+              </div>
+
+              {/* Tab Navigation */}
+              <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+                  {user?.role === UserRole.DONOR && (
+                      <>
+                        <button onClick={() => setActiveTab('active')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'active' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
+                            My Active Donations
+                        </button>
+                        <button onClick={() => setActiveTab('history')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
+                            Past History
+                        </button>
+                      </>
+                  )}
+                  {user?.role === UserRole.VOLUNTEER && (
+                      <>
+                        <button onClick={() => setActiveTab('opportunities')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'opportunities' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
+                            Available for Pickup
+                        </button>
+                        <button onClick={() => setActiveTab('mytasks')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'mytasks' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
+                            My Active Deliveries
+                        </button>
+                        <button onClick={() => setActiveTab('history')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
+                            Delivery History
+                        </button>
+                      </>
+                  )}
+                  {user?.role === UserRole.REQUESTER && (
+                      <>
+                        <button onClick={() => setActiveTab('browse')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'browse' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
+                            Browse Available Food
+                        </button>
+                        <button onClick={() => setActiveTab('myrequests')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'myrequests' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
+                            My Requests
+                        </button>
+                      </>
+                  )}
+              </div>
+          </div>
+          
+          {/* Postings Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredPostings.length === 0 ? (
+                  <div className="col-span-full py-20 text-center opacity-50 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+                      <div className="text-6xl mb-4 grayscale opacity-50">🍽️</div>
+                      <p className="font-bold text-slate-400 text-lg">No food postings found in this section.</p>
+                      {user?.role === UserRole.DONOR && activeTab === 'active' && (
+                          <button onClick={() => setIsAddingFood(true)} className="mt-4 text-emerald-600 font-bold hover:underline">
+                              Create a new donation?
+                          </button>
+                      )}
+                  </div>
+              ) : (
+                filteredPostings.map(posting => (
+                    <FoodCard 
+                        key={posting.id} 
+                        posting={posting} 
+                        user={user!} 
+                        onUpdate={(id, updates) => {
+                            const updated = storage.updatePosting(id, updates);
+                            if (updated) handleRefresh();
+                        }}
+                        currentLocation={userLocation}
+                        onRateVolunteer={handleRateVolunteer}
+                        volunteerProfile={posting.volunteerId ? storage.getUser(posting.volunteerId) : undefined}
+                    />
+                ))
+              )}
+          </div>
+
+          {/* Floating Action Button for Donors */}
+          {user?.role === UserRole.DONOR && (
+              <button 
+                onClick={() => setIsAddingFood(true)}
+                className="fixed bottom-8 right-8 w-16 h-16 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group"
+              >
+                  <svg className="w-8 h-8 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+              </button>
+          )}
+        </>
+      )}
+
+      {/* Add Food Modal */}
+      {isAddingFood && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-2xl my-8 p-8 shadow-2xl relative">
+              <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-black text-slate-800">Donate Food</h3>
+                  <button onClick={() => setIsAddingFood(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                      <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+              </div>
+
+              <form onSubmit={handlePostFood} className="space-y-6">
+                  {/* Image Upload/Camera */}
+                  <div className="relative h-64 bg-slate-100 rounded-3xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center overflow-hidden group">
+                      {foodImage ? (
+                          <>
+                            <img src={foodImage} className="w-full h-full object-cover" />
+                            <button type="button" onClick={() => setFoodImage(null)} className="absolute top-4 right-4 bg-white/80 p-2 rounded-full text-rose-500 hover:bg-white transition-colors">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                            {isAnalyzing && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                    <div className="bg-white px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                                        <svg className="animate-spin h-4 w-4 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        Analyzing Safety...
+                                    </div>
                                 </div>
                             )}
-                            <canvas ref={canvasRef} className="hidden" />
-                        </div>
+                          </>
+                      ) : isCameraOpen ? (
+                          <div className="w-full h-full relative bg-black">
+                              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
+                              <canvas ref={canvasRef} className="hidden"></canvas>
+                              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+                                  <button type="button" onClick={capturePhoto} className="w-16 h-16 border-4 border-white rounded-full bg-white/20 hover:bg-white/40 transition-colors"></button>
+                                  <button type="button" onClick={stopCamera} className="absolute right-4 top-[-200px] text-white p-2">
+                                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                              </div>
+                          </div>
+                      ) : (
+                          <div className="text-center p-6 space-y-4">
+                              <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                              </div>
+                              <div className="flex gap-3">
+                                  <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase tracking-wide hover:bg-slate-800 transition-colors">Upload Photo</button>
+                                  <button type="button" onClick={startCamera} className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wide hover:bg-slate-50 transition-colors">Open Camera</button>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-medium">Required for AI Safety Check</p>
+                              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+                          </div>
+                      )}
+                  </div>
 
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">What are you donating?</label>
-                            <input type="text" placeholder="e.g. 5 Boxes of Veg Pizza" value={foodName} onChange={e => setFoodName(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" required />
-                        </div>
+                  {safetyVerdict && (
+                      <div className={`p-4 rounded-xl border ${safetyVerdict.isSafe ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
+                          <div className="flex items-center gap-2 font-bold mb-1 text-sm">
+                              {safetyVerdict.isSafe ? (
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              ) : (
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                              )}
+                              AI Safety Verdict: {safetyVerdict.isSafe ? 'Safe to Donate' : 'Potential Issues'}
+                          </div>
+                          <p className="text-xs opacity-90">{safetyVerdict.reasoning}</p>
+                      </div>
+                  )}
 
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Message / Description</label>
-                            <textarea placeholder="e.g. Prepared this morning, contains nuts. Please consume within 4 hours." value={foodDescription} onChange={e => setFoodDescription(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all resize-none h-24" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Food Item</label>
+                            <input type="text" value={foodName} onChange={e => setFoodName(e.target.value)} placeholder="e.g. Rice and Curry" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all" required />
                         </div>
-                        
-                        <div className="flex gap-4">
-                            <div className="flex-1">
-                                <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Quantity</label>
-                                <input type="number" placeholder="0" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" required />
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Description</label>
+                            <textarea value={foodDescription} onChange={e => setFoodDescription(e.target.value)} placeholder="Ingredients, allergens, etc." className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all resize-none h-32" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Quantity</label>
+                                <input type="number" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} placeholder="10" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all" required />
                             </div>
-                            <div className="w-1/3">
-                                <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Unit</label>
-                                <select value={unit} onChange={e => setUnit(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all appearance-none cursor-pointer">
-                                    <option value="meals">meals</option>
-                                    <option value="kg">kg</option>
-                                    <option value="lbs">lbs</option>
-                                    <option value="boxes">boxes</option>
-                                    <option value="items">items</option>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Unit</label>
+                                <select value={unit} onChange={e => setUnit(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all cursor-pointer">
+                                    <option value="meals">Meals</option>
+                                    <option value="kg">Kg</option>
+                                    <option value="liters">Liters</option>
+                                    <option value="boxes">Boxes</option>
                                 </select>
                             </div>
                         </div>
-
-                        <div>
-                             <label className="text-xs font-bold text-slate-500 uppercase ml-1 mb-1 block">Best Before</label>
-                             <input type="datetime-local" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-600" required />
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Expires By</label>
+                            <input type="datetime-local" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all" required />
                         </div>
-                        
-                        {/* Address Section */}
-                        <div className="space-y-3 pt-2 border-t border-slate-100">
-                             <div className="flex items-center justify-between mb-1 mt-2">
-                                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Pickup Address</label>
-                                 <button type="button" onClick={handleFoodAutoDetectLocation} disabled={isFoodAutoDetecting} className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase hover:bg-blue-100 transition-colors disabled:opacity-50">
-                                    {isFoodAutoDetecting ? (
-                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                    ) : (
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                    )}
-                                    Auto Detect
-                                 </button>
-                             </div>
-                             <input type="text" placeholder="Line 1 (House/Flat No)" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-sm" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} required />
-                             <input type="text" placeholder="Line 2 (Street/Area)" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-sm" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} required />
-                             <div className="flex gap-3">
-                                 <input type="text" placeholder="Landmark" className="w-full px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-sm" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} />
-                                 <input type="text" placeholder="Pincode" maxLength={6} className="w-32 px-5 py-3.5 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-sm" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} required />
-                             </div>
-                        </div>
-
-                        <button type="submit" className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-lg shadow-emerald-200 disabled:bg-slate-300 disabled:shadow-none disabled:text-slate-500 transition-all mt-4" disabled={!foodImage || isAnalyzing}>
-                            Post Donation
-                        </button>
-                    </form>
-                </div>
-            </div>
-        )}
-        {view === 'PROFILE' && user ? <ProfileView user={user} onUpdate={u => storage.updateUser(user.id, u)} onBack={() => setView('DASHBOARD')} /> : (
-            <>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 animate-fade-in-up">
-                    <div>
-                        <h2 className="text-4xl font-black tracking-tight text-slate-900">Live <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">Donations</span></h2>
-                        <p className="text-slate-500 font-medium mt-1">Real-time food rescue opportunities near you.</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={handleRefresh} 
-                            className="bg-white hover:bg-slate-50 text-slate-600 p-4 rounded-2xl shadow-sm border border-slate-200 transition-all group hover:border-emerald-200 hover:text-emerald-600" 
-                            title="Refresh Feed"
-                        >
-                            <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        </button>
-                        {user?.role === UserRole.DONOR && (
-                            <button onClick={() => setIsAddingFood(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-emerald-200 transform hover:-translate-y-1 transition-all flex items-center gap-2">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                                Donate Food
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Pickup Address</label>
+                            <button type="button" onClick={handleFoodAutoDetectLocation} disabled={isFoodAutoDetecting} className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-700 disabled:opacity-50">
+                                {isFoodAutoDetecting ? 'Detecting...' : 'Auto Detect'}
                             </button>
-                        )}
-                    </div>
-                </div>
-                
-                {postings.length === 0 ? (
-                    <div className="bg-white rounded-[2.5rem] p-12 text-center border border-slate-100 shadow-sm animate-fade-in-up">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                         </div>
-                        <h3 className="text-lg font-black text-slate-800">No donations yet</h3>
-                        <p className="text-slate-500">Be the first to donate food today!</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-10">
-                        {postings.map((p, idx) => (
-                            <div key={p.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
-                                {user && (
-                                    <FoodCard 
-                                        posting={p} 
-                                        user={user} 
-                                        currentLocation={userLocation} 
-                                        onUpdate={(id, updates) => { storage.updatePosting(id, updates); setPostings(storage.getPostings()); }}
-                                        onRateVolunteer={handleRateVolunteer}
-                                        volunteerProfile={p.volunteerId ? storage.getUser(p.volunteerId) : undefined}
-                                    />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </>
-        )}
+                        <input type="text" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} placeholder="Line 1" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" required />
+                        <input type="text" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} placeholder="Line 2" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" required />
+                        <div className="grid grid-cols-2 gap-3">
+                            <input type="text" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} placeholder="Landmark" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" />
+                            <input type="text" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} placeholder="Pincode" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" required />
+                        </div>
+                      </div>
+                  </div>
+
+                  <button type="submit" disabled={isAnalyzing} className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-sm shadow-xl transition-all mt-4">
+                      Post Donation
+                  </button>
+              </form>
+            </div>
+        </div>
+      )}
+
     </Layout>
   );
 };
