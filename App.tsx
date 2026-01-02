@@ -274,13 +274,18 @@ const App: React.FC = () => {
     if (videoRef.current && canvasRef.current) {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        
+        // Resize logic to avoid "Rpc failed" errors with large payloads
+        const MAX_WIDTH = 800;
+        const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
         
         const ctx = canvas.getContext('2d');
         if (ctx) {
-            ctx.drawImage(video, 0, 0);
-            const base64 = canvas.toDataURL('image/jpeg');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // Use 0.8 quality to further reduce size
+            const base64 = canvas.toDataURL('image/jpeg', 0.8);
             
             stopCamera();
             setFoodImage(base64);
@@ -308,24 +313,37 @@ const App: React.FC = () => {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        setFoodImage(base64);
-        setIsAnalyzing(true);
-        setSafetyVerdict(undefined);
-        
-        // AI Analysis
-        const analysis = await analyzeFoodSafetyImage(base64);
-        setIsAnalyzing(false);
-        setSafetyVerdict({ isSafe: analysis.isSafe, reasoning: analysis.reasoning });
-        
-        if (!analysis.isSafe) {
-            const keep = window.confirm(`Safety Warning: ${analysis.reasoning}.\n\nDo you want to keep this photo anyway?`);
-            if (!keep) {
-                setFoodImage(null);
-                setSafetyVerdict(undefined);
-                if(fileInputRef.current) fileInputRef.current.value = '';
+        // Resize loaded image
+        const img = new Image();
+        img.onload = async () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const scale = img.width > MAX_WIDTH ? MAX_WIDTH / img.width : 1;
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const base64 = canvas.toDataURL('image/jpeg', 0.8);
+
+            setFoodImage(base64);
+            setIsAnalyzing(true);
+            setSafetyVerdict(undefined);
+            
+            // AI Analysis
+            const analysis = await analyzeFoodSafetyImage(base64);
+            setIsAnalyzing(false);
+            setSafetyVerdict({ isSafe: analysis.isSafe, reasoning: analysis.reasoning });
+            
+            if (!analysis.isSafe) {
+                const keep = window.confirm(`Safety Warning: ${analysis.reasoning}.\n\nDo you want to keep this photo anyway?`);
+                if (!keep) {
+                    setFoodImage(null);
+                    setSafetyVerdict(undefined);
+                    if(fileInputRef.current) fileInputRef.current.value = '';
+                }
             }
-        }
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -908,6 +926,60 @@ const App: React.FC = () => {
                             </button>
                         </div>
                     )}
+                </div>
+            </div>
+          )}
+
+          {/* Google Login Modal */}
+          {showGoogleModal && (
+            <div className="absolute inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
+                <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl relative">
+                    <button onClick={() => setShowGoogleModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    <div className="text-center mb-6">
+                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-12 h-12 mx-auto mb-4" />
+                        <h3 className="text-xl font-black text-slate-800">Sign in with Google</h3>
+                        <p className="text-slate-500 text-xs font-bold mt-1">Choose an account</p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <button onClick={createGoogleUser} className="w-full flex items-center gap-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors group">
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">JD</div>
+                            <div className="text-left">
+                                <p className="text-sm font-bold text-slate-700">John Doe</p>
+                                <p className="text-[10px] font-bold text-slate-400">john.doe@gmail.com</p>
+                            </div>
+                        </button>
+                        <button onClick={createGoogleUser} className="w-full flex items-center gap-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors group">
+                             <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                             </div>
+                             <p className="text-sm font-bold text-slate-600">Use another account</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+          )}
+
+          {/* Facebook Login Modal */}
+          {showFacebookModal && (
+             <div className="absolute inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
+                <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl relative">
+                    <button onClick={() => setShowFacebookModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    <div className="text-center mb-6">
+                        <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" className="w-12 h-12 mx-auto mb-4" />
+                        <h3 className="text-xl font-black text-slate-800">Continue with Facebook</h3>
+                    </div>
+                    
+                    <button onClick={createFacebookUser} className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-200">
+                        <span>Continue as User</span>
+                    </button>
+                     <p className="text-center text-[10px] text-slate-400 mt-4 font-bold max-w-[200px] mx-auto">
+                        By continuing, you agree to ShareMeal's Terms of Service and Privacy Policy.
+                    </p>
                 </div>
             </div>
           )}

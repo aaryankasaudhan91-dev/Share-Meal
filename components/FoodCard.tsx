@@ -16,12 +16,41 @@ interface FoodCardProps {
   volunteerProfile?: User; // Pass the full volunteer object if available
 }
 
+// Helper to resize images before processing
+const resizeImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const scale = img.width > MAX_WIDTH ? MAX_WIDTH / img.width : 1;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+        } else {
+            resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, currentLocation, onRateVolunteer, volunteerProfile }) => {
   const [showDirections, setShowDirections] = useState(false);
   const [showTracking, setShowTracking] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isPickingUp, setIsPickingUp] = useState(false);
+  const [showPreview, setShowPreview] = useState(false); // State for image preview modal
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pickupInputRef = useRef<HTMLInputElement>(null);
   
@@ -82,6 +111,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
     }
   };
 
+  const handleRetractVerification = () => {
+      if (confirm("Do you want to cancel the current verification request and re-upload the proof?")) {
+          onUpdate(posting.id, {
+              status: FoodStatus.REQUESTED,
+              pickupVerificationImageUrl: undefined
+          });
+      }
+  };
+
   const handleDelete = () => {
       if (onDelete) {
           onDelete(posting.id);
@@ -89,89 +127,88 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
   };
 
   const handleShare = async () => {
-    try {
-      const shareData = {
-        title: `Food Rescue: ${posting.foodName}`,
-        text: `Help rescue food! ${posting.quantity} of ${posting.foodName} available at ${posting.location.line1}.`,
-        url: window.location.href
-      };
+    const shareData = {
+      title: `Food Rescue: ${posting.foodName}`,
+      text: `Help rescue food! ${posting.quantity} of ${posting.foodName} available at ${posting.location.line1}.`,
+      url: window.location.href
+    };
 
-      if (navigator.share) {
+    if (navigator.share) {
+      try {
         await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(`${shareData.title}\n${shareData.text}`);
-        alert('Details copied to clipboard!');
+      } catch (err) {
+        console.log('Share cancelled or failed');
       }
-    } catch (err) {
-      console.log('Share cancelled or failed');
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareData.title}\n${shareData.text}\n${shareData.url}`);
+        alert('Details copied to clipboard!');
+      } catch (err) {
+        alert('Unable to copy details. Please share the URL manually.');
+      }
     }
   };
 
-  const handlePickupUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePickupUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsPickingUp(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        try {
-            const result = await verifyPickupImage(base64);
-            if (result.isValid) {
-                // Determine next status and update
-                const nextStatus = FoodStatus.PICKUP_VERIFICATION_PENDING;
-                const alertMsg = "Pickup proof uploaded! Waiting for Donor approval.";
+    try {
+        const base64 = await resizeImage(file);
+        
+        // 1. Verify the image using AI
+        const result = await verifyPickupImage(base64);
+        
+        if (result.isValid) {
+            // 2. If valid, update status to PENDING so Donor can approve
+            const nextStatus = FoodStatus.PICKUP_VERIFICATION_PENDING;
+            const alertMsg = "Pickup proof verified! Sent to Donor for final approval.";
 
-                onUpdate(posting.id, { 
-                    status: nextStatus, 
-                    pickupVerificationImageUrl: base64,
-                    volunteerId: user.id,
-                    volunteerName: user.name,
-                    volunteerLocation: currentLocation
-                });
-                alert(alertMsg);
-            } else {
-                alert(`Pickup Verification Failed: ${result.feedback}`);
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Error verifying pickup image.");
-        } finally {
-            setIsPickingUp(false);
-            if (pickupInputRef.current) pickupInputRef.current.value = '';
+            onUpdate(posting.id, { 
+                status: nextStatus, 
+                pickupVerificationImageUrl: base64,
+                volunteerId: user.id,
+                volunteerName: user.name,
+                volunteerLocation: currentLocation
+            });
+            alert(alertMsg);
+        } else {
+            alert(`Pickup Verification Failed: ${result.feedback}`);
         }
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+        console.error(error);
+        alert("Error processing or verifying pickup image.");
+    } finally {
+        setIsPickingUp(false);
+        if (pickupInputRef.current) pickupInputRef.current.value = '';
+    }
   };
 
-  const handleVerificationUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVerificationUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsVerifying(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        try {
-            const result = await verifyDeliveryImage(base64);
-            if (result.isValid) {
-                alert(`Verification Successful: ${result.feedback}`);
-                onUpdate(posting.id, { 
-                    status: FoodStatus.DELIVERED, 
-                    verificationImageUrl: base64 
-                });
-            } else {
-                alert(`Verification Failed: ${result.feedback}`);
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Error verifying image.");
-        } finally {
-            setIsVerifying(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+    try {
+        const base64 = await resizeImage(file);
+        const result = await verifyDeliveryImage(base64);
+        if (result.isValid) {
+            alert(`Verification Successful: ${result.feedback}`);
+            onUpdate(posting.id, { 
+                status: FoodStatus.DELIVERED, 
+                verificationImageUrl: base64 
+            });
+        } else {
+            alert(`Verification Failed: ${result.feedback}`);
         }
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+        console.error(error);
+        alert("Error processing or verifying image.");
+    } finally {
+        setIsVerifying(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const getOriginString = () => {
@@ -199,15 +236,25 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
   const renderStatusPill = () => {
       switch (posting.status) {
           case FoodStatus.AVAILABLE:
-              return <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span>Available</span>;
+              return <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-emerald-200"><span className="w-2 h-2 rounded-full bg-emerald-500"></span>Available</span>;
           case FoodStatus.REQUESTED:
-              return <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>Requested</span>;
+              return <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-blue-200"><span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>Requested</span>;
           case FoodStatus.PICKUP_VERIFICATION_PENDING:
-              return <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>Verifying</span>;
+              return (
+                <span className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-amber-200 ring-1 ring-amber-100 backdrop-blur-md">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Waiting Approval
+                </span>
+              );
           case FoodStatus.IN_TRANSIT:
-              return <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>In Transit</span>;
+              return (
+                <span className="px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm border border-indigo-200 ring-1 ring-indigo-100 backdrop-blur-md">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                    Pickup Confirmed
+                </span>
+              );
           case FoodStatus.DELIVERED:
-              return <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-400"></span>Delivered</span>;
+              return <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-slate-200"><span className="w-2 h-2 rounded-full bg-slate-400"></span>Delivered</span>;
           default:
               return null;
       }
@@ -232,7 +279,27 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
         {/* Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80"></div>
         
-        <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+        {/* Verification Pending Overlay */}
+        {posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && (
+            <div className="absolute inset-0 bg-amber-900/30 backdrop-blur-[2px] flex items-center justify-center z-10 animate-fade-in-up">
+                <div className="bg-white/95 px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xl border border-amber-100 transform -rotate-1">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                    <span className="text-[10px] font-black uppercase text-amber-700 tracking-widest">Waiting for Donor Approval</span>
+                </div>
+            </div>
+        )}
+
+        {/* Pickup Confirmed / In Transit Overlay */}
+        {posting.status === FoodStatus.IN_TRANSIT && (
+            <div className="absolute inset-0 bg-indigo-900/10 flex items-center justify-center z-10 pointer-events-none">
+                 <div className="bg-white/95 px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xl border border-indigo-100 transform rotate-1 animate-fade-in-up">
+                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span className="text-[10px] font-black uppercase text-indigo-800 tracking-widest">Pickup Confirmed</span>
+                </div>
+            </div>
+        )}
+        
+        <div className="absolute top-4 right-4 flex flex-col gap-2 items-end z-20">
              {renderStatusPill()}
              {posting.etaMinutes && (
                  <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md shadow-lg bg-blue-500/90 text-white flex items-center gap-1 border border-white/10">
@@ -242,7 +309,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
              )}
         </div>
 
-        <div className="absolute bottom-5 left-5 text-white right-5">
+        <div className="absolute bottom-5 left-5 text-white right-5 z-20">
             <div className="flex items-center gap-2 mb-2">
                  <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold uppercase border border-white/20 tracking-wider shadow-sm">{posting.quantity}</span>
                  {isUrgent && <span className="bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase animate-pulse shadow-lg shadow-rose-900/20">Expires Soon</span>}
@@ -259,7 +326,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
 
         {/* Safety Warning Overlay */}
         {isSafetyUnknownOrUnsafe && (
-             <div className="absolute inset-0 bg-rose-900/80 backdrop-blur-sm flex items-center justify-center p-6 text-center z-20">
+             <div className="absolute inset-0 bg-rose-900/80 backdrop-blur-sm flex items-center justify-center p-6 text-center z-30">
                  <div>
                      <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center mx-auto mb-3 text-rose-500 shadow-2xl">
                         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -287,13 +354,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                     const isActive = stepNum <= activeStep;
                     const isCurrent = stepNum === activeStep;
                     
+                    // Dynamic color for "Claimed" step if verification is pending
+                    let activeColor = 'bg-emerald-500';
+                    let ringColor = 'ring-emerald-50';
+                    let textColor = 'text-emerald-700';
+                    
+                    if (isCurrent && posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
+                        activeColor = 'bg-amber-500';
+                        ringColor = 'ring-amber-50';
+                        textColor = 'text-amber-700';
+                    }
+
                     return (
                         <div key={step} className="flex flex-col items-center flex-1 relative">
-                            <div className={`w-3 h-3 rounded-full z-10 transition-colors duration-500 ${isActive ? 'bg-emerald-500 ring-4 ring-emerald-50' : 'bg-slate-200'}`}></div>
+                            <div className={`w-3 h-3 rounded-full z-10 transition-colors duration-500 ${isActive ? `${activeColor} ring-4 ${ringColor}` : 'bg-slate-200'}`}></div>
                             {idx < 3 && (
                                <div className={`absolute top-1.5 left-[50%] w-full h-0.5 -z-0 transition-colors duration-500 ${stepNum < activeStep ? 'bg-emerald-500' : 'bg-slate-200'}`}></div>
                             )}
-                            <span className={`text-[8px] uppercase font-black tracking-wider mt-2 ${isCurrent ? 'text-emerald-700' : isActive ? 'text-slate-500' : 'text-slate-300'}`}>{step}</span>
+                            <span className={`text-[8px] uppercase font-black tracking-wider mt-2 ${isCurrent ? textColor : isActive ? 'text-slate-500' : 'text-slate-300'}`}>{step}</span>
                         </div>
                     );
                 })}
@@ -450,23 +528,41 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                      </svg>
-                     Verifying Pickup...
+                     Verifying...
                    </>
                 ) : (
                    <>
                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                     Verify Pickup
+                     Upload Pickup Proof
                    </>
                 )}
               </button>
             )}
             
             {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && (
-                 <div className="flex flex-col gap-2 w-full">
+                 <div className="flex flex-col gap-3 w-full">
                      <div className="bg-amber-50 text-amber-700 font-bold px-3 py-3 rounded-xl text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-100">
                          <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                          Waiting for Donor Approval
                      </div>
+                     {posting.pickupVerificationImageUrl && (
+                        <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                            <img 
+                                src={posting.pickupVerificationImageUrl} 
+                                className="w-12 h-12 rounded-lg object-cover cursor-pointer border border-slate-200 hover:opacity-80 transition-opacity"
+                                onClick={() => setShowPreview(true)}
+                            />
+                            <div className="flex-1">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Proof Submitted</p>
+                                <button 
+                                    onClick={handleRetractVerification}
+                                    className="text-[10px] text-rose-500 font-bold hover:underline flex items-center gap-1"
+                                >
+                                    Request Re-verification
+                                </button>
+                            </div>
+                        </div>
+                     )}
                  </div>
             )}
             
@@ -539,6 +635,16 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                  setShowRating(false);
              }}
           />
+      )}
+      {showPreview && posting.pickupVerificationImageUrl && (
+          <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in-up" onClick={() => setShowPreview(false)}>
+              <div className="relative max-w-4xl max-h-[90vh] w-full flex items-center justify-center">
+                  <img src={posting.pickupVerificationImageUrl} className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()} />
+                  <button onClick={() => setShowPreview(false)} className="absolute top-[-40px] right-0 md:top-4 md:right-4 text-white hover:text-rose-400 transition-colors bg-black/20 p-2 rounded-full backdrop-blur-md">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+              </div>
+          </div>
       )}
     </div>
   );

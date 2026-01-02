@@ -30,7 +30,7 @@ export const analyzeFoodSafetyImage = async (base64Data: string): Promise<ImageA
   try {
     const data = base64Data.split(',')[1] || base64Data;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           {
@@ -76,7 +76,7 @@ export const verifyPickupImage = async (base64Data: string): Promise<{ isValid: 
   try {
     const data = base64Data.split(',')[1] || base64Data;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           {
@@ -114,7 +114,7 @@ export const verifyDeliveryImage = async (base64Data: string): Promise<{ isValid
   try {
     const data = base64Data.split(',')[1] || base64Data;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           {

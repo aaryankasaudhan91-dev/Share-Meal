@@ -185,6 +185,18 @@ export const storage = {
          localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
       }
 
+      // Handle re-verification request (Volunteer retracts proof)
+      if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.REQUESTED) {
+          notifications.push({
+              id: Math.random().toString(36).substr(2, 9),
+              userId: newPosting.donorId,
+              message: `Update: Volunteer ${newPosting.volunteerName} has retracted their pickup proof for "${newPosting.foodName}" to re-verify.`,
+              isRead: false,
+              createdAt: Date.now(),
+              type: 'INFO'
+          });
+      }
+
       saveStoredNotifications(notifications);
       return newPosting;
     }
