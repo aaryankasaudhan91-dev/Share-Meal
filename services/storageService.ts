@@ -166,6 +166,59 @@ export const storage = {
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
 
+      // 1. Volunteer submits proof -> Notify Donor (Action Required)
+      if (oldPosting.status !== FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
+         notifications.push({
+            id: Math.random().toString(36).substr(2, 9),
+            userId: newPosting.donorId,
+            message: `ACTION REQUIRED: Volunteer ${newPosting.volunteerName} has uploaded a pickup proof for "${newPosting.foodName}". Please verify now.`,
+            isRead: false,
+            createdAt: Date.now(),
+            type: 'ACTION'
+         });
+      }
+
+      // 2. Donor Approves -> Notify Volunteer (Success)
+      if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
+         if (newPosting.volunteerId) {
+             notifications.push({
+                id: Math.random().toString(36).substr(2, 9),
+                userId: newPosting.volunteerId,
+                message: `Pickup Approved! You can now proceed to deliver "${newPosting.foodName}".`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: 'SUCCESS'
+             });
+         }
+      }
+
+      // 3. Status Reverted to REQUESTED (Rejection or Retraction)
+      if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.REQUESTED) {
+          // If volunteer triggered retraction (volunteerId persists)
+          if (newPosting.volunteerId && newPosting.volunteerId === oldPosting.volunteerId) {
+             notifications.push({
+                id: Math.random().toString(36).substr(2, 9),
+                userId: newPosting.donorId,
+                message: `Update: Volunteer ${newPosting.volunteerName} has retracted their pickup proof for "${newPosting.foodName}" to re-verify.`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: 'INFO'
+             });
+          }
+          // If donor rejected (volunteerId might be cleared or retained depending on implementation)
+          // We use oldPosting.volunteerId to ensure the volunteer gets the message even if unassigned
+          else if (oldPosting.volunteerId) {
+             notifications.push({
+                id: Math.random().toString(36).substr(2, 9),
+                userId: oldPosting.volunteerId,
+                message: `Pickup Verification Rejected for "${newPosting.foodName}". Please check the image or contact the donor.`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: 'INFO'
+             });
+          }
+      }
+
       if (!oldPosting.isPickedUp && updates.isPickedUp) {
          if (newPosting.orphanageId) {
              notifications.push({
@@ -183,18 +236,16 @@ export const storage = {
          if (donorIndex !== -1) users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
          if (volunteerIndex !== -1) users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
          localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-      }
-
-      // Handle re-verification request (Volunteer retracts proof)
-      if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.REQUESTED) {
-          notifications.push({
-              id: Math.random().toString(36).substr(2, 9),
-              userId: newPosting.donorId,
-              message: `Update: Volunteer ${newPosting.volunteerName} has retracted their pickup proof for "${newPosting.foodName}" to re-verify.`,
-              isRead: false,
-              createdAt: Date.now(),
-              type: 'INFO'
-          });
+         
+         // Notify Donor of Completion
+         notifications.push({
+            id: Math.random().toString(36).substr(2, 9),
+            userId: newPosting.donorId,
+            message: `Donation Complete: "${newPosting.foodName}" has been successfully delivered!`,
+            isRead: false,
+            createdAt: Date.now(),
+            type: 'SUCCESS'
+         });
       }
 
       saveStoredNotifications(notifications);

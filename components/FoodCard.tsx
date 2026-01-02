@@ -540,11 +540,25 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
             )}
             
             {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && (
-                 <div className="flex flex-col gap-3 w-full">
-                     <div className="bg-amber-50 text-amber-700 font-bold px-3 py-3 rounded-xl text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-100">
-                         <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                         Waiting for Donor Approval
+                 <div className="flex flex-col gap-3 w-full animate-fade-in-up">
+                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 relative overflow-hidden group/alert">
+                         {/* Background pattern */}
+                         <div className="absolute top-0 right-0 w-24 h-24 bg-amber-100/50 rounded-full -mr-10 -mt-10 blur-xl group-hover/alert:scale-110 transition-transform duration-700"></div>
+                         
+                         <div className="relative z-10">
+                             <div className="flex items-center gap-2 mb-2 text-amber-800 font-black text-[10px] uppercase tracking-widest">
+                                 <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                  </span>
+                                 Waiting for Confirmation
+                             </div>
+                             <p className="text-slate-600 text-xs font-medium leading-relaxed">
+                                 Your pickup proof has been sent to <span className="font-bold text-slate-900">{posting.donorOrg || posting.donorName}</span>. Please wait for their approval to proceed.
+                             </p>
+                         </div>
                      </div>
+                     
                      {posting.pickupVerificationImageUrl && (
                         <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-100">
                             <img 
@@ -556,8 +570,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Proof Submitted</p>
                                 <button 
                                     onClick={handleRetractVerification}
-                                    className="text-[10px] text-rose-500 font-bold hover:underline flex items-center gap-1"
+                                    className="mt-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 w-fit group/retry"
                                 >
+                                    <svg className="w-3 h-3 group-hover/retry:-rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                     Request Re-verification
                                 </button>
                             </div>

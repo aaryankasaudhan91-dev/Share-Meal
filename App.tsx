@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Notification, Rating } from './types';
 import { storage } from './services/storageService';
@@ -1075,12 +1076,22 @@ const App: React.FC = () => {
                   )}
               </div>
 
-              {user.role === UserRole.DONOR && (
-                  <button onClick={() => setIsAddingFood(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-8 rounded-2xl uppercase text-xs tracking-widest shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                      Donate Food
-                  </button>
-              )}
+              <div className="flex items-center gap-3">
+                <button 
+                    onClick={handleRefresh} 
+                    className="bg-white hover:bg-slate-50 text-slate-600 p-3 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md active:scale-95"
+                    title="Refresh Data"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                </button>
+
+                {user.role === UserRole.DONOR && (
+                    <button onClick={() => setIsAddingFood(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-8 rounded-2xl uppercase text-xs tracking-widest shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                        Donate Food
+                    </button>
+                )}
+              </div>
           </div>
 
           {/* Content Grid */}
