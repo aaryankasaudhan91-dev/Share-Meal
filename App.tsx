@@ -68,6 +68,7 @@ const App: React.FC = () => {
   const [expiryDate, setExpiryDate] = useState('');
   const [foodImage, setFoodImage] = useState<string | null>(null);
   const [safetyVerdict, setSafetyVerdict] = useState<{isSafe: boolean, reasoning: string} | undefined>(undefined);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
   // Post Food - Address State
   const [foodLine1, setFoodLine1] = useState('');
@@ -188,6 +189,7 @@ const App: React.FC = () => {
             setFoodPincode('');
         }
         setSafetyVerdict(undefined);
+        setSelectedTags([]);
     }
   }, [isAddingFood, user]);
 
@@ -229,7 +231,9 @@ const App: React.FC = () => {
       if (user.role === UserRole.DONOR) {
           const totalDonations = postings.filter(p => p.donorId === user.id).length;
           const completed = postings.filter(p => p.donorId === user.id && p.status === FoodStatus.DELIVERED).length;
-          return { total: totalDonations, active: totalDonations - completed, completed };
+          // Estimate meals (approximate) - in real app, parse quantity string
+          const mealsEstimate = totalDonations * 15; // Assume avg 15 meals per donation
+          return { total: totalDonations, active: totalDonations - completed, completed, mealsEstimate };
       }
       if (user.role === UserRole.VOLUNTEER) {
           const tasks = postings.filter(p => p.volunteerId === user.id);
@@ -554,6 +558,14 @@ const App: React.FC = () => {
     if (user) setNotifications(storage.getNotifications(user.id));
   };
 
+  const toggleTag = (tag: string) => {
+      if (selectedTags.includes(tag)) {
+          setSelectedTags(selectedTags.filter(t => t !== tag));
+      } else {
+          setSelectedTags([...selectedTags, tag]);
+      }
+  };
+
   const handlePostFood = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -586,6 +598,7 @@ const App: React.FC = () => {
       status: FoodStatus.AVAILABLE, 
       imageUrl: foodImage, 
       safetyVerdict,
+      foodTags: selectedTags,
       createdAt: Date.now()
     };
     storage.savePosting(newPost);
@@ -603,6 +616,7 @@ const App: React.FC = () => {
     setFoodLine2('');
     setFoodLandmark('');
     setFoodPincode('');
+    setSelectedTags([]);
   };
 
   const handleDonorApprove = () => {
@@ -1034,85 +1048,98 @@ const App: React.FC = () => {
               />
           )}
 
-          {/* Welcome & Stats Section */}
-          <div className="mb-8">
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-3xl font-black text-slate-800">Hello, {user?.name.split(' ')[0]}! 👋</h2>
-                    <p className="text-slate-500 font-medium">
-                        {user?.role === UserRole.DONOR ? "Ready to make a difference today?" : 
-                        user?.role === UserRole.VOLUNTEER ? "Thanks for being a hero on wheels." : 
-                        "Find fresh food nearby."}
-                    </p>
-                </div>
-                {/* Role Specific Stats Tags */}
-                {stats && (
-                    <div className="flex gap-2">
-                         <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
-                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total</p>
-                             <p className="text-xl font-black text-slate-800">{stats.total}</p>
-                         </div>
-                         <div className="bg-emerald-50 px-4 py-2 rounded-2xl border border-emerald-100 shadow-sm">
-                             <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Active</p>
-                             <p className="text-xl font-black text-emerald-800">{stats.active}</p>
-                         </div>
-                         <div className="bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 shadow-sm">
-                             <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest">
-                                 {user?.role === UserRole.REQUESTER ? 'Received' : 'Completed'}
-                             </p>
-                             <p className="text-xl font-black text-blue-800">{stats.completed !== undefined ? stats.completed : stats.received}</p>
-                         </div>
-                    </div>
-                )}
-              </div>
+          {/* Impact Board (Hero Section) */}
+          <div className="mb-8 relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-slate-900 to-slate-800 text-white p-8 md:p-12 shadow-2xl">
+              <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+                  <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10 backdrop-blur-sm">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                          {user?.role === UserRole.DONOR ? 'Donor Dashboard' : user?.role}
+                      </div>
+                      <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
+                        Hi, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-200">{user?.name.split(' ')[0]}</span>
+                      </h2>
+                      <p className="text-slate-400 font-medium max-w-md">
+                        {user?.role === UserRole.DONOR ? "Your contributions are changing lives. Track your impact and keep the cycle of kindness moving." : 
+                         user?.role === UserRole.VOLUNTEER ? "Thanks for bridging the gap. Every delivery counts." : 
+                         "Browse available food and request pickups."}
+                      </p>
+                  </div>
 
-              {/* Tab Navigation */}
-              <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
-                  {user?.role === UserRole.DONOR && (
-                      <>
-                        <button onClick={() => setActiveTab('active')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'active' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
-                            My Active Donations
-                        </button>
-                        <button onClick={() => setActiveTab('history')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
-                            Past History
-                        </button>
-                      </>
-                  )}
-                  {user?.role === UserRole.VOLUNTEER && (
-                      <>
-                        <button onClick={() => setActiveTab('opportunities')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'opportunities' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
-                            Available for Pickup
-                        </button>
-                        <button onClick={() => setActiveTab('mytasks')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'mytasks' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
-                            My Active Deliveries
-                        </button>
-                        <button onClick={() => setActiveTab('history')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
-                            Delivery History
-                        </button>
-                      </>
-                  )}
-                  {user?.role === UserRole.REQUESTER && (
-                      <>
-                        <button onClick={() => setActiveTab('browse')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'browse' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
-                            Browse Available Food
-                        </button>
-                        <button onClick={() => setActiveTab('myrequests')} className={`px-6 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'myrequests' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}>
-                            My Requests
-                        </button>
-                      </>
+                  {stats && (
+                      <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
+                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center min-w-[100px]">
+                               <p className="text-2xl md:text-3xl font-black">{stats.mealsEstimate || stats.total * 5 || 0}</p>
+                               <p className="text-[10px] uppercase tracking-widest text-emerald-300 font-bold">Meals Shared</p>
+                           </div>
+                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center min-w-[100px]">
+                               <p className="text-2xl md:text-3xl font-black">{stats.completed}</p>
+                               <p className="text-[10px] uppercase tracking-widest text-blue-300 font-bold">Rescues</p>
+                           </div>
+                           <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center min-w-[100px]">
+                               <p className="text-2xl md:text-3xl font-black">{user?.impactScore || 0}</p>
+                               <p className="text-[10px] uppercase tracking-widest text-amber-300 font-bold">Score</p>
+                           </div>
+                      </div>
                   )}
               </div>
+              
+              {/* Decorative Blobs */}
+              <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-emerald-500/20 rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-60 h-60 bg-blue-500/20 rounded-full blur-3xl"></div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+              {user?.role === UserRole.DONOR && (
+                  <>
+                    <button onClick={() => setActiveTab('active')} className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'active' ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:text-slate-600'}`}>
+                        Active Donations
+                    </button>
+                    <button onClick={() => setActiveTab('history')} className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:text-slate-600'}`}>
+                        Past History
+                    </button>
+                  </>
+              )}
+              {user?.role === UserRole.VOLUNTEER && (
+                  <>
+                    <button onClick={() => setActiveTab('opportunities')} className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'opportunities' ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:text-slate-600'}`}>
+                        Opportunities
+                    </button>
+                    <button onClick={() => setActiveTab('mytasks')} className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'mytasks' ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:text-slate-600'}`}>
+                        My Tasks
+                    </button>
+                    <button onClick={() => setActiveTab('history')} className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:text-slate-600'}`}>
+                        History
+                    </button>
+                  </>
+              )}
+              {user?.role === UserRole.REQUESTER && (
+                  <>
+                    <button onClick={() => setActiveTab('browse')} className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'browse' ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:text-slate-600'}`}>
+                        Browse Food
+                    </button>
+                    <button onClick={() => setActiveTab('myrequests')} className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'myrequests' ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:text-slate-600'}`}>
+                        My Requests
+                    </button>
+                  </>
+              )}
           </div>
           
           {/* Postings Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredPostings.length === 0 ? (
-                  <div className="col-span-full py-20 text-center opacity-50 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-                      <div className="text-6xl mb-4 grayscale opacity-50">🍽️</div>
-                      <p className="font-bold text-slate-400 text-lg">No food postings found in this section.</p>
+                  <div className="col-span-full py-24 text-center">
+                      <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-300">
+                         <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                      </div>
+                      <h3 className="text-xl font-black text-slate-800 mb-2">It's quiet here...</h3>
+                      <p className="font-medium text-slate-400 text-sm max-w-xs mx-auto">
+                          {user?.role === UserRole.DONOR ? "You have no active donations at the moment. Ready to share a meal?" : "No items found in this section."}
+                      </p>
                       {user?.role === UserRole.DONOR && activeTab === 'active' && (
-                          <button onClick={() => setIsAddingFood(true)} className="mt-4 text-emerald-600 font-bold hover:underline">
-                              Create a new donation?
+                          <button onClick={() => setIsAddingFood(true)} className="mt-8 bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-200 hover:scale-105 transition-transform">
+                              Donate Now
                           </button>
                       )}
                   </div>
@@ -1138,7 +1165,7 @@ const App: React.FC = () => {
           {user?.role === UserRole.DONOR && (
               <button 
                 onClick={() => setIsAddingFood(true)}
-                className="fixed bottom-8 right-8 w-16 h-16 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group"
+                className="fixed bottom-8 right-8 w-16 h-16 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group border-4 border-white"
               >
                   <svg className="w-8 h-8 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
               </button>
@@ -1146,126 +1173,171 @@ const App: React.FC = () => {
         </>
       )}
 
-      {/* Add Food Modal */}
+      {/* Modern Add Food Modal */}
       {isAddingFood && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-2xl my-8 p-8 shadow-2xl relative">
-              <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-black text-slate-800">Donate Food</h3>
-                  <button onClick={() => setIsAddingFood(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                      <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-              </div>
+        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
+              {/* Close Button Mobile */}
+              <button onClick={() => setIsAddingFood(false)} className="absolute top-4 right-4 z-50 p-2 bg-white/20 backdrop-blur-md rounded-full text-slate-800 hover:bg-white md:hidden">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
 
-              <form onSubmit={handlePostFood} className="space-y-6">
-                  {/* Image Upload/Camera */}
-                  <div className="relative h-64 bg-slate-100 rounded-3xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center overflow-hidden group">
+              {/* Left Column: Image & AI Analysis (Visual Heavy) */}
+              <div className="w-full md:w-5/12 bg-slate-100 relative flex flex-col">
+                  <div className="flex-1 relative group bg-slate-200 overflow-hidden">
                       {foodImage ? (
                           <>
                             <img src={foodImage} className="w-full h-full object-cover" />
-                            <button type="button" onClick={() => setFoodImage(null)} className="absolute top-4 right-4 bg-white/80 p-2 rounded-full text-rose-500 hover:bg-white transition-colors">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                            {isAnalyzing && (
-                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                    <div className="bg-white px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                                        <svg className="animate-spin h-4 w-4 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        Analyzing Safety...
+                            <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-transparent"></div>
+                            
+                            {/* AI Verdict Card Overlay */}
+                            {safetyVerdict && (
+                                <div className="absolute top-6 left-6 right-6">
+                                    <div className={`p-4 rounded-2xl border backdrop-blur-md shadow-xl ${safetyVerdict.isSafe ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-rose-500/90 border-rose-400 text-white'}`}>
+                                        <div className="flex items-center gap-3 font-bold mb-1">
+                                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                                                {safetyVerdict.isSafe ? (
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                                ) : (
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                )}
+                                            </div>
+                                            <span className="uppercase tracking-wider text-xs">AI Safety Check</span>
+                                        </div>
+                                        <p className="text-sm font-medium leading-snug opacity-95 pl-11">{safetyVerdict.reasoning}</p>
                                     </div>
                                 </div>
                             )}
+
+                            <button type="button" onClick={() => setFoodImage(null)} className="absolute bottom-6 left-6 right-6 py-3 bg-white/90 text-slate-900 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-white transition-colors">
+                                Retake Photo
+                            </button>
                           </>
                       ) : isCameraOpen ? (
                           <div className="w-full h-full relative bg-black">
                               <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
                               <canvas ref={canvasRef} className="hidden"></canvas>
-                              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
-                                  <button type="button" onClick={capturePhoto} className="w-16 h-16 border-4 border-white rounded-full bg-white/20 hover:bg-white/40 transition-colors"></button>
-                                  <button type="button" onClick={stopCamera} className="absolute right-4 top-[-200px] text-white p-2">
-                                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                  </button>
-                              </div>
+                              <button onClick={capturePhoto} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-20 h-20 border-4 border-white rounded-full bg-white/20 hover:bg-white/40 transition-colors"></button>
+                              <button onClick={stopCamera} className="absolute top-4 right-4 text-white p-2">
+                                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
                           </div>
                       ) : (
-                          <div className="text-center p-6 space-y-4">
-                              <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto text-slate-400">
-                                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                          <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-6">
+                              <div className="w-20 h-20 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-300">
+                                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                               </div>
-                              <div className="flex gap-3">
-                                  <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase tracking-wide hover:bg-slate-800 transition-colors">Upload Photo</button>
-                                  <button type="button" onClick={startCamera} className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wide hover:bg-slate-50 transition-colors">Open Camera</button>
+                              <div>
+                                  <h3 className="text-xl font-black text-slate-800">Add Food Photo</h3>
+                                  <p className="text-sm text-slate-400 font-medium mt-1">Required for AI verification</p>
                               </div>
-                              <p className="text-[10px] text-slate-400 font-medium">Required for AI Safety Check</p>
+                              <div className="flex flex-col gap-3 w-full max-w-xs">
+                                  <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-slate-800 transition-colors">
+                                      Upload from Gallery
+                                  </button>
+                                  <button type="button" onClick={startCamera} className="w-full py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-50 transition-colors">
+                                      Use Camera
+                                  </button>
+                              </div>
                               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
                           </div>
                       )}
                   </div>
+              </div>
 
-                  {safetyVerdict && (
-                      <div className={`p-4 rounded-xl border ${safetyVerdict.isSafe ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
-                          <div className="flex items-center gap-2 font-bold mb-1 text-sm">
-                              {safetyVerdict.isSafe ? (
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              ) : (
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                              )}
-                              AI Safety Verdict: {safetyVerdict.isSafe ? 'Safe to Donate' : 'Potential Issues'}
-                          </div>
-                          <p className="text-xs opacity-90">{safetyVerdict.reasoning}</p>
+              {/* Right Column: Form Details */}
+              <div className="w-full md:w-7/12 flex flex-col h-full bg-white relative">
+                  <div className="p-8 pb-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                      <div>
+                          <h2 className="text-3xl font-black text-slate-800">Food Details</h2>
+                          <p className="text-slate-400 font-medium text-sm">Help others understand your donation.</p>
                       </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Food Item</label>
-                            <input type="text" value={foodName} onChange={e => setFoodName(e.target.value)} placeholder="e.g. Rice and Curry" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all" required />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Description</label>
-                            <textarea value={foodDescription} onChange={e => setFoodDescription(e.target.value)} placeholder="Ingredients, allergens, etc." className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all resize-none h-32" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Quantity</label>
-                                <input type="number" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} placeholder="10" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all" required />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Unit</label>
-                                <select value={unit} onChange={e => setUnit(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all cursor-pointer">
-                                    <option value="meals">Meals</option>
-                                    <option value="kg">Kg</option>
-                                    <option value="liters">Liters</option>
-                                    <option value="boxes">Boxes</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Expires By</label>
-                            <input type="datetime-local" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all" required />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Pickup Address</label>
-                            <button type="button" onClick={handleFoodAutoDetectLocation} disabled={isFoodAutoDetecting} className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-700 disabled:opacity-50">
-                                {isFoodAutoDetecting ? 'Detecting...' : 'Auto Detect'}
-                            </button>
-                        </div>
-                        <input type="text" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} placeholder="Line 1" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" required />
-                        <input type="text" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} placeholder="Line 2" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" required />
-                        <div className="grid grid-cols-2 gap-3">
-                            <input type="text" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} placeholder="Landmark" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" />
-                            <input type="text" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} placeholder="Pincode" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:bg-white transition-all text-sm" required />
-                        </div>
-                      </div>
+                      <button onClick={() => setIsAddingFood(false)} className="hidden md:block p-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
                   </div>
 
-                  <button type="submit" disabled={isAnalyzing} className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-sm shadow-xl transition-all mt-4">
-                      Post Donation
-                  </button>
-              </form>
+                  <form onSubmit={handlePostFood} className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
+                      {/* Section 1: Basic Info */}
+                      <div className="space-y-4">
+                          <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">What are you donating?</label>
+                              <input type="text" value={foodName} onChange={e => setFoodName(e.target.value)} placeholder="e.g. 50 Packets of Veg Biryani" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" required />
+                          </div>
+                          
+                          <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Quick Tags</label>
+                              <div className="flex flex-wrap gap-2">
+                                  {['Veg', 'Non-Veg', 'Bakery', 'Raw Ingredients', 'Cooked Meals'].map(tag => (
+                                      <button 
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => toggleTag(tag)}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide border transition-all ${selectedTags.includes(tag) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                                      >
+                                          {tag}
+                                      </button>
+                                  ))}
+                              </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Quantity</label>
+                                  <input type="number" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} placeholder="10" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" required />
+                              </div>
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Unit</label>
+                                  <select value={unit} onChange={e => setUnit(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all appearance-none">
+                                      <option value="meals">Meals</option>
+                                      <option value="kg">Kg</option>
+                                      <option value="liters">Liters</option>
+                                      <option value="boxes">Boxes</option>
+                                  </select>
+                              </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Expires By</label>
+                              <input type="datetime-local" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" required />
+                          </div>
+
+                          <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Description (Optional)</label>
+                              <textarea value={foodDescription} onChange={e => setFoodDescription(e.target.value)} placeholder="Any allergens? Special instructions?" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none h-24" />
+                          </div>
+                      </div>
+
+                      {/* Section 2: Location */}
+                      <div className="space-y-4 pt-4 border-t border-slate-100">
+                          <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Pickup Location</label>
+                              <button type="button" onClick={handleFoodAutoDetectLocation} disabled={isFoodAutoDetecting} className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-700 disabled:opacity-50 flex items-center gap-1">
+                                  {isFoodAutoDetecting ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                                  Auto Detect
+                              </button>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3">
+                                <input type="text" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} placeholder="Line 1 (House/Flat)" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm" required />
+                                <input type="text" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} placeholder="Line 2 (Street/Area)" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm" required />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input type="text" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} placeholder="Landmark" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm" />
+                                    <input type="text" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} placeholder="Pincode" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm" required />
+                                </div>
+                          </div>
+                      </div>
+                  </form>
+                  
+                  <div className="p-8 border-t border-slate-100 bg-white sticky bottom-0 z-10">
+                      <button 
+                        onClick={handlePostFood} 
+                        disabled={isAnalyzing} 
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-sm shadow-xl shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-1 transition-all"
+                      >
+                          {isAnalyzing ? 'Analyzing Image...' : 'Post Donation'}
+                      </button>
+                  </div>
+              </div>
             </div>
         </div>
       )}
