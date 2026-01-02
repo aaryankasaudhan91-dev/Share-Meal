@@ -83,9 +83,43 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
 
         if (markersRef.current[id]) {
             markersRef.current[id].setLatLng([lat, lng]);
-            markersRef.current[id].setIcon(icon); // Update icon to ensure animation persists/updates
+            markersRef.current[id].setIcon(icon); 
         } else {
-            markersRef.current[id] = L.marker([lat, lng], { icon }).addTo(map);
+            const marker = L.marker([lat, lng], { icon }).addTo(map);
+            
+            // Add Popup Content
+            let popupContent = '';
+            if (id === 'donor') {
+                popupContent = `
+                    <div class="font-sans min-w-[120px]">
+                        <p class="text-[10px] font-black uppercase text-emerald-600 tracking-widest mb-1">Pickup</p>
+                        <p class="font-bold text-sm text-slate-800">${livePosting.donorOrg || livePosting.donorName}</p>
+                        <p class="text-xs text-slate-500">${livePosting.foodName}</p>
+                    </div>
+                `;
+            } else if (id === 'requester') {
+                popupContent = `
+                    <div class="font-sans min-w-[120px]">
+                        <p class="text-[10px] font-black uppercase text-orange-600 tracking-widest mb-1">Dropoff</p>
+                        <p class="font-bold text-sm text-slate-800">${livePosting.orphanageName || 'Requester'}</p>
+                        <p class="text-xs text-slate-500">${livePosting.requesterAddress?.line1 || 'Destination'}</p>
+                    </div>
+                `;
+            } else if (id === 'volunteer') {
+                popupContent = `
+                    <div class="font-sans min-w-[120px]">
+                        <p class="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1">Volunteer</p>
+                        <p class="font-bold text-sm text-slate-800">${livePosting.volunteerName}</p>
+                        <p class="text-xs text-slate-500">In Transit</p>
+                    </div>
+                `;
+            }
+            
+            if (popupContent) {
+                marker.bindPopup(popupContent, { closeButton: false });
+            }
+
+            markersRef.current[id] = marker;
         }
     };
 
