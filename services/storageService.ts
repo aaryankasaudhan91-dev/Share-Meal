@@ -190,6 +190,11 @@ export const storage = {
     }
     return null;
   },
+  deletePosting: (id: string) => {
+    let postings = storage.getPostings();
+    postings = postings.filter(p => p.id !== id);
+    localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
+  },
   addVolunteerRating: (postingId: string, rating: Rating) => {
     const postings = storage.getPostings();
     const pIndex = postings.findIndex(p => p.id === postingId);

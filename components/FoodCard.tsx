@@ -10,12 +10,13 @@ interface FoodCardProps {
   posting: FoodPosting;
   user: User;
   onUpdate: (id: string, updates: Partial<FoodPosting>) => void;
+  onDelete?: (id: string) => void;
   currentLocation?: { lat: number; lng: number };
   onRateVolunteer?: (postingId: string, rating: number, feedback: string) => void;
   volunteerProfile?: User; // Pass the full volunteer object if available
 }
 
-const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLocation, onRateVolunteer, volunteerProfile }) => {
+const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, currentLocation, onRateVolunteer, volunteerProfile }) => {
   const [showDirections, setShowDirections] = useState(false);
   const [showTracking, setShowTracking] = useState(false);
   const [showRating, setShowRating] = useState(false);
@@ -82,11 +83,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
   };
 
   const handleDelete = () => {
-      if (confirm("Are you sure you want to delete this donation? This cannot be undone.")) {
-          // Since we don't have a 'delete' in types, we'll mark it as DELIVERED but in a way that hides it, 
-          // or ideally, the parent should handle deletion. 
-          // For now, let's just mark it DELIVERED to move it to history.
-          onUpdate(posting.id, { status: FoodStatus.DELIVERED }); 
+      if (onDelete) {
+          onDelete(posting.id);
       }
   };
 
@@ -120,7 +118,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
         try {
             const result = await verifyPickupImage(base64);
             if (result.isValid) {
-                // Logic updated: Strictly go to PENDING state and wait for Donor
+                // Determine next status and update
                 const nextStatus = FoodStatus.PICKUP_VERIFICATION_PENDING;
                 const alertMsg = "Pickup proof uploaded! Waiting for Donor approval.";
 
@@ -214,6 +212,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
               return null;
       }
   };
+
+  const isAssignedToOther = posting.volunteerId && posting.volunteerId !== user.id;
 
   return (
     <div className={`group rounded-[2.5rem] p-5 bg-white transition-all duration-300 relative overflow-hidden flex flex-col h-full ${isUrgent ? 'ring-2 ring-rose-100 shadow-xl shadow-rose-100/50' : 'border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1'}`}>
@@ -432,11 +432,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
               </button>
             )}
 
+            {/* Hidden Input for Pickup Proof */}
             {user.role === UserRole.VOLUNTEER && (posting.status === FoodStatus.REQUESTED || posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) && (
               <input type="file" ref={pickupInputRef} className="hidden" accept="image/*" onChange={handlePickupUpload} />
             )}
 
-            {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.REQUESTED && (
+            {/* Verify Pickup Button for Volunteers */}
+            {user.role === UserRole.VOLUNTEER && posting.status === FoodStatus.REQUESTED && !isAssignedToOther && (
               <button
                 onClick={() => pickupInputRef.current?.click()}
                 disabled={isPickingUp}
@@ -493,13 +495,15 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, currentLoc
                     <div className="flex-1 flex items-center justify-center text-xs font-bold text-slate-400 italic bg-slate-50 rounded-xl">
                         Waiting for request...
                     </div>
-                    <button 
-                        onClick={handleDelete}
-                        className="bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl p-3 transition-colors"
-                        title="Delete Donation"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
+                    {onDelete && (
+                        <button 
+                            onClick={handleDelete}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl p-3 transition-colors"
+                            title="Delete Donation"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    )}
                 </div>
             )}
 
