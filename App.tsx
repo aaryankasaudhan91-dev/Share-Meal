@@ -104,7 +104,7 @@ const App: React.FC = () => {
     const interval = setInterval(() => {
         setPostings(storage.getPostings());
         if (user) setNotifications(storage.getNotifications(user.id));
-    }, 3000);
+    }, 2000); // Increased frequency for better responsiveness
 
     // Location Logic
     let watchId: number;
@@ -150,21 +150,28 @@ const App: React.FC = () => {
 
       const checkPendingVerifications = () => {
           const currentPostings = storage.getPostings();
+          // Find the most recent pending verification
           const pending = currentPostings.find(p => 
               p.donorId === user.id && 
               p.status === FoodStatus.PICKUP_VERIFICATION_PENDING
           );
           
-          // Only update state if it's different to avoid loops/flicker
-          if (pending && (!pendingVerificationPosting || pendingVerificationPosting.id !== pending.id)) {
-              setPendingVerificationPosting(pending);
-          } else if (!pending && pendingVerificationPosting) {
-              setPendingVerificationPosting(null);
+          if (pending) {
+               // If we found one, and it's different from current, set it
+               if (!pendingVerificationPosting || pendingVerificationPosting.id !== pending.id) {
+                   setPendingVerificationPosting(pending);
+               }
+          } else {
+               // If none found, clear it
+               if (pendingVerificationPosting) {
+                   setPendingVerificationPosting(null);
+               }
           }
       };
 
+      // Check immediately and then poll
       checkPendingVerifications();
-      const interval = setInterval(checkPendingVerifications, 3000);
+      const interval = setInterval(checkPendingVerifications, 2000);
       return () => clearInterval(interval);
   }, [user, pendingVerificationPosting]);
 
@@ -651,21 +658,22 @@ const App: React.FC = () => {
           });
           setPendingVerificationPosting(null);
           handleRefresh();
-          alert("Pickup Approved! Volunteer can now proceed.");
+          // Notification to volunteer is handled in storageService
       }
   };
 
   const handleDonorReject = () => {
       if (pendingVerificationPosting) {
+          // Revert to REQUESTED and unassign volunteer so they can retry or others can claim
           storage.updatePosting(pendingVerificationPosting.id, {
-              status: FoodStatus.REQUESTED, // Revert to requested
-              pickupVerificationImageUrl: undefined, // Clear image
-              volunteerId: undefined, // Optionally clear volunteer or keep them assigned
+              status: FoodStatus.REQUESTED,
+              pickupVerificationImageUrl: undefined,
+              volunteerId: undefined, 
               volunteerName: undefined
           });
           setPendingVerificationPosting(null);
           handleRefresh();
-          alert("Pickup Rejected. Posting is back to Requested status.");
+          alert("Pickup Verification Rejected. The volunteer has been notified.");
       }
   };
 
