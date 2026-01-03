@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Notification, Rating } from './types';
 import { storage } from './services/storageService';
@@ -6,58 +5,31 @@ import { analyzeFoodSafetyImage, reverseGeocode } from './services/geminiService
 import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
 import ProfileView from './components/ProfileView';
+import { LoginPage } from './components/LoginPage';
 import VerificationRequestModal from './components/VerificationRequestModal';
-
-const LOGO_URL = 'https://cdn-icons-png.flaticon.com/512/2921/2921822.png';
 
 const SplashScreen: React.FC = () => (
   <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-400 via-emerald-600 to-teal-900 z-[1000] flex flex-col items-center justify-center text-white">
-    <div className="relative mb-8">
+    <div className="relative mb-6">
         <div className="absolute inset-0 bg-white/30 blur-3xl rounded-full scale-150 animate-pulse"></div>
-        <img src={LOGO_URL} className="w-28 h-28 relative z-10 animate-bounce-slow drop-shadow-2xl" />
+        <div className="text-[7rem] relative z-10 animate-bounce-slow drop-shadow-2xl leading-none filter contrast-125">🍃</div>
     </div>
-    <h1 className="text-5xl md:text-6xl font-black tracking-tighter mb-4 animate-fade-in-up drop-shadow-sm">ShareMeal</h1>
-    <p className="text-emerald-50 font-bold tracking-[0.3em] text-xs uppercase animate-fade-in-up-delay bg-white/20 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/20 shadow-lg">Rescue. Feed. Protect.</p>
+    <h1 className="text-5xl md:text-6xl font-black tracking-tighter mb-2 animate-fade-in-up drop-shadow-sm">MEALers</h1>
+    <p className="text-emerald-50 font-bold tracking-[0.3em] text-sm uppercase animate-fade-in-up-delay bg-white/20 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/20 shadow-lg">connect</p>
   </div>
 );
 
-const App: React.FC = () => {
+export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [postings, setPostings] = useState<FoodPosting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
+  const [view, setView] = useState<'LOGIN' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<string>('default');
   
   // Pending Verification State for Donors
   const [pendingVerificationPosting, setPendingVerificationPosting] = useState<FoodPosting | null>(null);
-
-  // Login/Registration States
-  const [loginName, setLoginName] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [showFacebookModal, setShowFacebookModal] = useState(false);
-  
-  // Forgot Password States
-  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [resetStep, setResetStep] = useState<'INPUT' | 'SUCCESS'>('INPUT');
-  
-  const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regContactNo, setRegContactNo] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [regRole, setRegRole] = useState<UserRole>(UserRole.DONOR);
-  
-  // Registration - Organization & Address
-  const [regOrgName, setRegOrgName] = useState('');
-  const [regOrgCategory, setRegOrgCategory] = useState('Orphanage');
-  const [regLine1, setRegLine1] = useState('');
-  const [regLine2, setRegLine2] = useState('');
-  const [regLandmark, setRegLandmark] = useState('');
-  const [regPincode, setRegPincode] = useState('');
-  const [isAutoDetecting, setIsAutoDetecting] = useState(false);
 
   // Post Food Modal State
   const [isAddingFood, setIsAddingFood] = useState(false);
@@ -232,28 +204,6 @@ const App: React.FC = () => {
     return [];
   }, [postings, user, activeTab]);
 
-  // Stats Logic
-  const stats = useMemo(() => {
-      if (!user) return null;
-      if (user.role === UserRole.DONOR) {
-          const totalDonations = postings.filter(p => p.donorId === user.id).length;
-          const completed = postings.filter(p => p.donorId === user.id && p.status === FoodStatus.DELIVERED).length;
-          // Estimate meals (approximate) - in real app, parse quantity string
-          const mealsEstimate = totalDonations * 15; // Assume avg 15 meals per donation
-          return { total: totalDonations, active: totalDonations - completed, completed, mealsEstimate };
-      }
-      if (user.role === UserRole.VOLUNTEER) {
-          const tasks = postings.filter(p => p.volunteerId === user.id);
-          return { total: tasks.length, active: tasks.filter(p => p.status !== FoodStatus.DELIVERED).length, completed: tasks.filter(p => p.status === FoodStatus.DELIVERED).length };
-      }
-      if (user.role === UserRole.REQUESTER) {
-          const reqs = postings.filter(p => p.orphanageId === user.id);
-          return { total: reqs.length, active: reqs.filter(p => p.status !== FoodStatus.DELIVERED).length, received: reqs.filter(p => p.status === FoodStatus.DELIVERED).length };
-      }
-      return null;
-  }, [postings, user]);
-
-
   const startCamera = async () => {
     setIsCameraOpen(true);
     setFoodImage(null);
@@ -357,40 +307,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAutoDetectLocation = () => {
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        return;
-    }
-    setIsAutoDetecting(true);
-    navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-            const { latitude, longitude } = pos.coords;
-            try {
-                const address = await reverseGeocode(latitude, longitude);
-                if (address) {
-                    setRegLine1(address.line1);
-                    setRegLine2(address.line2);
-                    setRegLandmark(address.landmark || '');
-                    setRegPincode(address.pincode);
-                } else {
-                    alert("Could not detect detailed address. Please fill manually.");
-                }
-            } catch (e) {
-                console.error(e);
-                alert("Error detecting address.");
-            } finally {
-                setIsAutoDetecting(false);
-            }
-        },
-        (err) => {
-            console.error(err);
-            alert("Location permission denied. Please enable location or enter manually.");
-            setIsAutoDetecting(false);
-        }
-    );
-  };
-
   const handleFoodAutoDetectLocation = () => {
     if (!navigator.geolocation) {
         alert("Geolocation is not supported by your browser.");
@@ -423,145 +339,6 @@ const App: React.FC = () => {
             setIsFoodAutoDetecting(false);
         }
     );
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const existing = storage.getUsers().find(u => u.name.toLowerCase() === loginName.toLowerCase());
-    if (existing) {
-      if (existing.password && existing.password !== loginPassword) {
-        alert("Invalid password.");
-        return;
-      }
-      setUser(existing);
-      setView('DASHBOARD');
-    } else alert("User not found.");
-  };
-
-  const handleDemoLogin = (role: UserRole) => {
-    // Check if a demo user exists
-    const users = storage.getUsers();
-    let demoUser = users.find(u => u.role === role && u.id.startsWith('demo-'));
-    
-    if (!demoUser) {
-        // Create one on the fly
-        demoUser = {
-            id: `demo-${role.toLowerCase()}-${Math.floor(Math.random() * 1000)}`,
-            name: `Demo ${role.charAt(0) + role.slice(1).toLowerCase()}`,
-            email: `demo.${role.toLowerCase()}@sharemeal.com`,
-            contactNo: '9876543210',
-            password: 'demo',
-            role: role,
-            impactScore: role === UserRole.DONOR ? 125 : 0,
-            averageRating: 4.8,
-            ratingsCount: 24,
-            address: role === UserRole.REQUESTER ? {
-                line1: "12 Sunshine Orphanage",
-                line2: "Happy Valley, MG Road",
-                landmark: "Near Central Park",
-                pincode: "560001"
-            } : undefined,
-            orgName: role === UserRole.REQUESTER ? "Sunshine Orphanage" : undefined,
-            orgCategory: role === UserRole.REQUESTER ? "Orphanage" : undefined
-        };
-        storage.saveUser(demoUser);
-    }
-    setUser(demoUser);
-    setView('DASHBOARD');
-  };
-
-  const handleGoogleSignIn = (selectedUser: User) => {
-      setUser(selectedUser);
-      setShowGoogleModal(false);
-      setView('DASHBOARD');
-  };
-
-  const createGoogleUser = () => {
-      const randomId = Math.random().toString(36).substr(2, 5);
-      const newGoogleUser: User = {
-          id: `google-${randomId}`,
-          name: `Google User ${randomId}`,
-          email: `user${randomId}@gmail.com`,
-          role: UserRole.DONOR, // Default role
-          password: 'google-oauth-token',
-          impactScore: 0,
-          averageRating: 0,
-          ratingsCount: 0
-      };
-      storage.saveUser(newGoogleUser);
-      handleGoogleSignIn(newGoogleUser);
-  };
-
-  const handleFacebookSignIn = (selectedUser: User) => {
-      setUser(selectedUser);
-      setShowFacebookModal(false);
-      setView('DASHBOARD');
-  };
-
-  const createFacebookUser = () => {
-      const randomId = Math.random().toString(36).substr(2, 5);
-      const newFacebookUser: User = {
-          id: `fb-${randomId}`,
-          name: `Facebook User ${randomId}`,
-          email: `user${randomId}@facebook.com`,
-          role: UserRole.DONOR, // Default role
-          password: 'fb-oauth-token',
-          impactScore: 0,
-          averageRating: 0,
-          ratingsCount: 0,
-          profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomId}`
-      };
-      storage.saveUser(newFacebookUser);
-      handleFacebookSignIn(newFacebookUser);
-  };
-
-  const handleResetPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if(!forgotEmail) return;
-    // Simulate API call
-    setTimeout(() => {
-        setResetStep('SUCCESS');
-    }, 1000);
-  };
-
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate Contact No
-    if (!/^\d{10}$/.test(regContactNo)) {
-      alert("Please enter a valid 10-digit Contact Number.");
-      return;
-    }
-    
-    // Validate Pincode ONLY for Requesters
-    if (regRole === UserRole.REQUESTER && !/^\d{6}$/.test(regPincode)) {
-        alert("Please enter a valid 6-digit Pincode.");
-        return;
-    }
-
-    const newUser: User = { 
-        id: Math.random().toString(36).substr(2, 9), 
-        name: regName, 
-        email: regEmail, 
-        contactNo: regContactNo,
-        password: regPassword,
-        role: regRole,
-        // Only add Org details if Requester
-        orgName: regRole === UserRole.REQUESTER ? regOrgName : undefined,
-        orgCategory: regRole === UserRole.REQUESTER ? regOrgCategory : undefined,
-        address: regRole === UserRole.REQUESTER ? {
-            line1: regLine1,
-            line2: regLine2,
-            landmark: regLandmark,
-            pincode: regPincode
-        } : undefined,
-        // Initialize ratings
-        averageRating: 0,
-        ratingsCount: 0
-    };
-    storage.saveUser(newUser);
-    setUser(newUser);
-    setView('DASHBOARD');
   };
 
   const handleRateVolunteer = (postingId: string, ratingValue: number, feedback: string) => {
@@ -615,7 +392,7 @@ const App: React.FC = () => {
     const newPost: FoodPosting = {
       id: Math.random().toString(36).substr(2, 9), 
       donorId: user.id, 
-      donorName: user.name, 
+      donorName: user?.name || 'Unknown Donor', 
       donorOrg: user.orgName, // Pass org name if exists
       foodName, 
       description: foodDescription,
@@ -658,13 +435,11 @@ const App: React.FC = () => {
           });
           setPendingVerificationPosting(null);
           handleRefresh();
-          // Notification to volunteer is handled in storageService
       }
   };
 
   const handleDonorReject = () => {
       if (pendingVerificationPosting) {
-          // Revert to REQUESTED and unassign volunteer so they can retry or others can claim
           storage.updatePosting(pendingVerificationPosting.id, {
               status: FoodStatus.REQUESTED,
               pickupVerificationImageUrl: undefined,
@@ -679,605 +454,276 @@ const App: React.FC = () => {
 
   if (showSplash) return <SplashScreen />;
 
-  if (view === 'LOGIN' || view === 'REGISTER') {
+  if (!user || view === 'LOGIN') {
+      return (
+          <LoginPage onLogin={(user) => {
+              setUser(user);
+              setView('DASHBOARD');
+          }} />
+      );
+  }
+
+  if (view === 'PROFILE' && user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-100 to-teal-50 flex items-center justify-center p-6 relative overflow-hidden">
-        {/* Background Decor */}
-        <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-emerald-200/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
-        <div className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-200/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
-
-        <div className="glass-panel p-8 md:p-12 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] w-full max-w-lg relative z-10 max-h-[90vh] overflow-y-auto custom-scrollbar border border-white/60">
-          <div className="text-center mb-10">
-              <div className="inline-block p-4 bg-emerald-100/50 rounded-[2rem] mb-6 shadow-sm ring-1 ring-emerald-50">
-                  <img src={LOGO_URL} className="h-14 w-14" />
-              </div>
-              <h1 className="text-4xl font-black text-slate-800 tracking-tight leading-tight">{view === 'LOGIN' ? 'Welcome Back' : 'Join the Mission'}</h1>
-              <p className="text-slate-500 font-medium mt-2 text-base">{view === 'LOGIN' ? 'Sign in to continue rescuing food.' : 'Create an account to start helping.'}</p>
-          </div>
-          
-          {view === 'LOGIN' ? (
-            <div className="animate-fade-in-up">
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                   <label className="text-xs font-bold text-slate-500 uppercase ml-1 tracking-wider">Username</label>
-                   <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                      </div>
-                      <input type="text" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" placeholder="Enter your username" value={loginName} onChange={e => setLoginName(e.target.value)} required />
-                   </div>
-                </div>
-                <div className="space-y-2">
-                   <label className="text-xs font-bold text-slate-500 uppercase ml-1 tracking-wider">Password</label>
-                   <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                      </div>
-                      <input type="password" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" placeholder="Enter your password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
-                   </div>
-                </div>
-
-                <div className="flex justify-end">
-                    <button type="button" onClick={() => setShowForgotPasswordModal(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">Forgot Password?</button>
-                </div>
-                
-                <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 rounded-2xl uppercase tracking-widest text-sm shadow-xl shadow-emerald-200/50 hover:shadow-emerald-300/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all mt-4">Sign In</button>
-              </form>
-              
-              <div className="my-8 flex items-center gap-4">
-                  <div className="h-px bg-slate-200 flex-1"></div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Or continue with</span>
-                  <div className="h-px bg-slate-200 flex-1"></div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                  <button type="button" onClick={() => setShowGoogleModal(true)} className="py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm shadow-sm relative overflow-hidden group">
-                     <div className="absolute inset-0 bg-slate-100 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                     <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 relative z-10" alt="Google" />
-                     <span className="relative z-10">Google</span>
-                  </button>
-                  <button type="button" onClick={() => setShowFacebookModal(true)} className="py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm shadow-sm relative overflow-hidden group">
-                     <div className="absolute inset-0 bg-[#1877F2]/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                     <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" className="w-5 h-5 relative z-10" alt="Facebook" />
-                     <span className="relative z-10 group-hover:text-[#1877F2] transition-colors">Facebook</span>
-                  </button>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center mb-3">Quick Demo Access</p>
-                  <div className="flex gap-2">
-                      <button onClick={() => handleDemoLogin(UserRole.DONOR)} className="flex-1 py-2 bg-white border border-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-50 transition-colors">Donor</button>
-                      <button onClick={() => handleDemoLogin(UserRole.VOLUNTEER)} className="flex-1 py-2 bg-white border border-blue-100 text-blue-700 rounded-xl text-[10px] font-black uppercase hover:bg-blue-50 transition-colors">Volunteer</button>
-                      <button onClick={() => handleDemoLogin(UserRole.REQUESTER)} className="flex-1 py-2 bg-white border border-orange-100 text-orange-700 rounded-xl text-[10px] font-black uppercase hover:bg-orange-50 transition-colors">Requester</button>
-                  </div>
-              </div>
-              
-              <div className="text-center mt-8">
-                <span className="text-slate-500 text-sm font-medium">New here? </span>
-                <button type="button" onClick={() => setView('REGISTER')} className="text-emerald-600 font-bold text-sm hover:underline decoration-2 underline-offset-4">Create Account</button>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleRegister} className="space-y-6">
-              <div className="grid grid-cols-3 gap-3 mb-8 bg-slate-100/80 p-2 rounded-3xl">
-                  {[
-                      { role: UserRole.DONOR, label: 'Donor', icon: '🎁' },
-                      { role: UserRole.VOLUNTEER, label: 'Volunteer', icon: '🤝' },
-                      { role: UserRole.REQUESTER, label: 'Requester', icon: '🏠' }
-                  ].map(({ role, label, icon }) => (
-                      <button 
-                        key={role} 
-                        type="button" 
-                        onClick={() => setRegRole(role)} 
-                        className={`flex flex-col items-center justify-center py-4 rounded-2xl transition-all ${regRole === role ? 'bg-white text-emerald-600 shadow-lg scale-100 ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 scale-95'}`}
-                      >
-                          <span className="text-2xl mb-1 filter drop-shadow-sm">{icon}</span>
-                          <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
-                      </button>
-                  ))}
-              </div>
-
-              {/* Basic Info */}
-              <div className="space-y-4">
-                 <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                    </div>
-                    <input type="text" placeholder="Full Name" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regName} onChange={e => setRegName(e.target.value)} required />
-                 </div>
-                 
-                 <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    </div>
-                    <input type="email" placeholder="Email Address" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regEmail} onChange={e => setRegEmail(e.target.value)} required />
-                 </div>
-              
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                      <span className="font-bold text-sm border-r border-slate-300 pr-3 mr-1">+91</span>
-                  </div>
-                  <input 
-                      type="tel" 
-                      placeholder="Contact Number" 
-                      maxLength={10} 
-                      className="w-full pl-24 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" 
-                      value={regContactNo} 
-                      onChange={e => {
-                          const val = e.target.value.replace(/\D/g, '');
-                          if(val.length <= 10) setRegContactNo(val);
-                      }} 
-                      required 
-                  />
-                </div>
-
-                <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                    </div>
-                    <input type="password" placeholder="Password" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regPassword} onChange={e => setRegPassword(e.target.value)} required />
-                </div>
-              </div>
-              
-              {/* Organization Details (Requester Only) */}
-              {regRole === UserRole.REQUESTER && (
-                <div className="space-y-4 pt-4 animate-fade-in-up">
-                    <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                            </div>
-                            <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Organization & Address</span>
-                        </div>
-                        
-                        <div className="space-y-3">
-                            <input type="text" placeholder="Organization Name" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} required />
-                            <div className="relative">
-                                <select value={regOrgCategory} onChange={e => setRegOrgCategory(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all appearance-none cursor-pointer">
-                                    <option value="Orphanage">Orphanage</option>
-                                    <option value="Old Age Home">Old Age Home</option>
-                                    <option value="NGO">NGO</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-5 pointer-events-none text-slate-500">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                                </div>
-                            </div>
-                            
-                            <div className="flex items-center justify-end">
-                                <button type="button" onClick={handleAutoDetectLocation} disabled={isAutoDetecting} className="flex items-center gap-1.5 text-blue-600 text-[10px] font-black uppercase hover:text-blue-700 transition-colors disabled:opacity-50 tracking-wider">
-                                    {isAutoDetecting ? (
-                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                    ) : (
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                    )}
-                                    Auto Detect Location
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-3">
-                                <input type="text" placeholder="Line 1 (House/Flat No)" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regLine1} onChange={e => setRegLine1(e.target.value)} required />
-                                <input type="text" placeholder="Line 2 (Street/Area)" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regLine2} onChange={e => setRegLine2(e.target.value)} required />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input type="text" placeholder="Landmark" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regLandmark} onChange={e => setRegLandmark(e.target.value)} />
-                                    <input type="text" placeholder="Pincode" maxLength={6} className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-sm" value={regPincode} onChange={e => setRegPincode(e.target.value)} required />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-              )}
-              
-              <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 rounded-2xl uppercase tracking-widest text-sm shadow-xl shadow-emerald-200/50 hover:shadow-emerald-300/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all mt-6">Create Account</button>
-              
-              <div className="text-center mt-6">
-                 <button type="button" onClick={() => setView('LOGIN')} className="text-slate-500 font-bold text-sm hover:text-emerald-600 transition-colors">Back to Login</button>
-              </div>
-            </form>
-          )}
-
-          {/* Forgot Password Modal */}
-          {showForgotPasswordModal && (
-            <div className="absolute inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
-                <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl relative overflow-hidden">
-                    {resetStep === 'INPUT' && (
-                        <form onSubmit={handleResetPassword}>
-                            <div className="text-center mb-6">
-                                <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-                                </div>
-                                <h3 className="text-2xl font-black text-slate-800 mb-2">Forgot Password?</h3>
-                                <p className="text-slate-500 text-sm font-medium">No worries! Enter your email and we'll send you reset instructions.</p>
-                            </div>
-                            
-                            <div className="space-y-4 mb-6">
-                                <div className="relative group">
-                                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" /></svg>
-                                    </div>
-                                    <input 
-                                        type="email" 
-                                        placeholder="Enter your email" 
-                                        className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" 
-                                        value={forgotEmail} 
-                                        onChange={e => setForgotEmail(e.target.value)} 
-                                        required 
-                                    />
-                                </div>
-                            </div>
-
-                            <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transform hover:-translate-y-0.5 transition-all">
-                                Send Reset Link
-                            </button>
-                            
-                            <button type="button" onClick={() => setShowForgotPasswordModal(false)} className="w-full mt-4 py-3 text-slate-400 font-bold text-xs hover:text-slate-600 transition-colors">
-                                Back to Login
-                            </button>
-                        </form>
-                    )}
-
-                    {resetStep === 'SUCCESS' && (
-                        <div className="text-center py-4">
-                            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce-slow">
-                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-800 mb-2">Check your mail</h3>
-                            <p className="text-slate-500 text-sm font-medium mb-8">We have sent password recovery instructions to your email.</p>
-                            <button 
-                                onClick={() => {
-                                    setShowForgotPasswordModal(false);
-                                    setResetStep('INPUT');
-                                    setForgotEmail('');
-                                }} 
-                                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl transition-all"
-                            >
-                                Back to Login
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-          )}
-
-          {/* Google Login Modal */}
-          {showGoogleModal && (
-            <div className="absolute inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
-                <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl relative">
-                    <button onClick={() => setShowGoogleModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                    <div className="text-center mb-6">
-                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-12 h-12 mx-auto mb-4" />
-                        <h3 className="text-xl font-black text-slate-800">Sign in with Google</h3>
-                        <p className="text-slate-500 text-xs font-bold mt-1">Choose an account</p>
-                    </div>
-                    
-                    <div className="space-y-3">
-                        <button onClick={createGoogleUser} className="w-full flex items-center gap-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors group">
-                            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">JD</div>
-                            <div className="text-left">
-                                <p className="text-sm font-bold text-slate-700">John Doe</p>
-                                <p className="text-[10px] font-bold text-slate-400">john.doe@gmail.com</p>
-                            </div>
-                        </button>
-                        <button onClick={createGoogleUser} className="w-full flex items-center gap-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors group">
-                             <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                             </div>
-                             <p className="text-sm font-bold text-slate-600">Use another account</p>
-                        </button>
-                    </div>
-                </div>
-            </div>
-          )}
-
-          {/* Facebook Login Modal */}
-          {showFacebookModal && (
-             <div className="absolute inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
-                <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl relative">
-                    <button onClick={() => setShowFacebookModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                    <div className="text-center mb-6">
-                        <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" className="w-12 h-12 mx-auto mb-4" />
-                        <h3 className="text-xl font-black text-slate-800">Continue with Facebook</h3>
-                    </div>
-                    
-                    <button onClick={createFacebookUser} className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-200">
-                        <span>Continue as User</span>
-                    </button>
-                     <p className="text-center text-[10px] text-slate-400 mt-4 font-bold max-w-[200px] mx-auto">
-                        By continuing, you agree to ShareMeal's Terms of Service and Privacy Policy.
-                    </p>
-                </div>
-            </div>
-          )}
-        </div>
-      </div>
+        <Layout user={user} onLogout={() => setView('LOGIN')} onProfileClick={() => {}} onLogoClick={() => setView('DASHBOARD')} notifications={notifications}>
+            <ProfileView user={user} onUpdate={(updates) => {
+                storage.updateUser(user.id, updates);
+                setUser({ ...user, ...updates });
+            }} onBack={() => setView('DASHBOARD')} />
+        </Layout>
     );
   }
 
   return (
-    <Layout user={user!} onLogout={() => { setUser(null); setView('LOGIN'); }} onProfileClick={() => setView('PROFILE')} onLogoClick={() => setView('DASHBOARD')} notifications={notifications}>
-      {view === 'PROFILE' && user ? (
-        <ProfileView 
-          user={user} 
-          onUpdate={(updates) => {
-            const updated = storage.updateUser(user.id, updates);
-            if (updated) setUser(updated);
-          }}
-          onBack={() => setView('DASHBOARD')}
-        />
-      ) : (
-        <>
-          {/* Dashboard Content */}
-          {/* If Donor and Verification Pending, show modal */}
-          {pendingVerificationPosting && (
-              <VerificationRequestModal 
+    <Layout 
+        user={user} 
+        onLogout={() => { setUser(null); setView('LOGIN'); }} 
+        onProfileClick={() => setView('PROFILE')}
+        onLogoClick={() => setView('DASHBOARD')}
+        notifications={notifications}
+    >
+        {/* Dashboard Content */}
+        {user && (
+            <div className="space-y-8 animate-fade-in-up">
+                {/* Greeting & Tabs */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div>
+                        <h2 className="text-4xl font-black text-slate-800 tracking-tight leading-none mb-2">
+                            Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">{user?.name?.split(' ')[0]}</span>.
+                        </h2>
+                        <p className="text-slate-500 font-medium text-lg">
+                            {user.role === UserRole.DONOR && "Let's share some food today! 🥘"}
+                            {user.role === UserRole.VOLUNTEER && "Ready to be a hero? 🦸"}
+                            {user.role === UserRole.REQUESTER && "Find fresh meals nearby. 🏠"}
+                        </p>
+                    </div>
+
+                    <div className="bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm flex overflow-x-auto max-w-full">
+                         {user.role === UserRole.DONOR && (
+                             <>
+                                <button onClick={() => setActiveTab('active')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'active' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Active</button>
+                                <button onClick={() => setActiveTab('history')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>History</button>
+                             </>
+                         )}
+                         {user.role === UserRole.VOLUNTEER && (
+                             <>
+                                <button onClick={() => setActiveTab('opportunities')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'opportunities' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Opportunities</button>
+                                <button onClick={() => setActiveTab('mytasks')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'mytasks' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>My Tasks</button>
+                                <button onClick={() => setActiveTab('history')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>History</button>
+                             </>
+                         )}
+                         {user.role === UserRole.REQUESTER && (
+                             <>
+                                <button onClick={() => setActiveTab('browse')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'browse' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Browse</button>
+                                <button onClick={() => setActiveTab('myrequests')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'myrequests' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Requests</button>
+                             </>
+                         )}
+                    </div>
+                </div>
+
+                {/* Content Grid */}
+                {filteredPostings.length === 0 ? (
+                    <div className="bg-white/60 backdrop-blur-sm rounded-[2.5rem] p-16 text-center border border-dashed border-slate-300 flex flex-col items-center justify-center min-h-[400px]">
+                        <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-white rounded-full flex items-center justify-center mb-6 shadow-inner border border-white">
+                             <span className="text-4xl filter grayscale opacity-50">🍃</span>
+                        </div>
+                        <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Nothing to see here... yet!</h3>
+                        <p className="text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
+                            {user.role === UserRole.DONOR ? "Your active donations will appear here. Start by posting some food!" : "There are no current listings in this category. Please check back soon."}
+                        </p>
+                        {user.role === UserRole.DONOR && activeTab === 'active' && (
+                             <button onClick={() => setIsAddingFood(true)} className="mt-8 px-8 py-4 bg-emerald-600 text-white font-black rounded-2xl uppercase text-xs tracking-widest shadow-xl shadow-emerald-200/50 hover:bg-emerald-700 hover:scale-105 transition-all">
+                                 Donate Food Now
+                             </button>
+                        )}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {filteredPostings.map((post, idx) => (
+                            <div key={post.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                                <FoodCard 
+                                    posting={post} 
+                                    user={user} 
+                                    onUpdate={(id, updates) => {
+                                        storage.updatePosting(id, updates);
+                                        handleRefresh();
+                                    }}
+                                    onDelete={handleDeletePosting}
+                                    currentLocation={userLocation}
+                                    onRateVolunteer={handleRateVolunteer}
+                                    volunteerProfile={post.volunteerId ? storage.getUser(post.volunteerId) : undefined}
+                                    requesterProfile={post.orphanageId ? storage.getUser(post.orphanageId) : undefined}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        )}
+
+        {/* Floating Action Button for Donors */}
+        {user?.role === UserRole.DONOR && !isAddingFood && (
+            <button 
+                onClick={() => setIsAddingFood(true)}
+                className="fixed bottom-10 right-10 w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-full shadow-[0_20px_40px_-10px_rgba(16,185,129,0.5)] flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-40 group hover:rotate-90 border-4 border-white"
+            >
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+            </button>
+        )}
+
+        {/* Post Food Modal */}
+        {isAddingFood && (
+            <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative animate-fade-in-up my-auto">
+                    <div className="bg-white/80 backdrop-blur-xl p-6 flex justify-between items-center sticky top-0 z-50 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                            </div>
+                            <h3 className="font-black text-lg uppercase tracking-wider text-slate-800">Donate Food</h3>
+                        </div>
+                        <button onClick={() => setIsAddingFood(false)} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    
+                    <form onSubmit={handlePostFood} className="p-8 space-y-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                        
+                        {/* Image Capture Section */}
+                        <div className="space-y-4">
+                            <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Food Photo & Safety Check</label>
+                            
+                            {!isCameraOpen && !foodImage && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button type="button" onClick={startCamera} className="h-40 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 transition-all group">
+                                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 group-hover:scale-110 transition-transform">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                        </div>
+                                        <span className="text-xs font-bold uppercase tracking-wide">Take Photo</span>
+                                    </button>
+                                    <button type="button" onClick={() => fileInputRef.current?.click()} className="h-40 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all group">
+                                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 group-hover:scale-110 transition-transform">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                        </div>
+                                        <span className="text-xs font-bold uppercase tracking-wide">Upload Image</span>
+                                    </button>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+                                </div>
+                            )}
+
+                            {isCameraOpen && (
+                                <div className="relative rounded-3xl overflow-hidden bg-black aspect-video shadow-2xl">
+                                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                                    <div className="absolute bottom-6 inset-x-0 flex justify-center gap-6">
+                                        <button type="button" onClick={stopCamera} className="px-6 py-3 bg-white/20 backdrop-blur-md rounded-full text-white font-bold text-xs uppercase tracking-wider hover:bg-white/30 border border-white/20">Cancel</button>
+                                        <button type="button" onClick={capturePhoto} className="w-16 h-16 bg-white rounded-full border-4 border-slate-200 shadow-lg flex items-center justify-center hover:scale-105 transition-transform">
+                                            <div className="w-12 h-12 bg-rose-500 rounded-full"></div>
+                                        </button>
+                                    </div>
+                                    <canvas ref={canvasRef} className="hidden" />
+                                </div>
+                            )}
+
+                            {foodImage && (
+                                <div className="relative rounded-3xl overflow-hidden bg-slate-100 border border-slate-200 group">
+                                    <img src={foodImage} alt="Food" className="w-full h-64 object-cover" />
+                                    <button type="button" onClick={() => { setFoodImage(null); setSafetyVerdict(undefined); }} className="absolute top-4 right-4 bg-white/80 text-rose-500 p-2 rounded-full hover:bg-white transition-colors backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                    
+                                    {/* AI Analysis Result Overlay */}
+                                    <div className="absolute bottom-0 inset-x-0 bg-white/95 backdrop-blur-md p-4 border-t border-slate-100">
+                                        {isAnalyzing ? (
+                                            <div className="flex items-center gap-3 text-slate-600">
+                                                <svg className="animate-spin h-5 w-5 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                <span className="text-xs font-bold uppercase tracking-wide">Analyzing Food Safety...</span>
+                                            </div>
+                                        ) : safetyVerdict ? (
+                                            <div className={`flex items-start gap-3 ${safetyVerdict.isSafe ? 'text-emerald-800' : 'text-rose-800'}`}>
+                                                <div className={`p-2 rounded-full shrink-0 ${safetyVerdict.isSafe ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                                    {safetyVerdict.isSafe ? (
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                                    ) : (
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black uppercase tracking-wide mb-1">{safetyVerdict.isSafe ? 'Looks Good!' : 'Safety Warning'}</p>
+                                                    <p className="text-sm font-medium leading-snug">{safetyVerdict.reasoning}</p>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Details Inputs */}
+                        <div className="space-y-4">
+                            <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Food Details</label>
+                            <input type="text" placeholder="What kind of food is it?" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodName} onChange={e => setFoodName(e.target.value)} required />
+                            <textarea placeholder="Description (ingredients, allergens, etc.)" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all h-28 resize-none" value={foodDescription} onChange={e => setFoodDescription(e.target.value)} />
+                            
+                            <div className="flex gap-4">
+                                <input type="number" placeholder="Quantity" className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} required />
+                                <select className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={unit} onChange={e => setUnit(e.target.value)}>
+                                    <option value="meals">Meals</option>
+                                    <option value="kg">kg</option>
+                                    <option value="items">Items</option>
+                                </select>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <p className="text-xs font-bold text-slate-500 uppercase ml-1">Expires In</p>
+                                <input type="datetime-local" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} required />
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 pt-2">
+                                {['Veg', 'Non-Veg', 'Home-cooked', 'Packaged', 'No Dairy', 'No Nuts'].map(tag => (
+                                    <button 
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => toggleTag(tag)}
+                                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${selectedTags.includes(tag) ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                    >
+                                        {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Location Section */}
+                        <div className="space-y-4 pt-6 border-t border-slate-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Pickup Location</label>
+                                <button type="button" onClick={handleFoodAutoDetectLocation} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">
+                                    {isFoodAutoDetecting ? 'Detecting...' : 'Use Current Location'}
+                                </button>
+                            </div>
+                            <input type="text" placeholder="Line 1" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} required />
+                            <input type="text" placeholder="Line 2" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} required />
+                            <div className="flex gap-4">
+                                <input type="text" placeholder="Landmark" className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} />
+                                <input type="text" placeholder="Pincode" maxLength={6} className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} required />
+                            </div>
+                        </div>
+
+                        <button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-slate-200 transform hover:-translate-y-0.5 active:translate-y-0 transition-all">
+                            Post Donation
+                        </button>
+                    </form>
+                </div>
+            </div>
+        )}
+
+        {/* Global Modal for Donor Verification Request */}
+        {pendingVerificationPosting && (
+            <VerificationRequestModal 
                 posting={pendingVerificationPosting}
                 onApprove={handleDonorApprove}
                 onReject={handleDonorReject}
-              />
-          )}
-
-          {/* Impact Board (Hero Section) */}
-          <div className="mb-8 relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-slate-900 to-slate-800 text-white p-8 md:p-12 shadow-2xl">
-              <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
-                  <div className="space-y-2">
-                      <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10 backdrop-blur-sm">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                          {user?.role === UserRole.DONOR ? 'Donor Dashboard' : user?.role}
-                      </div>
-                      <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
-                        Hi, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-200">{user?.name.split(' ')[0]}</span>
-                      </h2>
-                      <p className="text-slate-400 font-medium max-w-md">
-                        {user?.role === UserRole.DONOR ? "Your contributions are changing lives. Track your impact and keep the cycle of kindness moving." : 
-                         user?.role === UserRole.VOLUNTEER ? "You are the bridge between hunger and hope. Thank you for your service." :
-                         "Find food for those in need. Connect with donors and volunteers instantly."}
-                      </p>
-                  </div>
-                  
-                  {/* Stats Row within Hero */}
-                  {stats && (
-                      <div className="flex gap-6 bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
-                          <div>
-                              <p className="text-3xl font-black text-white">{stats.total}</p>
-                              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total</p>
-                          </div>
-                          <div className="w-px bg-white/10"></div>
-                          <div>
-                              <p className="text-3xl font-black text-emerald-400">{stats.active}</p>
-                              <p className="text-[10px] font-bold uppercase text-emerald-400/80 tracking-wider">Active</p>
-                          </div>
-                          <div className="w-px bg-white/10"></div>
-                          <div>
-                              <p className="text-3xl font-black text-white">{user.role === UserRole.REQUESTER ? stats.received : stats.completed}</p>
-                              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">{user.role === UserRole.REQUESTER ? 'Received' : 'Done'}</p>
-                          </div>
-                      </div>
-                  )}
-              </div>
-          </div>
-
-          {/* Main Dashboard Actions & Filters */}
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
-              <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100">
-                  {user.role === UserRole.DONOR && (
-                      <>
-                        <button onClick={() => setActiveTab('active')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'active' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Active Donations</button>
-                        <button onClick={() => setActiveTab('history')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
-                      </>
-                  )}
-                  {user.role === UserRole.VOLUNTEER && (
-                      <>
-                        <button onClick={() => setActiveTab('opportunities')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'opportunities' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Opportunities</button>
-                        <button onClick={() => setActiveTab('mytasks')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'mytasks' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>My Tasks</button>
-                        <button onClick={() => setActiveTab('history')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>History</button>
-                      </>
-                  )}
-                  {user.role === UserRole.REQUESTER && (
-                      <>
-                        <button onClick={() => setActiveTab('browse')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'browse' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Browse Food</button>
-                        <button onClick={() => setActiveTab('myrequests')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'myrequests' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>My Requests</button>
-                      </>
-                  )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button 
-                    onClick={handleRefresh} 
-                    className="bg-white hover:bg-slate-50 text-slate-600 p-3 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md active:scale-95"
-                    title="Refresh Data"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                </button>
-
-                {user.role === UserRole.DONOR && (
-                    <button onClick={() => setIsAddingFood(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-8 rounded-2xl uppercase text-xs tracking-widest shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                        Donate Food
-                    </button>
-                )}
-              </div>
-          </div>
-
-          {/* Content Grid */}
-          {filteredPostings.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                      <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-                  </div>
-                  <h3 className="text-xl font-black text-slate-400">No items found</h3>
-                  <p className="text-slate-400 text-sm mt-1">Check back later or try a different tab.</p>
-              </div>
-          ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredPostings.map(post => (
-                      <FoodCard 
-                          key={post.id} 
-                          posting={post} 
-                          user={user}
-                          onUpdate={(id, updates) => {
-                              storage.updatePosting(id, updates);
-                              handleRefresh();
-                          }}
-                          onDelete={user.role === UserRole.DONOR ? handleDeletePosting : undefined}
-                          currentLocation={userLocation}
-                          onRateVolunteer={handleRateVolunteer}
-                          volunteerProfile={post.volunteerId ? storage.getUser(post.volunteerId) : undefined}
-                      />
-                  ))}
-              </div>
-          )}
-
-          {/* Donate Food Modal */}
-          {isAddingFood && (
-            <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
-              <div className="bg-white rounded-[2.5rem] w-full max-w-2xl h-[90vh] flex flex-col overflow-hidden shadow-2xl relative">
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
-                      <h3 className="text-xl font-black text-slate-800">Donate Food</h3>
-                      <button onClick={() => setIsAddingFood(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                          <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                      <form onSubmit={handlePostFood} className="space-y-8">
-                          {/* Image Section */}
-                          <div className="space-y-4">
-                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Food Photo (Required)</label>
-                              
-                              {!foodImage ? (
-                                  <div className="grid grid-cols-2 gap-4">
-                                      <button type="button" onClick={startCamera} className="h-40 rounded-3xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-600 flex flex-col items-center justify-center gap-3 transition-colors group">
-                                          <div className="p-3 bg-white rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
-                                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                          </div>
-                                          <span className="font-bold text-xs uppercase">Take Photo</span>
-                                      </button>
-                                      <button type="button" onClick={() => fileInputRef.current?.click()} className="h-40 rounded-3xl border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-slate-50 text-slate-500 flex flex-col items-center justify-center gap-3 transition-colors group">
-                                          <div className="p-3 bg-white rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
-                                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                          </div>
-                                          <span className="font-bold text-xs uppercase">Upload Gallery</span>
-                                      </button>
-                                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                                  </div>
-                              ) : (
-                                  <div className="relative h-64 rounded-3xl overflow-hidden group">
-                                      <img src={foodImage} className="w-full h-full object-cover" />
-                                      <button type="button" onClick={() => { setFoodImage(null); setSafetyVerdict(undefined); }} className="absolute top-4 right-4 bg-white/90 p-2 rounded-full text-rose-500 hover:scale-110 transition-transform shadow-lg">
-                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                      </button>
-                                      
-                                      {/* Analysis Overlay */}
-                                      <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-md p-4 text-white">
-                                          {isAnalyzing ? (
-                                              <div className="flex items-center gap-3">
-                                                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                                  <span className="text-xs font-bold uppercase tracking-wider">AI Analyzing Food Safety...</span>
-                                              </div>
-                                          ) : safetyVerdict ? (
-                                              <div>
-                                                  <div className={`flex items-center gap-2 font-black uppercase text-xs tracking-wider mb-1 ${safetyVerdict.isSafe ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                      {safetyVerdict.isSafe ? (
-                                                          <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg> AI Verified Safe</>
-                                                      ) : (
-                                                          <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> Safety Concern</>
-                                                      )}
-                                                  </div>
-                                                  <p className="text-xs text-white/80">{safetyVerdict.reasoning}</p>
-                                              </div>
-                                          ) : null}
-                                      </div>
-                                  </div>
-                              )}
-
-                              {isCameraOpen && (
-                                <div className="fixed inset-0 z-[300] bg-black flex flex-col">
-                                  <video ref={videoRef} autoPlay playsInline className="flex-1 w-full object-cover" />
-                                  <div className="p-8 bg-black flex justify-between items-center">
-                                    <button type="button" onClick={stopCamera} className="text-white font-bold uppercase text-xs tracking-widest">Cancel</button>
-                                    <button type="button" onClick={capturePhoto} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center">
-                                        <div className="w-16 h-16 bg-white rounded-full"></div>
-                                    </button>
-                                    <div className="w-10"></div>
-                                  </div>
-                                </div>
-                              )}
-                              <canvas ref={canvasRef} className="hidden" />
-                          </div>
-
-                          <div className="space-y-4">
-                              <input type="text" placeholder="Food Item Name (e.g. 20 Veg Meals)" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={foodName} onChange={e => setFoodName(e.target.value)} required />
-                              
-                              <div className="flex gap-3">
-                                  <input type="number" placeholder="Qty" className="w-24 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} required />
-                                  <select value={unit} onChange={e => setUnit(e.target.value)} className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all appearance-none">
-                                      <option value="meals">Meals</option>
-                                      <option value="kg">kg</option>
-                                      <option value="servings">Servings</option>
-                                      <option value="packets">Packets</option>
-                                  </select>
-                              </div>
-
-                              <div>
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Expiry Date & Time</label>
-                                  <input type="datetime-local" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} required />
-                              </div>
-
-                              <textarea placeholder="Description (Ingredients, Allergens, etc.)" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all h-32 resize-none" value={foodDescription} onChange={e => setFoodDescription(e.target.value)} />
-                              
-                              <div>
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Tags</label>
-                                  <div className="flex flex-wrap gap-2">
-                                      {['Veg', 'Non-Veg', 'Vegan', 'Dessert', 'Spicy', 'Kid-Friendly'].map(tag => (
-                                          <button 
-                                              key={tag}
-                                              type="button"
-                                              onClick={() => toggleTag(tag)}
-                                              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide border transition-all ${selectedTags.includes(tag) ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                                          >
-                                              {tag}
-                                          </button>
-                                      ))}
-                                  </div>
-                              </div>
-                          </div>
-
-                          <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
-                              <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center gap-2 text-slate-500">
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                      <span className="text-xs font-black uppercase tracking-widest">Pickup Address</span>
-                                  </div>
-                                  <button type="button" onClick={handleFoodAutoDetectLocation} disabled={isFoodAutoDetecting} className="text-blue-600 text-[10px] font-black uppercase hover:text-blue-700 transition-colors disabled:opacity-50">
-                                      {isFoodAutoDetecting ? 'Detecting...' : 'Use My Location'}
-                                  </button>
-                              </div>
-                              <div className="space-y-3">
-                                  <input type="text" placeholder="Line 1" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} required />
-                                  <input type="text" placeholder="Line 2" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} required />
-                                  <div className="grid grid-cols-2 gap-3">
-                                      <input type="text" placeholder="Landmark" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} />
-                                      <input type="text" placeholder="Pincode" className="w-full px-5 py-4 border border-slate-200 bg-white rounded-2xl font-bold text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} required />
-                                  </div>
-                              </div>
-                          </div>
-
-                          <button type="submit" disabled={isAnalyzing} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-sm shadow-xl shadow-emerald-200 hover:shadow-emerald-300 transform hover:-translate-y-0.5 active:translate-y-0 transition-all">
-                              Publish Donation
-                          </button>
-                      </form>
-                  </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+            />
+        )}
     </Layout>
   );
-};
-
-export default App;
+}

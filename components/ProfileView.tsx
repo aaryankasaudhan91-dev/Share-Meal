@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { User, UserRole } from '../types';
 import { generateAvatar } from '../services/geminiService';
@@ -10,10 +9,10 @@ interface ProfileViewProps {
 }
 
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => {
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [contactNo, setContactNo] = useState(user.contactNo || '');
-  const [profilePictureUrl, setProfilePictureUrl] = useState(user.profilePictureUrl);
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [contactNo, setContactNo] = useState(user?.contactNo || '');
+  const [profilePictureUrl, setProfilePictureUrl] = useState(user?.profilePictureUrl);
   const [isGenerating, setIsGenerating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,7 +76,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
             </div>
             
             {/* Rating Stat (Only for Volunteers) */}
-            {user.role === 'VOLUNTEER' && (
+            {user?.role === 'VOLUNTEER' && (
                 <div className="absolute bottom-4 right-8 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex gap-4 text-white border border-white/20">
                     <div className="text-center">
                         <div className="flex items-center justify-center gap-1 font-black text-xl">
@@ -95,7 +94,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
             )}
 
             {/* Impact Score (Only for Donors) */}
-            {user.role === UserRole.DONOR && (
+            {user?.role === UserRole.DONOR && (
                 <div className="absolute bottom-4 right-8 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex gap-4 text-white border border-white/20">
                     <div className="text-center">
                         <div className="flex items-center justify-center gap-1 font-black text-xl">
@@ -112,10 +111,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
             <div className="flex justify-between items-start mb-8">
                 <div>
                     <h2 className="text-3xl font-black text-slate-800">{name}</h2>
-                    <p className="text-slate-500 font-medium text-sm">{user.role}</p>
+                    <p className="text-slate-500 font-medium text-sm">{user?.role}</p>
                 </div>
                 <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider">
-                    {user.role} Account
+                    {user?.role} Account
                 </div>
             </div>
 

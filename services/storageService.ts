@@ -1,4 +1,3 @@
-
 import { User, FoodPosting, FoodStatus, UserRole, Notification, ChatMessage, Rating } from '../types';
 
 const STORAGE_KEY_POSTINGS = 'food_rescue_postings';
@@ -19,7 +18,11 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 const getStoredNotifications = (): Notification[] => {
-  return JSON.parse(localStorage.getItem(STORAGE_KEY_NOTIFICATIONS) || '[]');
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY_NOTIFICATIONS) || '[]');
+  } catch {
+    return [];
+  }
 };
 
 const saveStoredNotifications = (notifications: Notification[]) => {
@@ -28,8 +31,14 @@ const saveStoredNotifications = (notifications: Notification[]) => {
 
 export const storage = {
   getUsers: (): User[] => {
-    const data = localStorage.getItem(STORAGE_KEY_USERS);
-    return data ? JSON.parse(data) : [];
+    try {
+        const data = localStorage.getItem(STORAGE_KEY_USERS);
+        const users = data ? JSON.parse(data) : [];
+        // Robust filtering to remove nulls or malformed user objects that might cause crashes
+        return Array.isArray(users) ? users.filter((u: any) => u && typeof u === 'object' && typeof u.name === 'string') : [];
+    } catch {
+        return [];
+    }
   },
   getUser: (id: string): User | undefined => {
     const users = storage.getUsers();
@@ -72,12 +81,20 @@ export const storage = {
     return null;
   },
   getPostings: (): FoodPosting[] => {
-    const data = localStorage.getItem(STORAGE_KEY_POSTINGS);
-    return data ? JSON.parse(data) : [];
+    try {
+        const data = localStorage.getItem(STORAGE_KEY_POSTINGS);
+        return data ? JSON.parse(data) : [];
+    } catch {
+        return [];
+    }
   },
   getMessages: (postingId: string): ChatMessage[] => {
-    const allChats = JSON.parse(localStorage.getItem(STORAGE_KEY_CHATS) || '{}');
-    return allChats[postingId] || [];
+    try {
+        const allChats = JSON.parse(localStorage.getItem(STORAGE_KEY_CHATS) || '{}');
+        return allChats[postingId] || [];
+    } catch {
+        return [];
+    }
   },
   saveMessage: (postingId: string, message: ChatMessage) => {
     const allChats = JSON.parse(localStorage.getItem(STORAGE_KEY_CHATS) || '{}');

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, FoodPosting, ChatMessage } from '../types';
 import { storage } from '../services/storageService';
@@ -24,12 +23,22 @@ const ChatModal: React.FC<ChatModalProps> = ({ posting, user, onClose }) => {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
-    const msg: ChatMessage = { id: Math.random().toString(36).substr(2, 9), postingId: posting.id, senderId: user.id, senderName: user.name, senderRole: user.role, text: inputText, createdAt: Date.now() };
+    if (!inputText.trim() || !user) return;
+    const msg: ChatMessage = { 
+        id: Math.random().toString(36).substr(2, 9), 
+        postingId: posting.id, 
+        senderId: user.id, 
+        senderName: user.name || 'Unknown', 
+        senderRole: user.role, 
+        text: inputText, 
+        createdAt: Date.now() 
+    };
     storage.saveMessage(posting.id, msg);
     setMessages([...messages, msg]);
     setInputText('');
   };
+
+  if (!user) return null;
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
