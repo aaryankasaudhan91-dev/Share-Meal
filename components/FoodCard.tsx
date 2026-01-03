@@ -53,6 +53,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
   const [showPreview, setShowPreview] = useState(false);
   const [isConfirmingStart, setIsConfirmingStart] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pickupInputRef = useRef<HTMLInputElement>(null);
@@ -149,10 +150,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
       }
   };
 
-  const handleDelete = () => {
+  const handleConfirmDelete = () => {
       if (onDelete) {
           onDelete(posting.id);
       }
+      setShowCancelConfirmation(false);
   };
 
   const handleShare = async () => {
@@ -502,7 +504,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                     
                     {/* Cancel Donation Button (For Donors when Available or Requested) */}
                     {(posting.status === FoodStatus.AVAILABLE || posting.status === FoodStatus.REQUESTED) && (
-                         <button onClick={handleDelete} className="w-full bg-rose-50 hover:bg-rose-100 border-2 border-rose-100 text-rose-500 hover:text-rose-600 font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm">
+                         <button onClick={() => setShowCancelConfirmation(true)} className="w-full bg-rose-50 hover:bg-rose-100 border-2 border-rose-100 text-rose-500 hover:text-rose-600 font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm">
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                              Cancel Donation
                          </button>
@@ -581,6 +583,23 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
              onApprove={handleApprove}
              onReject={handleReject}
           />
+      )}
+      {showCancelConfirmation && (
+        <div className="fixed inset-0 z-[300] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
+            <div className="bg-white rounded-3xl w-full max-w-sm p-8 shadow-2xl text-center">
+                <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 mb-2">Cancel Donation?</h3>
+                <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">
+                    Are you sure? This will remove the posting and notify any assigned volunteers or requesters.
+                </p>
+                <div className="flex gap-3">
+                    <button onClick={() => setShowCancelConfirmation(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-colors uppercase text-xs tracking-wider">Keep It</button>
+                    <button onClick={handleConfirmDelete} className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-2xl transition-colors shadow-lg shadow-rose-200 uppercase text-xs tracking-wider">Yes, Cancel</button>
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );

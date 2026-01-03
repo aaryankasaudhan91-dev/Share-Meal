@@ -343,10 +343,9 @@ export default function App() {
   };
 
   const handleDeletePosting = (id: string) => {
-      if (confirm("Are you sure you want to cancel this donation? This will notify any assigned volunteers or requesters and remove it permanently.")) {
-          storage.deletePosting(id);
-          handleRefresh();
-      }
+      // Confirmation handled in FoodCard UI directly
+      storage.deletePosting(id);
+      handleRefresh();
   };
 
   const toggleTag = (tag: string) => {
