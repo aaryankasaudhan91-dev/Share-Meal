@@ -29,7 +29,8 @@ export default function App() {
   const [view, setView] = useState<'LOGIN' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<string>('default');
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list'); // New state for toggling views
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null); // Track selected posting for modal
   
   // Pending Verification State for Donors
   const [pendingVerificationPosting, setPendingVerificationPosting] = useState<FoodPosting | null>(null);
@@ -544,10 +545,7 @@ export default function App() {
                     postings={filteredPostings} 
                     userLocation={userLocation}
                     onPostingSelect={(id) => {
-                         // Fallback to list view but highlight or filter? For now just switch to list
-                         // A better UX would be a drawer or modal, but sticking to constraints
-                         alert("Switching to list view to see details.");
-                         setViewMode('list');
+                         setSelectedPostingId(id);
                     }}
                   />
               </div>
@@ -778,6 +776,34 @@ export default function App() {
                 onApprove={handleDonorApprove}
                 onReject={handleDonorReject}
             />
+        )}
+        
+        {/* Selected Posting Detail Modal (from Map View) */}
+        {selectedPostingId && (
+            <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in-up" onClick={() => setSelectedPostingId(null)}>
+                <div className="w-full max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar bg-transparent" onClick={e => e.stopPropagation()}>
+                    {(() => {
+                        const p = postings.find(p => p.id === selectedPostingId);
+                        if (!p) return null;
+                        return (
+                            <div className="relative">
+                                <button onClick={() => setSelectedPostingId(null)} className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-md transition-colors shadow-lg border border-white/10">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                                <FoodCard 
+                                    posting={p}
+                                    user={user!}
+                                    onUpdate={(id, updates) => { storage.updatePosting(id, updates); handleRefresh(); }}
+                                    currentLocation={userLocation}
+                                    onRateVolunteer={handleRateVolunteer}
+                                    volunteerProfile={p.volunteerId ? storage.getUser(p.volunteerId) : undefined}
+                                    requesterProfile={p.orphanageId ? storage.getUser(p.orphanageId) : undefined}
+                                />
+                            </div>
+                        );
+                    })()}
+                </div>
+            </div>
         )}
     </Layout>
   );

@@ -41,7 +41,6 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
   // Update map center if user location changes significantly
   useEffect(() => {
       if (mapInstanceRef.current && userLocation) {
-          // Only fly to user location if it's the first load or explicit action (optional optimization)
           mapInstanceRef.current.setView([userLocation.lat, userLocation.lng], 13);
       }
   }, [userLocation]);
@@ -90,31 +89,42 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
                   popupAnchor: [0, -40]
               });
 
+              // Enhanced Preview Card HTML for Popup
               const popupContent = `
-                <div class="font-sans min-w-[200px] p-1">
-                    <div class="relative h-24 w-full rounded-lg overflow-hidden mb-2">
-                        <img src="${post.imageUrl || ''}" class="w-full h-full object-cover" onerror="this.style.display='none'"/>
-                        <div class="absolute inset-0 bg-black/20"></div>
-                        <span class="absolute top-1 right-1 bg-white/90 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide text-slate-800">${post.quantity}</span>
+                <div class="font-sans min-w-[220px] bg-white rounded-xl overflow-hidden shadow-sm">
+                    <div class="relative h-28 w-full bg-slate-100">
+                        <img src="${post.imageUrl || ''}" class="w-full h-full object-cover" style="display: block;" onerror="this.style.display='none'"/>
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                        <span class="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide text-slate-800 shadow-sm">${post.quantity}</span>
+                        <div class="absolute bottom-2 left-2 text-white">
+                            <p class="text-[10px] font-bold opacity-90 uppercase tracking-wider mb-0.5">${post.foodCategory || 'Food'}</p>
+                            <h3 class="font-bold text-sm leading-tight text-white shadow-black drop-shadow-md line-clamp-1">${post.foodName}</h3>
+                        </div>
                     </div>
-                    <h3 class="font-bold text-slate-800 text-sm leading-tight mb-1">${post.foodName}</h3>
-                    <p class="text-xs text-slate-500 mb-2 truncate">${post.location.line1}</p>
-                    <div class="flex justify-between items-center">
-                        <span class="text-[10px] font-bold ${isUrgent ? 'text-rose-500' : 'text-emerald-600'} uppercase tracking-wide">
-                            ${isUrgent ? 'Urgent' : 'Available'}
-                        </span>
-                        <button onclick="document.dispatchEvent(new CustomEvent('selectPosting', { detail: '${post.id}' }))" class="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors">
-                            View Details
-                        </button>
+                    <div class="p-3">
+                        <div class="flex items-start gap-2 mb-3">
+                            <div class="mt-0.5 text-slate-400">
+                                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            </div>
+                            <p class="text-xs text-slate-600 font-medium leading-snug line-clamp-2">${post.location.line1}</p>
+                        </div>
+                        <div class="flex justify-between items-center gap-2">
+                             <div class="flex items-center gap-1.5 ${isUrgent ? 'text-rose-600 bg-rose-50' : 'text-emerald-600 bg-emerald-50'} px-2 py-1 rounded-md">
+                                <div class="w-1.5 h-1.5 rounded-full ${isUrgent ? 'bg-rose-500' : 'bg-emerald-500'}"></div>
+                                <span class="text-[10px] font-black uppercase tracking-wide">${isUrgent ? 'Urgent' : 'Available'}</span>
+                             </div>
+                            <button onclick="document.dispatchEvent(new CustomEvent('selectPosting', { detail: '${post.id}' }))" class="flex-1 bg-slate-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200">
+                                View Details
+                            </button>
+                        </div>
                     </div>
                 </div>
               `;
 
               const marker = L.marker([post.location.lat, post.location.lng], { icon: customIcon })
                 .addTo(map)
-                .bindPopup(popupContent);
+                .bindPopup(popupContent, { minWidth: 220, maxWidth: 220, closeButton: false });
               
-              // Add simple click handler to marker to open popup
               marker.on('click', () => {
                   marker.openPopup();
               });
