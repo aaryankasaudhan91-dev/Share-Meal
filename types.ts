@@ -23,6 +23,12 @@ export interface Address {
   lng?: number;
 }
 
+export interface NotificationPreferences {
+  newPostings: boolean;
+  missionUpdates: boolean;
+  messages: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ export interface User {
   averageRating?: number;
   ratingsCount?: number;
   profilePictureUrl?: string;
+  notificationPreferences?: NotificationPreferences;
 }
 
 export interface ChatMessage {

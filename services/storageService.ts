@@ -30,12 +30,18 @@ const saveStoredNotifications = (notifications: Notification[]) => {
   localStorage.setItem(STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
 };
 
+// Helper to check prefs
+const shouldNotify = (user: User | undefined, type: 'newPostings' | 'missionUpdates' | 'messages'): boolean => {
+    if (!user) return false;
+    const prefs = user.notificationPreferences || { newPostings: true, missionUpdates: true, messages: true };
+    return prefs[type];
+};
+
 export const storage = {
   getUsers: (): User[] => {
     try {
         const data = localStorage.getItem(STORAGE_KEY_USERS);
         const users = data ? JSON.parse(data) : [];
-        // Robust filtering to remove nulls or malformed user objects that might cause crashes
         return Array.isArray(users) ? users.filter((u: any) => u && typeof u === 'object' && typeof u.name === 'string') : [];
     } catch {
         return [];
@@ -47,7 +53,6 @@ export const storage = {
   },
   saveUser: (user: User) => {
     const users = storage.getUsers();
-    // Use existing stats if they are present in the user object (e.g. from demo/social login), otherwise default to 0
     const newUser = { 
         ...user, 
         impactScore: user.impactScore !== undefined ? user.impactScore : 0, 
@@ -109,6 +114,28 @@ export const storage = {
     if (!allChats[postingId]) allChats[postingId] = [];
     allChats[postingId].push(message);
     localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(allChats));
+
+    // Create Notification for recipients
+    const postings = storage.getPostings();
+    const posting = postings.find(p => p.id === postingId);
+    if (posting) {
+        const recipients = [posting.donorId, posting.volunteerId, posting.orphanageId]
+            .filter(id => id && id !== message.senderId); // Exclude sender and undefined
+        
+        const uniqueRecipients = [...new Set(recipients)];
+        
+        uniqueRecipients.forEach(userId => {
+            if (!userId) return;
+            const user = storage.getUser(userId);
+            if (shouldNotify(user, 'messages')) {
+                storage.createNotification(
+                    userId,
+                    `New message from ${message.senderName}: ${message.text.substring(0, 30)}${message.text.length > 30 ? '...' : ''}`,
+                    'INFO'
+                );
+            }
+        });
+    }
   },
   getNotifications: (userId: string): Notification[] => {
     const all = getStoredNotifications();
@@ -148,7 +175,10 @@ export const storage = {
     
     users.forEach(u => {
       if (u.role === UserRole.VOLUNTEER) {
-        let shouldNotify = false;
+        // Check Notification Preferences
+        if (!shouldNotify(u, 'newPostings')) return;
+
+        let isNearby = false;
         let distanceText = '';
 
         if (u.address?.lat && u.address?.lng && posting.location.lat && posting.location.lng) {
@@ -160,12 +190,12 @@ export const storage = {
           );
 
           if (distance <= 10) {
-            shouldNotify = true;
+            isNearby = true;
             distanceText = ` (${distance.toFixed(1)}km away)`;
           }
         }
 
-        if (shouldNotify) {
+        if (isNearby) {
           notifications.push({
             id: Math.random().toString(36).substr(2, 9),
             userId: u.id,
@@ -190,24 +220,27 @@ export const storage = {
 
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
+      const getUserObj = (uid: string) => users.find(u => u.id === uid);
 
       // --- STATUS TRANSITIONS ---
 
       // 1. Volunteer submits PICKUP proof -> Notify Donor (Action Required)
       if (oldPosting.status !== FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
-         notifications.push({
-            id: Math.random().toString(36).substr(2, 9),
-            userId: newPosting.donorId,
-            message: `ACTION REQUIRED: Volunteer ${newPosting.volunteerName} has uploaded a pickup proof for "${newPosting.foodName}". Please verify now.`,
-            isRead: false,
-            createdAt: Date.now(),
-            type: 'ACTION'
-         });
+         if (shouldNotify(getUserObj(newPosting.donorId), 'missionUpdates')) {
+             notifications.push({
+                id: Math.random().toString(36).substr(2, 9),
+                userId: newPosting.donorId,
+                message: `ACTION REQUIRED: Volunteer ${newPosting.volunteerName} has uploaded a pickup proof for "${newPosting.foodName}". Please verify now.`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: 'ACTION'
+             });
+         }
       }
 
       // 2. Donor Approves PICKUP -> Notify Volunteer (Success)
       if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
-         if (newPosting.volunteerId) {
+         if (newPosting.volunteerId && shouldNotify(getUserObj(newPosting.volunteerId), 'missionUpdates')) {
              notifications.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: newPosting.volunteerId,
@@ -222,16 +255,18 @@ export const storage = {
       // 3. Status Reverted from PICKUP to REQUESTED (Rejection or Retraction)
       if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.REQUESTED) {
           if (newPosting.volunteerId && newPosting.volunteerId === oldPosting.volunteerId) {
-             notifications.push({
-                id: Math.random().toString(36).substr(2, 9),
-                userId: newPosting.donorId,
-                message: `Update: Volunteer ${newPosting.volunteerName} has retracted their pickup proof for "${newPosting.foodName}" to re-verify.`,
-                isRead: false,
-                createdAt: Date.now(),
-                type: 'INFO'
-             });
+             if (shouldNotify(getUserObj(newPosting.donorId), 'missionUpdates')) {
+                 notifications.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    userId: newPosting.donorId,
+                    message: `Update: Volunteer ${newPosting.volunteerName} has retracted their pickup proof for "${newPosting.foodName}" to re-verify.`,
+                    isRead: false,
+                    createdAt: Date.now(),
+                    type: 'INFO'
+                 });
+             }
           }
-          else if (oldPosting.volunteerId) {
+          else if (oldPosting.volunteerId && shouldNotify(getUserObj(oldPosting.volunteerId), 'missionUpdates')) {
              notifications.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: oldPosting.volunteerId,
@@ -245,7 +280,7 @@ export const storage = {
 
       // 4. Volunteer submits DELIVERY proof -> Notify Requester (Action Required)
       if (oldPosting.status !== FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
-          if (newPosting.orphanageId) {
+          if (newPosting.orphanageId && shouldNotify(getUserObj(newPosting.orphanageId), 'missionUpdates')) {
               notifications.push({
                   id: Math.random().toString(36).substr(2, 9),
                   userId: newPosting.orphanageId,
@@ -259,7 +294,7 @@ export const storage = {
 
       // 5. Status Reverted from DELIVERY to IN_TRANSIT (Rejection)
       if (oldPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
-           if (newPosting.volunteerId) {
+           if (newPosting.volunteerId && shouldNotify(getUserObj(newPosting.volunteerId), 'missionUpdates')) {
               notifications.push({
                   id: Math.random().toString(36).substr(2, 9),
                   userId: newPosting.volunteerId,
@@ -275,25 +310,26 @@ export const storage = {
       if (oldPosting.status !== FoodStatus.DELIVERED && newPosting.status === FoodStatus.DELIVERED) {
          const donorIndex = users.findIndex(u => u.id === newPosting.donorId);
          const volunteerIndex = users.findIndex(u => u.id === newPosting.volunteerId);
-         const requesterIndex = users.findIndex(u => u.id === newPosting.orphanageId);
-
+         
          if (donorIndex !== -1) users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
          if (volunteerIndex !== -1) users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
          
          localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
          
          // Notify Donor
-         notifications.push({
-            id: Math.random().toString(36).substr(2, 9),
-            userId: newPosting.donorId,
-            message: `Donation Complete: "${newPosting.foodName}" has been successfully delivered and verified!`,
-            isRead: false,
-            createdAt: Date.now(),
-            type: 'SUCCESS'
-         });
+         if (shouldNotify(getUserObj(newPosting.donorId), 'missionUpdates')) {
+             notifications.push({
+                id: Math.random().toString(36).substr(2, 9),
+                userId: newPosting.donorId,
+                message: `Donation Complete: "${newPosting.foodName}" has been successfully delivered and verified!`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: 'SUCCESS'
+             });
+         }
 
          // Notify Volunteer
-         if (newPosting.volunteerId) {
+         if (newPosting.volunteerId && shouldNotify(getUserObj(newPosting.volunteerId), 'missionUpdates')) {
             notifications.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: newPosting.volunteerId,
@@ -305,7 +341,7 @@ export const storage = {
          }
 
          // Notify Requester
-         if (newPosting.orphanageId) {
+         if (newPosting.orphanageId && shouldNotify(getUserObj(newPosting.orphanageId), 'missionUpdates')) {
              notifications.push({
                  id: Math.random().toString(36).substr(2, 9),
                  userId: newPosting.orphanageId,
@@ -319,7 +355,7 @@ export const storage = {
 
       // 7. General PickedUp Flag (Legacy or supplementary check)
       if (!oldPosting.isPickedUp && updates.isPickedUp) {
-         if (newPosting.orphanageId) {
+         if (newPosting.orphanageId && shouldNotify(getUserObj(newPosting.orphanageId), 'missionUpdates')) {
              notifications.push({
               id: Math.random().toString(36).substr(2, 9),
               userId: newPosting.orphanageId,
@@ -341,9 +377,11 @@ export const storage = {
     // Notify relevant parties before deletion
     if (postingToDelete) {
       const notifications = getStoredNotifications();
+      const users = storage.getUsers();
+      const getUserObj = (uid: string) => users.find(u => u.id === uid);
       
       // Notify Requester
-      if (postingToDelete.orphanageId) {
+      if (postingToDelete.orphanageId && shouldNotify(getUserObj(postingToDelete.orphanageId), 'missionUpdates')) {
         notifications.push({
           id: Math.random().toString(36).substr(2, 9),
           userId: postingToDelete.orphanageId,
@@ -355,7 +393,7 @@ export const storage = {
       }
       
       // Notify Volunteer
-      if (postingToDelete.volunteerId) {
+      if (postingToDelete.volunteerId && shouldNotify(getUserObj(postingToDelete.volunteerId), 'missionUpdates')) {
         notifications.push({
           id: Math.random().toString(36).substr(2, 9),
           userId: postingToDelete.volunteerId,
@@ -403,12 +441,14 @@ export const storage = {
           users[vIndex] = volunteer;
           localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
           
-          // Notify Volunteer
-          storage.createNotification(
-             volunteer.id,
-             `You received a ${rating.rating}-star rating for delivering ${posting.foodName}!`,
-             'SUCCESS'
-          );
+          // Notify Volunteer if prefs allow
+          if (shouldNotify(volunteer, 'missionUpdates')) {
+              storage.createNotification(
+                 volunteer.id,
+                 `You received a ${rating.rating}-star rating for delivering ${posting.foodName}!`,
+                 'SUCCESS'
+              );
+          }
         }
       }
       return posting;

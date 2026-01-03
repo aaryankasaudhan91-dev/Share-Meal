@@ -265,7 +265,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             console.error(err);
             alert("Location permission denied. Please enable location or enter manually.");
             setIsAutoDetecting(false);
-        }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 

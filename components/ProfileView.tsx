@@ -1,5 +1,6 @@
+
 import React, { useState, useRef } from 'react';
-import { User, UserRole } from '../types';
+import { User, NotificationPreferences, UserRole } from '../types';
 import { generateAvatar } from '../services/geminiService';
 
 interface ProfileViewProps {
@@ -13,6 +14,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
   const [email, setEmail] = useState(user?.email || '');
   const [contactNo, setContactNo] = useState(user?.contactNo || '');
   const [profilePictureUrl, setProfilePictureUrl] = useState(user?.profilePictureUrl);
+  const [prefs, setPrefs] = useState<NotificationPreferences>(user.notificationPreferences || {
+      newPostings: true,
+      missionUpdates: true,
+      messages: true
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -22,7 +28,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
       alert("Please enter a valid 10-digit Contact Number.");
       return;
     }
-    onUpdate({ name, email, contactNo, profilePictureUrl });
+    onUpdate({ name, email, contactNo, profilePictureUrl, notificationPreferences: prefs });
     alert("Profile updated!");
   };
 
@@ -46,6 +52,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
       alert("Failed to generate avatar. Please try again.");
     }
     setIsGenerating(false);
+  };
+
+  const togglePref = (key: keyof NotificationPreferences) => {
+      setPrefs(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -76,7 +86,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
             </div>
             
             {/* Rating Stat (Only for Volunteers) */}
-            {user?.role === 'VOLUNTEER' && (
+            {user?.role === UserRole.VOLUNTEER && (
                 <div className="absolute bottom-4 right-8 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex gap-4 text-white border border-white/20">
                     <div className="text-center">
                         <div className="flex items-center justify-center gap-1 font-black text-xl">
@@ -185,6 +195,56 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                         className="w-full pl-20 pr-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" 
                     />
                  </div>
+              </div>
+
+              {/* Notification Preferences */}
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                  <h3 className="font-black text-slate-800 text-xs uppercase tracking-wide mb-4">Notification Preferences</h3>
+                  <div className="space-y-4">
+                      {user.role === UserRole.VOLUNTEER && (
+                          <div className="flex items-center justify-between">
+                              <div>
+                                  <p className="font-bold text-sm text-slate-700">New Food Postings</p>
+                                  <p className="text-xs text-slate-500">Get alerted when food is donated nearby.</p>
+                              </div>
+                              <button 
+                                  type="button" 
+                                  onClick={() => togglePref('newPostings')}
+                                  className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${prefs.newPostings ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                              >
+                                  <div className={`w-5 h-5 bg-white rounded-full shadow-sm transform transition-transform ${prefs.newPostings ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                              </button>
+                          </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between">
+                          <div>
+                              <p className="font-bold text-sm text-slate-700">Mission Updates</p>
+                              <p className="text-xs text-slate-500">Status changes, verifications, and approvals.</p>
+                          </div>
+                          <button 
+                              type="button" 
+                              onClick={() => togglePref('missionUpdates')}
+                              className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${prefs.missionUpdates ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                          >
+                              <div className={`w-5 h-5 bg-white rounded-full shadow-sm transform transition-transform ${prefs.missionUpdates ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                          </button>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                          <div>
+                              <p className="font-bold text-sm text-slate-700">Messages</p>
+                              <p className="text-xs text-slate-500">Receive notifications for chat messages.</p>
+                          </div>
+                          <button 
+                              type="button" 
+                              onClick={() => togglePref('messages')}
+                              className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${prefs.messages ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                          >
+                              <div className={`w-5 h-5 bg-white rounded-full shadow-sm transform transition-transform ${prefs.messages ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                          </button>
+                      </div>
+                  </div>
               </div>
               
               <div className="pt-4">
