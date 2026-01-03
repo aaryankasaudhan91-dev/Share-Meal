@@ -10,11 +10,25 @@ interface LiveTrackingModalProps {
   onClose: () => void;
 }
 
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  return R * c; // Distance in km
+};
+
 const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<{[key: string]: any}>({});
+  const polylineRef = useRef<any>(null);
   const [livePosting, setLivePosting] = useState<FoodPosting>(posting);
+  const [trackingStats, setTrackingStats] = useState<{dist: string, time: string} | null>(null);
 
   // Poll for updates to get the latest volunteer location
   useEffect(() => {
@@ -28,7 +42,6 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
   // Initialize Map
   useEffect(() => {
     if (mapContainerRef.current && !mapInstanceRef.current) {
-      // Default center, will be updated by markers
       const map = L.map(mapContainerRef.current, { zoomControl: false }).setView([20.5937, 78.9629], 13);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CARTO'
@@ -44,7 +57,7 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
     };
   }, []);
 
-  // Update Markers based on live data
+  // Update Markers and Path based on live data
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -75,7 +88,7 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
         `;
 
         const icon = L.divIcon({
-            className: 'custom-marker-icon', // Use a custom class to avoid Leaflet defaults interfering
+            className: 'custom-marker-icon', 
             html: markerHtml,
             iconSize: [40, 40],
             iconAnchor: [20, 20]
@@ -84,8 +97,10 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
         if (markersRef.current[id]) {
             markersRef.current[id].setLatLng([lat, lng]);
             markersRef.current[id].setIcon(icon); 
+            // Ensure z-index is high for live marker
+            if (isLive) markersRef.current[id].setZIndexOffset(1000);
         } else {
-            const marker = L.marker([lat, lng], { icon }).addTo(map);
+            const marker = L.marker([lat, lng], { icon, zIndexOffset: isLive ? 1000 : 0 }).addTo(map);
             
             // Add Popup Content
             let popupContent = '';
@@ -94,7 +109,6 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
                     <div class="font-sans min-w-[120px]">
                         <p class="text-[10px] font-black uppercase text-emerald-600 tracking-widest mb-1">Pickup</p>
                         <p class="font-bold text-sm text-slate-800">${livePosting.donorOrg || livePosting.donorName}</p>
-                        <p class="text-xs text-slate-500">${livePosting.foodName}</p>
                     </div>
                 `;
             } else if (id === 'requester') {
@@ -102,7 +116,6 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
                     <div class="font-sans min-w-[120px]">
                         <p class="text-[10px] font-black uppercase text-orange-600 tracking-widest mb-1">Dropoff</p>
                         <p class="font-bold text-sm text-slate-800">${livePosting.orphanageName || 'Requester'}</p>
-                        <p class="text-xs text-slate-500">${livePosting.requesterAddress?.line1 || 'Destination'}</p>
                     </div>
                 `;
             } else if (id === 'volunteer') {
@@ -110,7 +123,6 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
                     <div class="font-sans min-w-[120px]">
                         <p class="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1">Volunteer</p>
                         <p class="font-bold text-sm text-slate-800">${livePosting.volunteerName}</p>
-                        <p class="text-xs text-slate-500">In Transit</p>
                     </div>
                 `;
             }
@@ -137,15 +149,45 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
     if (volunteerLocation?.lat && volunteerLocation?.lng) {
         updateMarker('volunteer', volunteerLocation.lat, volunteerLocation.lng, '🚴', '#3b82f6', true);
         
+        // Calculate Distance and Time to Dropoff
+        if (dropoff?.lat && dropoff?.lng) {
+            const dist = calculateDistance(volunteerLocation.lat, volunteerLocation.lng, dropoff.lat, dropoff.lng);
+            const timeMin = Math.ceil((dist / 30) * 60); // Approx 30km/h avg speed
+            setTrackingStats({
+                dist: dist.toFixed(1),
+                time: timeMin.toString()
+            });
+
+            // Update Polyline
+            const latlngs = [
+                [volunteerLocation.lat, volunteerLocation.lng],
+                [dropoff.lat, dropoff.lng]
+            ];
+            
+            if (polylineRef.current) {
+                polylineRef.current.setLatLngs(latlngs);
+            } else {
+                polylineRef.current = L.polyline(latlngs, {
+                    color: '#3b82f6',
+                    weight: 4,
+                    opacity: 0.6,
+                    dashArray: '10, 10', 
+                    lineCap: 'round'
+                }).addTo(map);
+            }
+        }
+
         // Ensure map follows volunteer smoothly
         map.panTo([volunteerLocation.lat, volunteerLocation.lng], { 
             animate: true, 
             duration: 1.5,
             easeLinearity: 0.2 
         });
-    } else if (pickup?.lat && pickup?.lng && !markersRef.current['volunteer']) {
-        // Fallback center if no volunteer location yet
-        map.setView([pickup.lat, pickup.lng], 13);
+    } else {
+        // Fallback center if no volunteer location
+         if (pickup?.lat && pickup?.lng && !markersRef.current['volunteer']) {
+             map.setView([pickup.lat, pickup.lng], 13);
+         }
     }
 
   }, [livePosting]);
@@ -163,6 +205,20 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
         
         <div className="bg-white p-6 border-t border-slate-100 z-[400] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
             <h3 className="font-black text-lg uppercase mb-3 tracking-wide">Live Delivery Tracking</h3>
+            
+            {trackingStats ? (
+                <div className="flex items-center gap-4 mb-4">
+                    <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Distance</p>
+                        <p className="text-xl font-black text-slate-800">{trackingStats.dist} km</p>
+                    </div>
+                    <div className="flex-1 bg-blue-50 p-3 rounded-xl border border-blue-100">
+                        <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Est. Time</p>
+                        <p className="text-xl font-black text-blue-700">{trackingStats.time} min</p>
+                    </div>
+                </div>
+            ) : null}
+
             <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-4">
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></div> Donor
@@ -174,15 +230,16 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
                      <div className="w-3 h-3 rounded-full bg-orange-500 ring-2 ring-orange-100"></div> You
                 </div>
             </div>
+            
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <p className="text-slate-800 text-sm font-bold flex items-center gap-2">
                     {livePosting.volunteerLocation ? (
                         <>
-                            <span className="relative flex h-3 w-3">
+                            <span className="relative flex h-3 w-3 shrink-0">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                             </span>
-                            Volunteer is moving towards destination.
+                            <span className="truncate">Volunteer is {trackingStats ? `approx ${trackingStats.dist}km away` : 'moving'}.</span>
                         </>
                     ) : (
                         <>

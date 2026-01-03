@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Notification } from '../types';
 
@@ -7,11 +8,13 @@ interface LayoutProps {
   onLogout: () => void;
   onProfileClick: () => void;
   onLogoClick: () => void;
+  onContactClick: () => void;
+  onHelpClick: () => void;
   notifications?: Notification[];
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
-  children, user, onLogout, onProfileClick, onLogoClick, notifications = [] 
+  children, user, onLogout, onProfileClick, onLogoClick, onContactClick, onHelpClick, notifications = [] 
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -43,7 +46,16 @@ const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
           {user && (
-            <div className="flex items-center space-x-4 md:space-x-6">
+            <div className="flex items-center space-x-2 md:space-x-4">
+              
+              <button onClick={onHelpClick} className="p-3 rounded-full hover:bg-slate-100 text-slate-400 hover:text-emerald-600 transition-all hidden md:block" title="Help & FAQ">
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </button>
+
+              <button onClick={onContactClick} className="p-3 rounded-full hover:bg-slate-100 text-slate-400 hover:text-emerald-600 transition-all hidden md:block" title="Contact Us">
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+              </button>
+
               <div className="relative" ref={dropdownRef}>
                 <button onClick={() => setShowNotifications(!showNotifications)} className={`p-3 rounded-full relative transition-all ${showNotifications ? 'bg-slate-100 text-emerald-600 ring-2 ring-emerald-100' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-600'}`}>
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>

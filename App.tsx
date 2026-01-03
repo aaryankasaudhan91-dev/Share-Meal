@@ -7,6 +7,8 @@ import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
 import PostingsMap from './components/PostingsMap';
 import ProfileView from './components/ProfileView';
+import ContactUs from './components/ContactUs';
+import HelpFAQ from './components/HelpFAQ';
 import { LoginPage } from './components/LoginPage';
 import VerificationRequestModal from './components/VerificationRequestModal';
 
@@ -26,7 +28,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [postings, setPostings] = useState<FoodPosting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [view, setView] = useState<'LOGIN' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
+  const [view, setView] = useState<'LOGIN' | 'DASHBOARD' | 'PROFILE' | 'CONTACT' | 'HELP'>('LOGIN');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<string>('default');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
@@ -589,7 +591,7 @@ export default function App() {
 
   if (view === 'PROFILE' && user) {
     return (
-        <Layout user={user} onLogout={() => setView('LOGIN')} onProfileClick={() => {}} onLogoClick={() => setView('DASHBOARD')} notifications={notifications}>
+        <Layout user={user} onLogout={() => setView('LOGIN')} onProfileClick={() => {}} onLogoClick={() => setView('DASHBOARD')} onContactClick={() => setView('CONTACT')} onHelpClick={() => setView('HELP')} notifications={notifications}>
             <ProfileView user={user} onUpdate={(updates) => {
                 storage.updateUser(user.id, updates);
                 setUser({ ...user, ...updates });
@@ -598,12 +600,30 @@ export default function App() {
     );
   }
 
+  if (view === 'CONTACT' && user) {
+    return (
+        <Layout user={user} onLogout={() => setView('LOGIN')} onProfileClick={() => setView('PROFILE')} onLogoClick={() => setView('DASHBOARD')} onContactClick={() => {}} onHelpClick={() => setView('HELP')} notifications={notifications}>
+            <ContactUs user={user} onBack={() => setView('DASHBOARD')} />
+        </Layout>
+    );
+  }
+
+  if (view === 'HELP' && user) {
+      return (
+          <Layout user={user} onLogout={() => setView('LOGIN')} onProfileClick={() => setView('PROFILE')} onLogoClick={() => setView('DASHBOARD')} onContactClick={() => setView('CONTACT')} onHelpClick={() => {}} notifications={notifications}>
+              <HelpFAQ onBack={() => setView('DASHBOARD')} />
+          </Layout>
+      );
+  }
+
   return (
     <Layout 
         user={user} 
         onLogout={() => { setUser(null); setView('LOGIN'); }} 
         onProfileClick={() => setView('PROFILE')}
         onLogoClick={() => setView('DASHBOARD')}
+        onContactClick={() => setView('CONTACT')}
+        onHelpClick={() => setView('HELP')}
         notifications={notifications}
     >
         {/* Dashboard Content */}
