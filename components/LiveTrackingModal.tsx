@@ -65,22 +65,34 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
     const { location: pickup, requesterAddress: dropoff, volunteerLocation } = livePosting;
 
     // Helper to create/update marker with custom HTML icons
-    const updateMarker = (id: string, lat: number, lng: number, iconEmoji: string, color: string, isLive: boolean = false) => {
+    const updateMarker = (id: string, lat: number, lng: number, iconEmoji: string, color: string, isLive: boolean = false, stats?: {dist: string, time: string}) => {
+        
+        // CSS for pulsing animation injected directly into marker HTML
+        const style = isLive ? `
+          <style>
+            @keyframes ping-marker {
+              75%, 100% { transform: scale(2); opacity: 0; }
+            }
+          </style>
+        ` : '';
+
         const pulseHtml = isLive ? `
-            <div style="position: absolute; inset: -12px; background-color: ${color}; border-radius: 50%; opacity: 0.3; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <div style="position: absolute; inset: -6px; background-color: ${color}; border-radius: 50%; opacity: 0.5;"></div>
+            <div style="position: absolute; inset: -12px; background-color: ${color}; border-radius: 50%; opacity: 0.4; animation: ping-marker 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="position: absolute; inset: -6px; background-color: ${color}; border-radius: 50%; opacity: 0.2; animation: ping-marker 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; animation-delay: 0.5s;"></div>
         ` : '';
 
         const badgeHtml = isLive ? `
-            <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 99px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; z-index: 20;">
+            <div style="position: absolute; top: -16px; left: 50%; transform: translateX(-50%); background-color: #ef4444; color: white; font-size: 9px; font-weight: 900; padding: 2px 8px; border-radius: 99px; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.15); white-space: nowrap; z-index: 20; display: flex; align-items: center; gap: 4px;">
+                <span style="width: 6px; height: 6px; background-color: white; border-radius: 50%; animation: ping-marker 1s infinite;"></span>
                 LIVE
             </div>
         ` : '';
 
         const markerHtml = `
-            <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            ${style}
+            <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
                 ${pulseHtml}
-                <div style="position: relative; z-index: 10; background-color: ${color}; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); font-size: 20px;">
+                <div style="position: relative; z-index: 10; background-color: ${color}; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); font-size: 20px;">
                     ${iconEmoji}
                 </div>
                 ${badgeHtml}
@@ -90,50 +102,88 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
         const icon = L.divIcon({
             className: 'custom-marker-icon', 
             html: markerHtml,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
+            iconSize: [44, 44],
+            iconAnchor: [22, 22]
         });
+
+        // Popup Content Construction
+        let popupContent = '';
+        if (id === 'donor') {
+             popupContent = `
+                <div class="font-sans min-w-[120px] text-center">
+                    <p class="text-[10px] font-black uppercase text-emerald-600 tracking-widest mb-1">Pickup</p>
+                    <p class="font-bold text-sm text-slate-800 line-clamp-1">${livePosting.donorOrg || livePosting.donorName}</p>
+                </div>
+            `;
+        } else if (id === 'requester') {
+             popupContent = `
+                <div class="font-sans min-w-[120px] text-center">
+                    <p class="text-[10px] font-black uppercase text-orange-600 tracking-widest mb-1">Dropoff</p>
+                    <p class="font-bold text-sm text-slate-800 line-clamp-1">${livePosting.orphanageName || 'Requester'}</p>
+                </div>
+            `;
+        } else if (id === 'volunteer') {
+            const statsHtml = stats ? `
+                <div class="flex items-center justify-center gap-2 text-xs border-t border-slate-100 pt-2 mt-2">
+                    <div class="text-center">
+                        <span class="block font-black text-slate-800">${stats.dist} km</span>
+                        <span class="text-[9px] text-slate-400 font-bold uppercase">Dist</span>
+                    </div>
+                    <div class="w-px h-6 bg-slate-100"></div>
+                    <div class="text-center">
+                        <span class="block font-black text-emerald-600">~${stats.time} min</span>
+                        <span class="text-[9px] text-slate-400 font-bold uppercase">ETA</span>
+                    </div>
+                </div>
+            ` : `<p class="text-[9px] text-slate-400 mt-1">Calculating...</p>`;
+
+            popupContent = `
+                <div class="font-sans min-w-[140px] text-center p-1">
+                    <p class="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1">Live Tracking</p>
+                    <p class="font-bold text-sm text-slate-800 mb-1">${livePosting.volunteerName}</p>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase mb-2">Heading to Dropoff</p>
+                    ${statsHtml}
+                </div>
+            `;
+        }
 
         if (markersRef.current[id]) {
             markersRef.current[id].setLatLng([lat, lng]);
             markersRef.current[id].setIcon(icon); 
-            // Ensure z-index is high for live marker
             if (isLive) markersRef.current[id].setZIndexOffset(1000);
+            
+            // Update popup content dynamically if marker exists
+            if (popupContent) {
+                markersRef.current[id].setPopupContent(popupContent);
+                // Keep live marker popup open if it was already open or if we want to force show it
+                if (isLive && !markersRef.current[id].isPopupOpen()) {
+                    markersRef.current[id].openPopup();
+                }
+            }
         } else {
             const marker = L.marker([lat, lng], { icon, zIndexOffset: isLive ? 1000 : 0 }).addTo(map);
             
-            // Add Popup Content
-            let popupContent = '';
-            if (id === 'donor') {
-                popupContent = `
-                    <div class="font-sans min-w-[120px]">
-                        <p class="text-[10px] font-black uppercase text-emerald-600 tracking-widest mb-1">Pickup</p>
-                        <p class="font-bold text-sm text-slate-800">${livePosting.donorOrg || livePosting.donorName}</p>
-                    </div>
-                `;
-            } else if (id === 'requester') {
-                popupContent = `
-                    <div class="font-sans min-w-[120px]">
-                        <p class="text-[10px] font-black uppercase text-orange-600 tracking-widest mb-1">Dropoff</p>
-                        <p class="font-bold text-sm text-slate-800">${livePosting.orphanageName || 'Requester'}</p>
-                    </div>
-                `;
-            } else if (id === 'volunteer') {
-                popupContent = `
-                    <div class="font-sans min-w-[120px]">
-                        <p class="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1">Volunteer</p>
-                        <p class="font-bold text-sm text-slate-800">${livePosting.volunteerName}</p>
-                    </div>
-                `;
-            }
-            
             if (popupContent) {
-                marker.bindPopup(popupContent, { closeButton: false });
+                marker.bindPopup(popupContent, { closeButton: false, offset: [0, -20] });
+                // Automatically open popup for volunteer to show stats immediately
+                if (isLive) marker.openPopup();
             }
 
             markersRef.current[id] = marker;
         }
     };
+
+    // Calculations for Volunteer stats
+    let currentStats = null;
+    if (volunteerLocation?.lat && volunteerLocation?.lng && dropoff?.lat && dropoff?.lng) {
+        const dist = calculateDistance(volunteerLocation.lat, volunteerLocation.lng, dropoff.lat, dropoff.lng);
+        const timeMin = Math.ceil((dist / 20) * 60); // Approx 20km/h avg speed
+        currentStats = {
+            dist: dist.toFixed(1),
+            time: timeMin.toString()
+        };
+        setTrackingStats(currentStats);
+    }
 
     // Donor Marker (Green)
     if (pickup?.lat && pickup?.lng) {
@@ -147,18 +197,10 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
 
     // Volunteer Marker (Blue) - Live
     if (volunteerLocation?.lat && volunteerLocation?.lng) {
-        updateMarker('volunteer', volunteerLocation.lat, volunteerLocation.lng, '🚴', '#3b82f6', true);
+        updateMarker('volunteer', volunteerLocation.lat, volunteerLocation.lng, '🚴', '#3b82f6', true, currentStats || undefined);
         
-        // Calculate Distance and Time to Dropoff
+        // Update Polyline
         if (dropoff?.lat && dropoff?.lng) {
-            const dist = calculateDistance(volunteerLocation.lat, volunteerLocation.lng, dropoff.lat, dropoff.lng);
-            const timeMin = Math.ceil((dist / 30) * 60); // Approx 30km/h avg speed
-            setTrackingStats({
-                dist: dist.toFixed(1),
-                time: timeMin.toString()
-            });
-
-            // Update Polyline
             const latlngs = [
                 [volunteerLocation.lat, volunteerLocation.lng],
                 [dropoff.lat, dropoff.lng]
@@ -171,7 +213,7 @@ const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({ posting, onClose 
                     color: '#3b82f6',
                     weight: 4,
                     opacity: 0.6,
-                    dashArray: '10, 10', 
+                    dashArray: '10, 15', 
                     lineCap: 'round'
                 }).addTo(map);
             }
