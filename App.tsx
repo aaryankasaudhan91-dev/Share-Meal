@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Notification, Rating } from './types';
 import { storage } from './services/storageService';
 import { analyzeFoodSafetyImage, reverseGeocode } from './services/geminiService';
 import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
+import PostingsMap from './components/PostingsMap';
 import ProfileView from './components/ProfileView';
 import { LoginPage } from './components/LoginPage';
 import VerificationRequestModal from './components/VerificationRequestModal';
@@ -27,6 +29,7 @@ export default function App() {
   const [view, setView] = useState<'LOGIN' | 'DASHBOARD' | 'PROFILE'>('LOGIN');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<string>('default');
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list'); // New state for toggling views
   
   // Pending Verification State for Donors
   const [pendingVerificationPosting, setPendingVerificationPosting] = useState<FoodPosting | null>(null);
@@ -76,19 +79,17 @@ export default function App() {
     const interval = setInterval(() => {
         setPostings(storage.getPostings());
         if (user) setNotifications(storage.getNotifications(user.id));
-    }, 2000); // Increased frequency for better responsiveness
+    }, 2000); 
 
     // Location Logic
     let watchId: number;
     
     if (user?.role === UserRole.VOLUNTEER) {
-        // Active tracking for volunteers to simulate live updates
         watchId = navigator.geolocation.watchPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
                 setUserLocation({ lat: latitude, lng: longitude });
                 
-                // Automatically update any active deliveries with new location
                 const activePostings = storage.getPostings().filter(p => 
                     p.status === FoodStatus.IN_TRANSIT && p.volunteerId === user.id
                 );
@@ -103,7 +104,6 @@ export default function App() {
             { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
         );
     } else {
-        // Standard one-time fetch for others
         navigator.geolocation.getCurrentPosition(
             (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
             (err) => console.log("Location access denied", err)
@@ -122,38 +122,31 @@ export default function App() {
 
       const checkPendingVerifications = () => {
           const currentPostings = storage.getPostings();
-          // Find the most recent pending verification
           const pending = currentPostings.find(p => 
               p.donorId === user.id && 
-              p.status === FoodStatus.PICKUP_VERIFICATION_PENDING
+              (p.status === FoodStatus.PICKUP_VERIFICATION_PENDING || p.status === FoodStatus.DELIVERY_VERIFICATION_PENDING)
           );
           
           if (pending) {
-               // If we found one, and it's different from current, set it
-               if (!pendingVerificationPosting || pendingVerificationPosting.id !== pending.id) {
+               if (!pendingVerificationPosting || pendingVerificationPosting.id !== pending.id || pendingVerificationPosting.status !== pending.status) {
                    setPendingVerificationPosting(pending);
                }
           } else {
-               // If none found, clear it
                if (pendingVerificationPosting) {
                    setPendingVerificationPosting(null);
                }
           }
       };
 
-      // Check immediately and then poll
       checkPendingVerifications();
       const interval = setInterval(checkPendingVerifications, 2000);
       return () => clearInterval(interval);
   }, [user, pendingVerificationPosting]);
 
-
-  // Clean up camera on unmount or modal close
   useEffect(() => {
     if (!isAddingFood) stopCamera();
   }, [isAddingFood]);
 
-  // Pre-fill address when opening food modal if user has saved address
   useEffect(() => {
     if (isAddingFood) {
         if (user?.address) {
@@ -172,10 +165,8 @@ export default function App() {
     }
   }, [isAddingFood, user]);
 
-  // Filtered Postings based on Tab and Role
   const filteredPostings = useMemo(() => {
     if (!user) return [];
-    
     let filtered = [...postings];
 
     if (user.role === UserRole.DONOR) {
@@ -186,7 +177,6 @@ export default function App() {
         }
     } else if (user.role === UserRole.VOLUNTEER) {
         if (activeTab === 'opportunities') {
-            // Show Available or Requested items (not yet picked up)
             return filtered.filter(p => (p.status === FoodStatus.AVAILABLE || (p.status === FoodStatus.REQUESTED && !p.volunteerId)));
         } else if (activeTab === 'mytasks') {
             return filtered.filter(p => p.volunteerId === user.id && p.status !== FoodStatus.DELIVERED);
@@ -232,8 +222,6 @@ export default function App() {
     if (videoRef.current && canvasRef.current) {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        
-        // Resize logic to avoid "Rpc failed" errors with large payloads
         const MAX_WIDTH = 800;
         const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
         canvas.width = video.videoWidth * scale;
@@ -242,19 +230,14 @@ export default function App() {
         const ctx = canvas.getContext('2d');
         if (ctx) {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // Use 0.8 quality to further reduce size
             const base64 = canvas.toDataURL('image/jpeg', 0.8);
-            
             stopCamera();
             setFoodImage(base64);
             setIsAnalyzing(true);
             setSafetyVerdict(undefined);
-            
-            // AI Analysis
             const analysis = await analyzeFoodSafetyImage(base64);
             setIsAnalyzing(false);
             setSafetyVerdict({ isSafe: analysis.isSafe, reasoning: analysis.reasoning });
-            
             if (!analysis.isSafe) {
                 const keep = window.confirm(`Safety Warning: ${analysis.reasoning}.\n\nDo you want to keep this photo anyway?`);
                 if (!keep) {
@@ -271,7 +254,6 @@ export default function App() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        // Resize loaded image
         const img = new Image();
         img.onload = async () => {
             const canvas = document.createElement('canvas');
@@ -286,12 +268,9 @@ export default function App() {
             setFoodImage(base64);
             setIsAnalyzing(true);
             setSafetyVerdict(undefined);
-            
-            // AI Analysis
             const analysis = await analyzeFoodSafetyImage(base64);
             setIsAnalyzing(false);
             setSafetyVerdict({ isSafe: analysis.isSafe, reasoning: analysis.reasoning });
-            
             if (!analysis.isSafe) {
                 const keep = window.confirm(`Safety Warning: ${analysis.reasoning}.\n\nDo you want to keep this photo anyway?`);
                 if (!keep) {
@@ -351,7 +330,7 @@ export default function App() {
          createdAt: Date.now()
      };
      storage.addVolunteerRating(postingId, rating);
-     setPostings(storage.getPostings()); // Refresh to update UI
+     setPostings(storage.getPostings());
      alert("Thank you for your feedback!");
   };
 
@@ -378,31 +357,18 @@ export default function App() {
   const handlePostFood = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    
-    if (!foodImage) {
-        alert("Please take a photo of the food.");
-        return;
-    }
-
-    if (!foodLine1 || !foodLine2 || !foodPincode) {
-        alert("Please enter a valid pickup address.");
-        return;
-    }
+    if (!foodImage) { alert("Please take a photo of the food."); return; }
+    if (!foodLine1 || !foodLine2 || !foodPincode) { alert("Please enter a valid pickup address."); return; }
 
     const newPost: FoodPosting = {
       id: Math.random().toString(36).substr(2, 9), 
       donorId: user.id, 
       donorName: user?.name || 'Unknown Donor', 
-      donorOrg: user.orgName, // Pass org name if exists
+      donorOrg: user.orgName,
       foodName, 
       description: foodDescription,
       quantity: `${quantityNum} ${unit}`,
-      location: {
-        line1: foodLine1,
-        line2: foodLine2,
-        landmark: foodLandmark,
-        pincode: foodPincode
-      },
+      location: { line1: foodLine1, line2: foodLine2, landmark: foodLandmark, pincode: foodPincode },
       expiryDate, 
       status: FoodStatus.AVAILABLE, 
       imageUrl: foodImage, 
@@ -415,24 +381,17 @@ export default function App() {
     setPostings(storage.getPostings());
     
     // Reset Form
-    setFoodName('');
-    setFoodDescription('');
-    setQuantityNum('');
-    setFoodImage(null);
-    setSafetyVerdict(undefined);
-    setExpiryDate('');
-    setFoodLine1('');
-    setFoodLine2('');
-    setFoodLandmark('');
-    setFoodPincode('');
-    setSelectedTags([]);
+    setFoodName(''); setFoodDescription(''); setQuantityNum(''); setFoodImage(null); setSafetyVerdict(undefined);
+    setExpiryDate(''); setFoodLine1(''); setFoodLine2(''); setFoodLandmark(''); setFoodPincode(''); setSelectedTags([]);
   };
 
   const handleDonorApprove = () => {
       if (pendingVerificationPosting) {
-          storage.updatePosting(pendingVerificationPosting.id, {
-              status: FoodStatus.IN_TRANSIT
-          });
+          if (pendingVerificationPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
+             storage.updatePosting(pendingVerificationPosting.id, { status: FoodStatus.IN_TRANSIT });
+          } else if (pendingVerificationPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
+             storage.updatePosting(pendingVerificationPosting.id, { status: FoodStatus.DELIVERED });
+          }
           setPendingVerificationPosting(null);
           handleRefresh();
       }
@@ -440,16 +399,183 @@ export default function App() {
 
   const handleDonorReject = () => {
       if (pendingVerificationPosting) {
-          storage.updatePosting(pendingVerificationPosting.id, {
-              status: FoodStatus.REQUESTED,
-              pickupVerificationImageUrl: undefined,
-              volunteerId: undefined, 
-              volunteerName: undefined
-          });
+          if (pendingVerificationPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
+              storage.updatePosting(pendingVerificationPosting.id, {
+                  status: FoodStatus.REQUESTED,
+                  pickupVerificationImageUrl: undefined,
+                  volunteerId: undefined, 
+                  volunteerName: undefined
+              });
+              alert("Pickup Verification Rejected. The volunteer has been notified.");
+          } else if (pendingVerificationPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
+              storage.updatePosting(pendingVerificationPosting.id, {
+                  status: FoodStatus.IN_TRANSIT,
+                  verificationImageUrl: undefined
+              });
+              alert("Delivery Verification Rejected. The requester has been notified.");
+          }
           setPendingVerificationPosting(null);
           handleRefresh();
-          alert("Pickup Verification Rejected. The volunteer has been notified.");
       }
+  };
+
+  // --- RENDER HELPERS ---
+
+  const renderStatsCard = (label: string, value: string | number, icon: string, colorClass: string) => (
+    <div className={`p-5 rounded-[2rem] bg-white border border-slate-100 shadow-sm flex items-center gap-4 transition-transform hover:scale-105 ${colorClass}`}>
+        <div className="w-12 h-12 rounded-2xl bg-white/40 flex items-center justify-center text-2xl shadow-sm backdrop-blur-sm">
+            {icon}
+        </div>
+        <div>
+            <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">{label}</p>
+            <p className="text-2xl font-black">{value}</p>
+        </div>
+    </div>
+  );
+
+  const renderDashboardHeader = () => {
+    if (!user) return null;
+    return (
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+            <div>
+                <h2 className="text-4xl font-black text-slate-800 tracking-tight leading-none mb-2">
+                    Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">{user.name?.split(' ')[0]}</span>.
+                </h2>
+                <p className="text-slate-500 font-medium text-lg">
+                    {user.role === UserRole.DONOR && "Let's share some food today! 🥘"}
+                    {user.role === UserRole.VOLUNTEER && "Ready to be a hero? 🦸"}
+                    {user.role === UserRole.REQUESTER && "Find fresh meals nearby. 🏠"}
+                </p>
+            </div>
+            {/* Role Specific Stats */}
+            <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto">
+                {user.role === UserRole.DONOR && (
+                    <>
+                        {renderStatsCard("Impact Score", user.impactScore || 0, "✨", "bg-gradient-to-br from-amber-50 to-orange-50 text-orange-900")}
+                        {renderStatsCard("Total Donations", postings.filter(p => p.donorId === user.id).length, "🍱", "bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-900")}
+                    </>
+                )}
+                {user.role === UserRole.VOLUNTEER && (
+                    <>
+                         {renderStatsCard("Reputation", user.averageRating?.toFixed(1) || "5.0", "⭐", "bg-gradient-to-br from-yellow-50 to-amber-50 text-amber-900")}
+                         {renderStatsCard("Missions", postings.filter(p => p.volunteerId === user.id && p.status === FoodStatus.DELIVERED).length, "🚴", "bg-gradient-to-br from-blue-50 to-indigo-50 text-indigo-900")}
+                    </>
+                )}
+                 {user.role === UserRole.REQUESTER && (
+                    <>
+                         {renderStatsCard("Requests", postings.filter(p => p.orphanageId === user.id).length, "📝", "bg-gradient-to-br from-purple-50 to-pink-50 text-purple-900")}
+                         {renderStatsCard("Received", postings.filter(p => p.orphanageId === user.id && p.status === FoodStatus.DELIVERED).length, "🥣", "bg-gradient-to-br from-emerald-50 to-teal-50 text-teal-900")}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+  };
+
+  const renderTabs = () => {
+    if (!user) return null;
+    const tabClass = (active: boolean) => `px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${active ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`;
+    
+    return (
+        <div className="flex items-center justify-between mb-6">
+            <div className="bg-white p-1.5 rounded-full border border-slate-200 shadow-sm inline-flex">
+                {user.role === UserRole.DONOR && (
+                    <>
+                    <button onClick={() => setActiveTab('active')} className={tabClass(activeTab === 'active')}>Active</button>
+                    <button onClick={() => setActiveTab('history')} className={tabClass(activeTab === 'history')}>History</button>
+                    </>
+                )}
+                {user.role === UserRole.VOLUNTEER && (
+                    <>
+                    <button onClick={() => setActiveTab('opportunities')} className={tabClass(activeTab === 'opportunities')}>Find Food</button>
+                    <button onClick={() => setActiveTab('mytasks')} className={tabClass(activeTab === 'mytasks')}>My Tasks</button>
+                    <button onClick={() => setActiveTab('history')} className={tabClass(activeTab === 'history')}>History</button>
+                    </>
+                )}
+                {user.role === UserRole.REQUESTER && (
+                    <>
+                    <button onClick={() => setActiveTab('browse')} className={tabClass(activeTab === 'browse')}>Browse</button>
+                    <button onClick={() => setActiveTab('myrequests')} className={tabClass(activeTab === 'myrequests')}>My Requests</button>
+                    </>
+                )}
+            </div>
+
+            {/* Map Toggle for Volunteer/Requester */}
+            {(user.role === UserRole.VOLUNTEER && activeTab === 'opportunities') || (user.role === UserRole.REQUESTER && activeTab === 'browse') ? (
+                <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm ml-4">
+                    <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    </button>
+                    <button onClick={() => setViewMode('map')} className={`p-2 rounded-lg transition-colors ${viewMode === 'map' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:text-slate-600'}`}>
+                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    );
+  };
+
+  const renderContent = () => {
+      // Empty State
+      if (filteredPostings.length === 0) {
+          return (
+            <div className="bg-white/60 backdrop-blur-sm rounded-[2.5rem] p-16 text-center border border-dashed border-slate-300 flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-white rounded-full flex items-center justify-center mb-6 shadow-inner border border-white">
+                        <span className="text-4xl filter grayscale opacity-50">🍃</span>
+                </div>
+                <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Nothing to see here... yet!</h3>
+                <p className="text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
+                    {user?.role === UserRole.DONOR ? "Your active donations will appear here. Start by posting some food!" : "No active items found in this category. Check back soon!"}
+                </p>
+                {user?.role === UserRole.DONOR && activeTab === 'active' && (
+                        <button onClick={() => setIsAddingFood(true)} className="mt-8 px-8 py-4 bg-emerald-600 text-white font-black rounded-2xl uppercase text-xs tracking-widest shadow-xl shadow-emerald-200/50 hover:bg-emerald-700 hover:scale-105 transition-all">
+                            Donate Food Now
+                        </button>
+                )}
+            </div>
+          );
+      }
+
+      // Map View
+      if (viewMode === 'map' && ((user?.role === UserRole.VOLUNTEER && activeTab === 'opportunities') || (user?.role === UserRole.REQUESTER && activeTab === 'browse'))) {
+          return (
+              <div className="h-[600px] w-full rounded-[2.5rem] overflow-hidden shadow-lg border border-slate-200">
+                  <PostingsMap 
+                    postings={filteredPostings} 
+                    userLocation={userLocation}
+                    onPostingSelect={(id) => {
+                         // Fallback to list view but highlight or filter? For now just switch to list
+                         // A better UX would be a drawer or modal, but sticking to constraints
+                         alert("Switching to list view to see details.");
+                         setViewMode('list');
+                    }}
+                  />
+              </div>
+          );
+      }
+
+      // List View
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredPostings.map((post, idx) => (
+                <div key={post.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                    <FoodCard 
+                        posting={post} 
+                        user={user!} 
+                        onUpdate={(id, updates) => {
+                            storage.updatePosting(id, updates);
+                            handleRefresh();
+                        }}
+                        onDelete={handleDeletePosting}
+                        currentLocation={userLocation}
+                        onRateVolunteer={handleRateVolunteer}
+                        volunteerProfile={post.volunteerId ? storage.getUser(post.volunteerId) : undefined}
+                        requesterProfile={post.orphanageId ? storage.getUser(post.orphanageId) : undefined}
+                    />
+                </div>
+            ))}
+        </div>
+      );
   };
 
   if (showSplash) return <SplashScreen />;
@@ -484,80 +610,10 @@ export default function App() {
     >
         {/* Dashboard Content */}
         {user && (
-            <div className="space-y-8 animate-fade-in-up">
-                {/* Greeting & Tabs */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                    <div>
-                        <h2 className="text-4xl font-black text-slate-800 tracking-tight leading-none mb-2">
-                            Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">{user?.name?.split(' ')[0]}</span>.
-                        </h2>
-                        <p className="text-slate-500 font-medium text-lg">
-                            {user.role === UserRole.DONOR && "Let's share some food today! 🥘"}
-                            {user.role === UserRole.VOLUNTEER && "Ready to be a hero? 🦸"}
-                            {user.role === UserRole.REQUESTER && "Find fresh meals nearby. 🏠"}
-                        </p>
-                    </div>
-
-                    <div className="bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm flex overflow-x-auto max-w-full">
-                         {user.role === UserRole.DONOR && (
-                             <>
-                                <button onClick={() => setActiveTab('active')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'active' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Active</button>
-                                <button onClick={() => setActiveTab('history')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>History</button>
-                             </>
-                         )}
-                         {user.role === UserRole.VOLUNTEER && (
-                             <>
-                                <button onClick={() => setActiveTab('opportunities')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'opportunities' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Opportunities</button>
-                                <button onClick={() => setActiveTab('mytasks')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'mytasks' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>My Tasks</button>
-                                <button onClick={() => setActiveTab('history')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>History</button>
-                             </>
-                         )}
-                         {user.role === UserRole.REQUESTER && (
-                             <>
-                                <button onClick={() => setActiveTab('browse')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'browse' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Browse</button>
-                                <button onClick={() => setActiveTab('myrequests')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'myrequests' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 transform scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>Requests</button>
-                             </>
-                         )}
-                    </div>
-                </div>
-
-                {/* Content Grid */}
-                {filteredPostings.length === 0 ? (
-                    <div className="bg-white/60 backdrop-blur-sm rounded-[2.5rem] p-16 text-center border border-dashed border-slate-300 flex flex-col items-center justify-center min-h-[400px]">
-                        <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-white rounded-full flex items-center justify-center mb-6 shadow-inner border border-white">
-                             <span className="text-4xl filter grayscale opacity-50">🍃</span>
-                        </div>
-                        <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Nothing to see here... yet!</h3>
-                        <p className="text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
-                            {user.role === UserRole.DONOR ? "Your active donations will appear here. Start by posting some food!" : "There are no current listings in this category. Please check back soon."}
-                        </p>
-                        {user.role === UserRole.DONOR && activeTab === 'active' && (
-                             <button onClick={() => setIsAddingFood(true)} className="mt-8 px-8 py-4 bg-emerald-600 text-white font-black rounded-2xl uppercase text-xs tracking-widest shadow-xl shadow-emerald-200/50 hover:bg-emerald-700 hover:scale-105 transition-all">
-                                 Donate Food Now
-                             </button>
-                        )}
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {filteredPostings.map((post, idx) => (
-                            <div key={post.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
-                                <FoodCard 
-                                    posting={post} 
-                                    user={user} 
-                                    onUpdate={(id, updates) => {
-                                        storage.updatePosting(id, updates);
-                                        handleRefresh();
-                                    }}
-                                    onDelete={handleDeletePosting}
-                                    currentLocation={userLocation}
-                                    onRateVolunteer={handleRateVolunteer}
-                                    volunteerProfile={post.volunteerId ? storage.getUser(post.volunteerId) : undefined}
-                                    requesterProfile={post.orphanageId ? storage.getUser(post.orphanageId) : undefined}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                )}
+            <div className="space-y-4 animate-fade-in-up">
+                {renderDashboardHeader()}
+                {renderTabs()}
+                {renderContent()}
             </div>
         )}
 
@@ -588,7 +644,6 @@ export default function App() {
                     </div>
                     
                     <form onSubmit={handlePostFood} className="p-8 space-y-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
-                        
                         {/* Image Capture Section */}
                         <div className="space-y-4">
                             <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Food Photo & Safety Check</label>

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus } from '../types';
 import { verifyDeliveryImage } from '../services/geminiService';
@@ -120,17 +121,32 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
   };
   
   const handleDonorApprove = () => {
-      onUpdate(posting.id, { status: FoodStatus.IN_TRANSIT });
+      // Check current status to decide next state
+      if (posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
+         onUpdate(posting.id, { status: FoodStatus.IN_TRANSIT });
+      } else if (posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
+         onUpdate(posting.id, { status: FoodStatus.DELIVERED });
+      }
       setShowVerificationModal(false);
   };
 
   const handleDonorReject = () => {
-      if (confirm("Are you sure you want to reject this pickup proof? The status will revert to 'Requested'.")) {
-          onUpdate(posting.id, {
-              status: FoodStatus.REQUESTED,
-              pickupVerificationImageUrl: undefined,
-          });
-          setShowVerificationModal(false);
+      if (posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
+          if (confirm("Are you sure you want to reject this pickup proof?")) {
+              onUpdate(posting.id, {
+                  status: FoodStatus.REQUESTED,
+                  pickupVerificationImageUrl: undefined,
+              });
+              setShowVerificationModal(false);
+          }
+      } else if (posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
+          if (confirm("Are you sure you want to reject this delivery proof?")) {
+              onUpdate(posting.id, {
+                  status: FoodStatus.IN_TRANSIT,
+                  verificationImageUrl: undefined,
+              });
+              setShowVerificationModal(false);
+          }
       }
   };
 
@@ -197,9 +213,9 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
         const result = await verifyDeliveryImage(base64);
         
         if (result.isValid) {
-            alert(`Verification Successful: ${result.feedback}`);
+            alert(`Verification Successful: ${result.feedback}\n\nSent to Donor for confirmation.`);
             onUpdate(posting.id, { 
-                status: FoodStatus.DELIVERED, 
+                status: FoodStatus.DELIVERY_VERIFICATION_PENDING, 
                 verificationImageUrl: base64 
             });
         } else {
@@ -246,6 +262,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
               return <span className="px-3 py-1.5 rounded-full bg-amber-100/90 backdrop-blur-md text-amber-800 text-[10px] font-black uppercase tracking-wider border border-amber-200/50 shadow-sm">Verifying Pickup</span>;
           case FoodStatus.IN_TRANSIT:
               return <span className="px-3 py-1.5 rounded-full bg-indigo-100/90 backdrop-blur-md text-indigo-800 text-[10px] font-black uppercase tracking-wider border border-indigo-200/50 shadow-sm">On The Way</span>;
+          case FoodStatus.DELIVERY_VERIFICATION_PENDING:
+              return <span className="px-3 py-1.5 rounded-full bg-purple-100/90 backdrop-blur-md text-purple-800 text-[10px] font-black uppercase tracking-wider border border-purple-200/50 shadow-sm">Verifying Delivery</span>;
           case FoodStatus.DELIVERED:
               return <span className="px-3 py-1.5 rounded-full bg-slate-100/90 backdrop-blur-md text-slate-500 text-[10px] font-black uppercase tracking-wider border border-slate-200/50 shadow-sm">Delivered</span>;
           default:
@@ -374,12 +392,12 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                   </div>
               )}
 
-              {/* Status Specific UI */}
+              {/* Status Specific UI - Waiting for Pickup Verification */}
               {user?.role === UserRole.VOLUNTEER && posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && (
                  <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
                      <div className="flex items-center gap-2 mb-2 text-amber-800 font-black text-[10px] uppercase tracking-widest">
                          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-                         Waiting for Approval
+                         Pending Pickup Approval
                      </div>
                      <p className="text-slate-600 text-xs font-medium leading-relaxed">
                          Proof sent to <span className="font-bold text-slate-900">{posting.donorOrg || posting.donorName}</span>.
@@ -387,6 +405,22 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                      <div className="mt-3 flex gap-2">
                         <button onClick={() => setShowPreview(true)} className="text-[10px] font-bold text-amber-700 underline decoration-amber-300/50">View Proof</button>
                         <button onClick={handleRetractVerification} className="text-[10px] font-bold text-rose-600 ml-auto hover:underline">Retract</button>
+                     </div>
+                 </div>
+              )}
+
+              {/* Status Specific UI - Waiting for Delivery Verification */}
+              {user?.role === UserRole.REQUESTER && posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && (
+                 <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100">
+                     <div className="flex items-center gap-2 mb-2 text-purple-800 font-black text-[10px] uppercase tracking-widest">
+                         <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
+                         Pending Delivery Approval
+                     </div>
+                     <p className="text-slate-600 text-xs font-medium leading-relaxed">
+                         Delivery proof sent to <span className="font-bold text-slate-900">{posting.donorOrg || posting.donorName}</span>.
+                     </p>
+                     <div className="mt-3 flex gap-2">
+                         <button onClick={() => setShowPreview(true)} className="text-[10px] font-bold text-purple-700 underline decoration-purple-300/50">View Proof</button>
                      </div>
                  </div>
               )}
@@ -445,30 +479,37 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                             Directions
                         </button>
                     )}
-                    <button onClick={() => onUpdate(posting.id, { status: FoodStatus.DELIVERED })} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl uppercase text-[10px] tracking-widest shadow-md hover:-translate-y-0.5 transition-all">
-                        Mark Delivered
+                    {/* Volunteer can also initiate verification if Requester is unable */}
+                    <button onClick={() => !posting.verificationImageUrl && fileInputRef.current?.click()} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl uppercase text-[10px] tracking-widest shadow-md hover:-translate-y-0.5 transition-all">
+                        Verify Delivery
                     </button>
                 </div>
             )}
 
-            {user?.role === UserRole.DONOR && posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && (
-                <button onClick={() => setShowVerificationModal(true)} className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-amber-200 animate-pulse transition-all">
-                    Review Pickup Proof
-                </button>
+            {/* Donor Review Buttons */}
+            {user?.role === UserRole.DONOR && (
+                <>
+                    {posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && (
+                        <button onClick={() => setShowVerificationModal(true)} className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-amber-200 animate-pulse transition-all">
+                            Review Pickup Proof
+                        </button>
+                    )}
+                    {posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && (
+                        <button onClick={() => setShowVerificationModal(true)} className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-purple-200 animate-pulse transition-all">
+                            Review Delivery Proof
+                        </button>
+                    )}
+                </>
             )}
 
-            {/* Verification & Rating for Requester */}
-            {user?.role === UserRole.REQUESTER && (posting.status === FoodStatus.IN_TRANSIT || posting.status === FoodStatus.DELIVERED) && (
+            {/* Requester Actions: Upload Verification */}
+            {user?.role === UserRole.REQUESTER && posting.status === FoodStatus.IN_TRANSIT && (
                 <button 
                   onClick={() => !posting.verificationImageUrl && fileInputRef.current?.click()} 
-                  disabled={isVerifying || !!posting.verificationImageUrl}
-                  className={`w-full font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all ${
-                    posting.verificationImageUrl 
-                      ? 'bg-slate-100 text-slate-400 shadow-none cursor-default' 
-                      : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-200 hover:-translate-y-0.5'
-                  }`}
+                  disabled={isVerifying}
+                  className={`w-full font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all bg-teal-600 hover:bg-teal-700 text-white shadow-teal-200 hover:-translate-y-0.5`}
                 >
-                  {isVerifying ? 'Verifying...' : posting.verificationImageUrl ? 'Verified' : 'Verify Delivery'}
+                  {isVerifying ? 'Verifying...' : 'Upload Delivery Proof'}
                 </button>
             )}
             
@@ -509,10 +550,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
              }}
           />
       )}
-      {showPreview && posting.pickupVerificationImageUrl && (
+      {showPreview && (posting.pickupVerificationImageUrl || posting.verificationImageUrl) && (
           <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up" onClick={() => setShowPreview(false)}>
               <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center justify-center">
-                  <img src={posting.pickupVerificationImageUrl} className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()} />
+                  <img src={posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING ? posting.verificationImageUrl : posting.pickupVerificationImageUrl} className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()} />
                   <button onClick={() => setShowPreview(false)} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>

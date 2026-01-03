@@ -1,3 +1,4 @@
+
 import { User, FoodPosting, FoodStatus, UserRole, Notification, ChatMessage, Rating } from '../types';
 
 const STORAGE_KEY_POSTINGS = 'food_rescue_postings';
@@ -46,7 +47,14 @@ export const storage = {
   },
   saveUser: (user: User) => {
     const users = storage.getUsers();
-    users.push({ ...user, impactScore: 0, averageRating: 0, ratingsCount: 0 });
+    // Use existing stats if they are present in the user object (e.g. from demo/social login), otherwise default to 0
+    const newUser = { 
+        ...user, 
+        impactScore: user.impactScore !== undefined ? user.impactScore : 0, 
+        averageRating: user.averageRating !== undefined ? user.averageRating : 0, 
+        ratingsCount: user.ratingsCount !== undefined ? user.ratingsCount : 0 
+    };
+    users.push(newUser);
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
   },
   updateUser: (id: string, updates: Partial<User>) => {
@@ -183,7 +191,9 @@ export const storage = {
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
 
-      // 1. Volunteer submits proof -> Notify Donor (Action Required)
+      // --- STATUS TRANSITIONS ---
+
+      // 1. Volunteer submits PICKUP proof -> Notify Donor (Action Required)
       if (oldPosting.status !== FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
          notifications.push({
             id: Math.random().toString(36).substr(2, 9),
@@ -195,7 +205,7 @@ export const storage = {
          });
       }
 
-      // 2. Donor Approves -> Notify Volunteer (Success)
+      // 2. Donor Approves PICKUP -> Notify Volunteer (Success)
       if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
          if (newPosting.volunteerId) {
              notifications.push({
@@ -209,9 +219,8 @@ export const storage = {
          }
       }
 
-      // 3. Status Reverted to REQUESTED (Rejection or Retraction)
+      // 3. Status Reverted from PICKUP to REQUESTED (Rejection or Retraction)
       if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.REQUESTED) {
-          // If volunteer triggered retraction (volunteerId persists)
           if (newPosting.volunteerId && newPosting.volunteerId === oldPosting.volunteerId) {
              notifications.push({
                 id: Math.random().toString(36).substr(2, 9),
@@ -222,8 +231,6 @@ export const storage = {
                 type: 'INFO'
              });
           }
-          // If donor rejected (volunteerId might be cleared or retained depending on implementation)
-          // We use oldPosting.volunteerId to ensure the volunteer gets the message even if unassigned
           else if (oldPosting.volunteerId) {
              notifications.push({
                 id: Math.random().toString(36).substr(2, 9),
@@ -236,6 +243,79 @@ export const storage = {
           }
       }
 
+      // 4. Requester/Volunteer submits DELIVERY proof -> Notify Donor (Action Required)
+      if (oldPosting.status !== FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
+          notifications.push({
+              id: Math.random().toString(36).substr(2, 9),
+              userId: newPosting.donorId,
+              message: `ACTION REQUIRED: Delivery proof uploaded for "${newPosting.foodName}". Please verify to complete the donation.`,
+              isRead: false,
+              createdAt: Date.now(),
+              type: 'ACTION'
+          });
+      }
+
+      // 5. Status Reverted from DELIVERY to IN_TRANSIT (Rejection)
+      if (oldPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
+           if (newPosting.orphanageId) {
+              notifications.push({
+                  id: Math.random().toString(36).substr(2, 9),
+                  userId: newPosting.orphanageId,
+                  message: `Delivery Verification Rejected for "${newPosting.foodName}". Please re-upload a clear image of the food reception.`,
+                  isRead: false,
+                  createdAt: Date.now(),
+                  type: 'INFO'
+              });
+           }
+      }
+
+      // 6. Final Delivery Approval (Impact Scores & Success)
+      if (oldPosting.status !== FoodStatus.DELIVERED && newPosting.status === FoodStatus.DELIVERED) {
+         const donorIndex = users.findIndex(u => u.id === newPosting.donorId);
+         const volunteerIndex = users.findIndex(u => u.id === newPosting.volunteerId);
+         const requesterIndex = users.findIndex(u => u.id === newPosting.orphanageId);
+
+         if (donorIndex !== -1) users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
+         if (volunteerIndex !== -1) users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
+         
+         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+         
+         // Notify Donor
+         notifications.push({
+            id: Math.random().toString(36).substr(2, 9),
+            userId: newPosting.donorId,
+            message: `Donation Complete: "${newPosting.foodName}" has been successfully delivered and verified!`,
+            isRead: false,
+            createdAt: Date.now(),
+            type: 'SUCCESS'
+         });
+
+         // Notify Volunteer
+         if (newPosting.volunteerId) {
+            notifications.push({
+                id: Math.random().toString(36).substr(2, 9),
+                userId: newPosting.volunteerId,
+                message: `Mission Accomplished! "${newPosting.foodName}" delivery verified.`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: 'SUCCESS'
+            });
+         }
+
+         // Notify Requester
+         if (newPosting.orphanageId) {
+             notifications.push({
+                 id: Math.random().toString(36).substr(2, 9),
+                 userId: newPosting.orphanageId,
+                 message: `Enjoy your meal! "${newPosting.foodName}" is officially marked as delivered.`,
+                 isRead: false,
+                 createdAt: Date.now(),
+                 type: 'SUCCESS'
+             });
+         }
+      }
+
+      // 7. General PickedUp Flag (Legacy or supplementary check)
       if (!oldPosting.isPickedUp && updates.isPickedUp) {
          if (newPosting.orphanageId) {
              notifications.push({
@@ -245,24 +325,6 @@ export const storage = {
               isRead: false, createdAt: Date.now(), type: 'INFO'
             });
          }
-      }
-
-      if (oldPosting.status !== FoodStatus.DELIVERED && newPosting.status === FoodStatus.DELIVERED) {
-         const donorIndex = users.findIndex(u => u.id === newPosting.donorId);
-         const volunteerIndex = users.findIndex(u => u.id === newPosting.volunteerId);
-         if (donorIndex !== -1) users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
-         if (volunteerIndex !== -1) users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
-         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-         
-         // Notify Donor of Completion
-         notifications.push({
-            id: Math.random().toString(36).substr(2, 9),
-            userId: newPosting.donorId,
-            message: `Donation Complete: "${newPosting.foodName}" has been successfully delivered!`,
-            isRead: false,
-            createdAt: Date.now(),
-            type: 'SUCCESS'
-         });
       }
 
       saveStoredNotifications(notifications);
