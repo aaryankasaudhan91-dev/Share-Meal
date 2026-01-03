@@ -105,7 +105,6 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
                   popupAnchor: [0, -40]
               });
 
-              // Enhanced Preview Card HTML for Popup
               const popupContent = `
                 <div class="font-sans min-w-[220px] bg-white rounded-xl overflow-hidden shadow-sm">
                     <div class="relative h-28 w-full bg-slate-100">
@@ -155,27 +154,28 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
               const vLat = post.volunteerLocation.lat;
               const vLng = post.volunteerLocation.lng;
               
-              // Pulsing Icon for Volunteer
+              // Strong pulsing icon for active tracking
               const pulsingIcon = L.divIcon({
                 className: 'volunteer-live-marker',
                 html: `
-                  <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-                      <div style="position: absolute; inset: 0; background-color: #3b82f6; border-radius: 50%; opacity: 0.3; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-                      <div style="position: relative; z-index: 10; background-color: #3b82f6; width: 32px; height: 32px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); font-size: 16px;">
+                  <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+                      <div style="position: absolute; inset: 0; background-color: #3b82f6; border-radius: 50%; opacity: 0.4; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+                      <div style="position: absolute; inset: -4px; background-color: #3b82f6; border-radius: 50%; opacity: 0.2; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; animation-delay: 0.5s;"></div>
+                      <div style="position: relative; z-index: 10; background-color: #3b82f6; width: 36px; height: 36px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2); font-size: 18px;">
                           🚴
                       </div>
-                      <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 99px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; z-index: 20;">
+                      <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 99px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; z-index: 20;">
                           LIVE
                       </div>
                   </div>
                   <style>
                     @keyframes ping {
-                      75%, 100% { transform: scale(2); opacity: 0; }
+                      75%, 100% { transform: scale(1.5); opacity: 0; }
                     }
                   </style>
                 `,
-                iconSize: [40, 40],
-                iconAnchor: [20, 20]
+                iconSize: [44, 44],
+                iconAnchor: [22, 22]
               });
 
               const vMarker = L.marker([vLat, vLng], { icon: pulsingIcon, zIndexOffset: 1000 })
@@ -184,40 +184,62 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
               // Calculate ETA and Draw Line
               let targetLat = post.location.lat!;
               let targetLng = post.location.lng!;
-              let targetLabel = "Pickup";
+              let targetLabel = "Pickup Point";
+              let statusLabel = "Heading to Pickup";
 
-              // If picked up, target is destination (requester)
-              if (post.status === FoodStatus.IN_TRANSIT && post.requesterAddress?.lat && post.requesterAddress?.lng) {
-                   // Assuming we track 'isPickedUp' flag or infer from status. 
-                   // Since IN_TRANSIT usually means post-pickup in this flow context:
+              // Determine destination based on flow
+              // If status is IN_TRANSIT, it usually implies post-pickup in this simplified model, 
+              // or we need a flag. For this app logic:
+              // If we have verification pending or if requesterAddress is set and status is IN_TRANSIT, we might be delivering.
+              // A simple heuristic: if status is IN_TRANSIT and pickup is done (implicit), target is dropoff.
+              // To correspond with FoodCard logic:
+              if (post.requesterAddress?.lat && post.requesterAddress?.lng && post.status !== FoodStatus.PICKUP_VERIFICATION_PENDING) {
                    targetLat = post.requesterAddress.lat;
                    targetLng = post.requesterAddress.lng;
-                   targetLabel = "Dropoff";
+                   targetLabel = "Dropoff Point";
+                   statusLabel = "Delivering Order";
+              }
+              
+              if (post.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
+                  statusLabel = "Verifying Pickup";
+              } else if (post.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
+                  statusLabel = "Verifying Delivery";
               }
 
               const distanceKm = calculateDistance(vLat, vLng, targetLat, targetLng);
               const etaMins = Math.ceil((distanceKm / 20) * 60); // Approx 20km/h avg speed for city delivery
 
               vMarker.bindPopup(`
-                 <div class="text-center min-w-[120px]">
-                    <p class="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1">Volunteer Live</p>
-                    <p class="font-bold text-sm text-slate-800 mb-2">${post.volunteerName}</p>
-                    <div class="flex justify-center gap-2 text-xs">
-                        <span class="bg-slate-100 px-2 py-1 rounded font-medium">${distanceKm.toFixed(1)} km</span>
-                        <span class="bg-emerald-50 text-emerald-700 px-2 py-1 rounded font-bold">~${etaMins} mins</span>
+                 <div class="text-center min-w-[140px] font-sans p-1">
+                    <p class="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1">Live Tracking</p>
+                    <p class="font-bold text-sm text-slate-800 mb-1">${post.volunteerName}</p>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase mb-2">${statusLabel}</p>
+                    
+                    <div class="flex items-center justify-center gap-2 text-xs border-t border-slate-100 pt-2 mt-2">
+                        <div class="text-center">
+                            <span class="block font-black text-slate-800">${distanceKm.toFixed(1)} km</span>
+                            <span class="text-[9px] text-slate-400 font-bold uppercase">Dist</span>
+                        </div>
+                        <div class="w-px h-6 bg-slate-100"></div>
+                        <div class="text-center">
+                            <span class="block font-black text-emerald-600">~${etaMins} min</span>
+                            <span class="text-[9px] text-slate-400 font-bold uppercase">ETA</span>
+                        </div>
                     </div>
-                    <p class="text-[9px] text-slate-400 mt-2">Moving to ${targetLabel}</p>
                  </div>
-              `);
+              `, { closeButton: false, offset: [0, -20] });
+              
+              // Open popup by default for high visibility
+              vMarker.openPopup();
 
               markersRef.current.push(vMarker);
 
               // Draw dashed line to target
               const polyline = L.polyline([[vLat, vLng], [targetLat, targetLng]], {
                   color: '#3b82f6',
-                  weight: 3,
+                  weight: 4,
                   opacity: 0.6,
-                  dashArray: '10, 10',
+                  dashArray: '10, 15',
                   lineCap: 'round'
               }).addTo(map);
               
@@ -235,7 +257,7 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
       return () => document.removeEventListener('selectPosting', handleSelect);
   }, [onPostingSelect]);
 
-  return <div ref={mapContainerRef} className="h-full w-full rounded-[2rem] shadow-inner bg-slate-100" />;
+  return <div ref={mapContainerRef} className="h-full w-full rounded-[2rem] shadow-inner bg-slate-100 border border-slate-200" />;
 };
 
 export default PostingsMap;

@@ -95,8 +95,12 @@ export default function App() {
                 const { latitude, longitude } = pos.coords;
                 setUserLocation({ lat: latitude, lng: longitude });
                 
+                // Track for IN_TRANSIT AND Pending Verifications to keep map live during handovers
                 const activePostings = storage.getPostings().filter(p => 
-                    p.status === FoodStatus.IN_TRANSIT && p.volunteerId === user.id
+                    (p.status === FoodStatus.IN_TRANSIT || 
+                     p.status === FoodStatus.PICKUP_VERIFICATION_PENDING || 
+                     p.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) && 
+                    p.volunteerId === user.id
                 );
                 
                 if (activePostings.length > 0) {
@@ -426,13 +430,13 @@ export default function App() {
   // --- RENDER HELPERS ---
 
   const renderStatsCard = (label: string, value: string | number, icon: string, colorClass: string) => (
-    <div className={`p-5 rounded-[2rem] bg-white border border-slate-100 shadow-sm flex items-center gap-4 transition-transform hover:scale-105 ${colorClass}`}>
-        <div className="w-12 h-12 rounded-2xl bg-white/40 flex items-center justify-center text-2xl shadow-sm backdrop-blur-sm">
+    <div className={`p-5 rounded-[2rem] bg-white border border-slate-100 shadow-sm flex items-center gap-4 transition-transform hover:scale-105 flex-1 md:flex-none min-w-[150px] ${colorClass}`}>
+        <div className="w-12 h-12 rounded-2xl bg-white/40 flex items-center justify-center text-2xl shadow-sm backdrop-blur-sm shrink-0">
             {icon}
         </div>
-        <div>
-            <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">{label}</p>
-            <p className="text-2xl font-black">{value}</p>
+        <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase opacity-70 tracking-widest truncate">{label}</p>
+            <p className="text-2xl font-black truncate">{value}</p>
         </div>
     </div>
   );
@@ -452,7 +456,7 @@ export default function App() {
                 </p>
             </div>
             {/* Role Specific Stats */}
-            <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto">
+            <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
                 {user.role === UserRole.DONOR && (
                     <>
                         {renderStatsCard("Impact Score", user.impactScore || 0, "✨", "bg-gradient-to-br from-amber-50 to-orange-50 text-orange-900")}

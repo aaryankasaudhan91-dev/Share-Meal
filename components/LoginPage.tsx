@@ -74,31 +74,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   const handleDemoLogin = (role: UserRole) => {
-    const users = storage.getUsers();
-    let demoUser = users.find(u => u.role === role && u.id.startsWith('demo-'));
-    
-    if (!demoUser) {
-        demoUser = {
-            id: `demo-${role.toLowerCase()}-${Math.floor(Math.random() * 1000)}`,
-            name: `Demo ${role.charAt(0) + role.slice(1).toLowerCase()}`,
-            email: `demo.${role.toLowerCase()}@sharemeal.com`,
-            contactNo: '9876543210',
-            password: 'demo',
-            role: role,
-            impactScore: role === UserRole.DONOR ? 125 : 0,
-            averageRating: 4.8,
-            ratingsCount: 24,
-            address: role === UserRole.REQUESTER ? {
-                line1: "12 Sunshine Orphanage",
-                line2: "Happy Valley, MG Road",
-                landmark: "Near Central Park",
-                pincode: "560001"
-            } : undefined,
-            orgName: role === UserRole.REQUESTER ? "Sunshine Orphanage" : undefined,
-            orgCategory: role === UserRole.REQUESTER ? "Orphanage" : undefined
-        };
-        storage.saveUser(demoUser);
-    }
+    // Always create a fresh demo user for this session to ensure 0 stats (Impact Score / Donations)
+    // Using Date.now() in ID ensures it doesn't link to previous demo user data/postings.
+    const demoUser = {
+        id: `demo-${role.toLowerCase()}-${Date.now()}`,
+        name: `Demo ${role.charAt(0) + role.slice(1).toLowerCase()}`,
+        email: `demo.${role.toLowerCase()}@sharemeal.com`,
+        contactNo: '9876543210',
+        password: 'demo',
+        role: role,
+        impactScore: 0, // Reset Impact Score to 0
+        averageRating: 0,
+        ratingsCount: 0,
+        address: role === UserRole.REQUESTER ? {
+            line1: "12 Sunshine Orphanage",
+            line2: "Happy Valley, MG Road",
+            landmark: "Near Central Park",
+            pincode: "560001"
+        } : undefined,
+        orgName: role === UserRole.REQUESTER ? "Sunshine Orphanage" : undefined,
+        orgCategory: role === UserRole.REQUESTER ? "Orphanage" : undefined
+    };
+    storage.saveUser(demoUser);
     onLogin(demoUser);
   };
 
@@ -231,7 +228,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             pincode: regPincode
         } : undefined,
         averageRating: 0,
-        ratingsCount: 0
+        ratingsCount: 0,
+        impactScore: 0
     };
     storage.saveUser(newUser);
     onLogin(newUser);
