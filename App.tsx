@@ -343,7 +343,7 @@ export default function App() {
   };
 
   const handleDeletePosting = (id: string) => {
-      if (confirm("Are you sure you want to delete this donation? This cannot be undone.")) {
+      if (confirm("Are you sure you want to cancel this donation? This will notify any assigned volunteers or requesters and remove it permanently.")) {
           storage.deletePosting(id);
           handleRefresh();
       }

@@ -243,25 +243,27 @@ export const storage = {
           }
       }
 
-      // 4. Requester/Volunteer submits DELIVERY proof -> Notify Donor (Action Required)
+      // 4. Volunteer submits DELIVERY proof -> Notify Requester (Action Required)
       if (oldPosting.status !== FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
-          notifications.push({
-              id: Math.random().toString(36).substr(2, 9),
-              userId: newPosting.donorId,
-              message: `ACTION REQUIRED: Delivery proof uploaded for "${newPosting.foodName}". Please verify to complete the donation.`,
-              isRead: false,
-              createdAt: Date.now(),
-              type: 'ACTION'
-          });
+          if (newPosting.orphanageId) {
+              notifications.push({
+                  id: Math.random().toString(36).substr(2, 9),
+                  userId: newPosting.orphanageId,
+                  message: `ACTION REQUIRED: Delivery proof uploaded for "${newPosting.foodName}". Please verify to confirm receipt.`,
+                  isRead: false,
+                  createdAt: Date.now(),
+                  type: 'ACTION'
+              });
+          }
       }
 
       // 5. Status Reverted from DELIVERY to IN_TRANSIT (Rejection)
       if (oldPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
-           if (newPosting.orphanageId) {
+           if (newPosting.volunteerId) {
               notifications.push({
                   id: Math.random().toString(36).substr(2, 9),
-                  userId: newPosting.orphanageId,
-                  message: `Delivery Verification Rejected for "${newPosting.foodName}". Please re-upload a clear image of the food reception.`,
+                  userId: newPosting.volunteerId,
+                  message: `Delivery Verification Rejected for "${newPosting.foodName}". Please re-upload a clear image or contact the requester.`,
                   isRead: false,
                   createdAt: Date.now(),
                   type: 'INFO'
@@ -334,6 +336,39 @@ export const storage = {
   },
   deletePosting: (id: string) => {
     let postings = storage.getPostings();
+    const postingToDelete = postings.find(p => p.id === id);
+    
+    // Notify relevant parties before deletion
+    if (postingToDelete) {
+      const notifications = getStoredNotifications();
+      
+      // Notify Requester
+      if (postingToDelete.orphanageId) {
+        notifications.push({
+          id: Math.random().toString(36).substr(2, 9),
+          userId: postingToDelete.orphanageId,
+          message: `The donation "${postingToDelete.foodName}" has been cancelled by the donor.`,
+          isRead: false,
+          createdAt: Date.now(),
+          type: 'INFO'
+        });
+      }
+      
+      // Notify Volunteer
+      if (postingToDelete.volunteerId) {
+        notifications.push({
+          id: Math.random().toString(36).substr(2, 9),
+          userId: postingToDelete.volunteerId,
+          message: `Mission Aborted: The donation "${postingToDelete.foodName}" has been cancelled by the donor.`,
+          isRead: false,
+          createdAt: Date.now(),
+          type: 'INFO'
+        });
+      }
+      
+      saveStoredNotifications(notifications);
+    }
+
     postings = postings.filter(p => p.id !== id);
     localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
   },

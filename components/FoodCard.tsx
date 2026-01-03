@@ -1,7 +1,6 @@
 
 import React, { useState, useRef } from 'react';
 import { FoodPosting, User, UserRole, FoodStatus } from '../types';
-import { verifyDeliveryImage } from '../services/geminiService';
 import DirectionsModal from './DirectionsModal';
 import LiveTrackingModal from './LiveTrackingModal';
 import RatingModal from './RatingModal';
@@ -120,7 +119,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
       }
   };
   
-  const handleDonorApprove = () => {
+  const handleApprove = () => {
       // Check current status to decide next state
       if (posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
          onUpdate(posting.id, { status: FoodStatus.IN_TRANSIT });
@@ -130,7 +129,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
       setShowVerificationModal(false);
   };
 
-  const handleDonorReject = () => {
+  const handleReject = () => {
       if (posting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
           if (confirm("Are you sure you want to reject this pickup proof?")) {
               onUpdate(posting.id, {
@@ -205,25 +204,30 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
 
   const handleVerificationUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
 
     setIsVerifying(true);
     try {
         const base64 = await resizeImage(file);
-        const result = await verifyDeliveryImage(base64);
         
-        if (result.isValid) {
-            alert(`Verification Successful: ${result.feedback}\n\nSent to Donor for confirmation.`);
+        // If Requester uploads, they are confirming receipt directly.
+        if (user.role === UserRole.REQUESTER) {
+            onUpdate(posting.id, { 
+                status: FoodStatus.DELIVERED, 
+                verificationImageUrl: base64 
+            });
+            alert("Delivery confirmed! Thank you.");
+        } else {
+            // Volunteer upload -> Pending Requester Verification
             onUpdate(posting.id, { 
                 status: FoodStatus.DELIVERY_VERIFICATION_PENDING, 
                 verificationImageUrl: base64 
             });
-        } else {
-            alert(`Verification Failed: ${result.feedback}`);
+            alert("Proof uploaded! Sent to Requester for confirmation.");
         }
     } catch (error) {
         console.error(error);
-        alert("Error processing or verifying image.");
+        alert("Error processing image.");
     } finally {
         setIsVerifying(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -417,10 +421,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                          Pending Delivery Approval
                      </div>
                      <p className="text-slate-600 text-xs font-medium leading-relaxed">
-                         Delivery proof sent to <span className="font-bold text-slate-900">{posting.donorOrg || posting.donorName}</span>.
+                         Delivery proof sent by <span className="font-bold text-slate-900">{posting.volunteerName || 'Volunteer'}</span>. Please verify.
                      </p>
                      <div className="mt-3 flex gap-2">
                          <button onClick={() => setShowPreview(true)} className="text-[10px] font-bold text-purple-700 underline decoration-purple-300/50">View Proof</button>
+                         <button onClick={() => setShowVerificationModal(true)} className="text-[10px] font-bold text-emerald-600 ml-auto bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors">Verify Now</button>
                      </div>
                  </div>
               )}
@@ -494,15 +499,10 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                             Review Pickup Proof
                         </button>
                     )}
-                    {posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && (
-                        <button onClick={() => setShowVerificationModal(true)} className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-purple-200 animate-pulse transition-all">
-                            Review Delivery Proof
-                        </button>
-                    )}
                     
                     {/* Cancel Donation Button (For Donors when Available or Requested) */}
                     {(posting.status === FoodStatus.AVAILABLE || posting.status === FoodStatus.REQUESTED) && (
-                         <button onClick={handleDelete} className="w-full bg-white hover:bg-rose-50 border-2 border-slate-100 hover:border-rose-100 text-slate-400 hover:text-rose-600 font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all">
+                         <button onClick={handleDelete} className="w-full bg-rose-50 hover:bg-rose-100 border-2 border-rose-100 text-rose-500 hover:text-rose-600 font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm">
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                              Cancel Donation
                          </button>
@@ -517,7 +517,14 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                   disabled={isVerifying}
                   className={`w-full font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all bg-teal-600 hover:bg-teal-700 text-white shadow-teal-200 hover:-translate-y-0.5`}
                 >
-                  {isVerifying ? 'Verifying...' : 'Upload Delivery Proof'}
+                  {isVerifying ? 'Uploading...' : 'Confirm Receipt & Upload Proof'}
+                </button>
+            )}
+            
+            {/* Requester Verification of Volunteer Upload */}
+            {user?.role === UserRole.REQUESTER && posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && (
+                <button onClick={() => setShowVerificationModal(true)} className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-black py-4 rounded-2xl uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-purple-200 animate-pulse transition-all">
+                    Review Delivery Proof
                 </button>
             )}
             
@@ -571,8 +578,8 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
       {showVerificationModal && (
           <VerificationRequestModal 
              posting={posting}
-             onApprove={handleDonorApprove}
-             onReject={handleDonorReject}
+             onApprove={handleApprove}
+             onReject={handleReject}
           />
       )}
     </div>
@@ -580,4 +587,3 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
 };
 
 export default FoodCard;
-    

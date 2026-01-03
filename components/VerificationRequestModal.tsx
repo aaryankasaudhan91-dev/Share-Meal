@@ -12,10 +12,12 @@ const VerificationRequestModal: React.FC<VerificationRequestModalProps> = ({ pos
   const isDelivery = posting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING;
   const imageUrl = isDelivery ? posting.verificationImageUrl : posting.pickupVerificationImageUrl;
   const title = isDelivery ? "Delivery Verification" : "Pickup Verification";
-  const subtitle = isDelivery ? `Confirm that "${posting.foodName}" has been received by the requester.` : `Volunteer wants to pick up "${posting.foodName}"`;
+  const subtitle = isDelivery ? `Confirm that "${posting.foodName}" has been received.` : `Volunteer wants to pick up "${posting.foodName}"`;
   const proofLabel = isDelivery ? "Proof of Delivery" : "Proof of Pickup";
   const confirmText = isDelivery ? "Confirm Delivery" : "Confirm Pickup";
-  const uploaderName = isDelivery ? (posting.orphanageName || "Requester") : (posting.volunteerName || "Volunteer");
+  
+  // For delivery, typically the Volunteer uploads it. For pickup, also Volunteer uploads it.
+  const uploaderName = posting.volunteerName || "Volunteer";
 
   return (
     <div className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
