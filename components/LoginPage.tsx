@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { storage } from '../services/storageService';
@@ -8,14 +9,18 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
-  const [view, setView] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'SOCIAL_SETUP'>('LOGIN');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   
   // --- LOGIN STATE ---
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // --- REGISTER STATE (WIZARD) ---
+  // --- SOCIAL LOGIN STATE ---
+  const [isSocialProcessing, setIsSocialProcessing] = useState<string | null>(null);
+  const [socialProfile, setSocialProfile] = useState<{name: string, email: string, provider: string, picture?: string} | null>(null);
+
+  // --- REGISTER STATE (WIZARD) & SOCIAL SETUP ---
   const [currentStep, setCurrentStep] = useState(1);
   const [totalSteps, setTotalSteps] = useState(3);
   
@@ -34,15 +39,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [regPincode, setRegPincode] = useState('');
   const [isAutoDetecting, setIsAutoDetecting] = useState(false);
 
-  // Update total steps based on role
+  // Update total steps based on role for normal registration
   useEffect(() => {
-    // Step 1: Role, Step 2: Credentials, Step 3: Contact/Org Details, Step 4: Location (Requester only)
-    if (regRole === UserRole.REQUESTER) {
-        setTotalSteps(4);
-    } else {
-        setTotalSteps(3);
+    if (view === 'REGISTER') {
+        if (regRole === UserRole.REQUESTER) {
+            setTotalSteps(4);
+        } else {
+            setTotalSteps(3);
+        }
     }
-  }, [regRole]);
+  }, [regRole, view]);
 
   // --- HANDLERS ---
 
@@ -96,28 +102,70 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     onLogin(demoUser);
   };
 
-  const handleSocialLogin = (provider: string) => {
-      const mockEmail = `user.${provider.toLowerCase()}@example.com`;
-      const users = storage.getUsers();
-      let user = users.find(u => u.email === mockEmail);
+  const handleSocialAuth = (provider: string) => {
+      setIsSocialProcessing(provider);
+      
+      // Simulate API Network Delay
+      setTimeout(() => {
+          const mockEmail = `user.${provider.toLowerCase()}@example.com`;
+          const mockName = `${provider} User`;
+          const mockPic = provider === 'Google' 
+            ? 'https://lh3.googleusercontent.com/a/default-user=s96-c' 
+            : 'https://graph.facebook.com/123456789/picture?type=large'; // Mock FB URL
 
-      if (!user) {
-          user = {
-              id: `social-${provider.toLowerCase()}-${Math.floor(Math.random() * 10000)}`,
-              name: `${provider} User`,
-              email: mockEmail,
-              contactNo: '0000000000',
-              role: UserRole.DONOR,
-              impactScore: 5,
-              averageRating: 5,
-              ratingsCount: 1,
-              profilePictureUrl: provider === 'Google' 
-                ? 'https://lh3.googleusercontent.com/a/default-user=s96-c' 
-                : undefined
-          };
-          storage.saveUser(user);
-      }
-      onLogin(user);
+          const users = storage.getUsers();
+          const existingUser = users.find(u => u.email === mockEmail);
+
+          if (existingUser) {
+              // DETECTED EXISTING USER -> LOGIN DIRECTLY
+              onLogin(existingUser);
+          } else {
+              // NEW USER -> GO TO SETUP
+              setSocialProfile({
+                  name: mockName,
+                  email: mockEmail,
+                  provider: provider,
+                  picture: mockPic
+              });
+              setRegName(mockName);
+              setRegEmail(mockEmail);
+              setView('SOCIAL_SETUP');
+          }
+          setIsSocialProcessing(null);
+      }, 1500);
+  };
+
+  const completeSocialRegistration = () => {
+     if (!socialProfile) return;
+
+     // Validation for social flow
+     if (regRole === UserRole.REQUESTER && (!regOrgName || !regLine1 || !regPincode)) {
+         alert("Please provide Organization Name and Location details.");
+         return;
+     }
+
+     const newUser: User = {
+         id: `social-${socialProfile.provider.toLowerCase()}-${Math.random().toString(36).substr(2, 9)}`,
+         name: regName || socialProfile.name,
+         email: socialProfile.email,
+         contactNo: regContactNo, // Optional for social login usually, but good to have
+         role: regRole,
+         profilePictureUrl: socialProfile.picture,
+         impactScore: 0,
+         averageRating: 0,
+         ratingsCount: 0,
+         orgName: regRole === UserRole.REQUESTER ? regOrgName : undefined,
+         orgCategory: regRole === UserRole.REQUESTER ? regOrgCategory : undefined,
+         address: regRole === UserRole.REQUESTER ? {
+             line1: regLine1,
+             line2: regLine2,
+             landmark: regLandmark,
+             pincode: regPincode
+         } : undefined
+     };
+
+     storage.saveUser(newUser);
+     onLogin(newUser);
   };
 
   const handleNextStep = () => {
@@ -368,11 +416,75 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               </div>
               <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">MEALers <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">connect</span></h1>
               <p className="text-slate-500 font-medium mt-2 text-sm">
-                  {view === 'LOGIN' ? 'Welcome back! Ready to make a difference?' : 'Join the community and start helping.'}
+                  {view === 'LOGIN' ? 'Welcome back! Ready to make a difference?' : view === 'SOCIAL_SETUP' ? 'Almost there! Complete your profile.' : 'Join the community and start helping.'}
               </p>
           </div>
           
-          {view === 'LOGIN' ? (
+          {view === 'SOCIAL_SETUP' && socialProfile ? (
+              <div className="animate-fade-in-up">
+                  <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
+                     {socialProfile.picture ? (
+                         <img src={socialProfile.picture} alt="Profile" className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
+                     ) : (
+                         <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg">{socialProfile.name.charAt(0)}</div>
+                     )}
+                     <div>
+                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Connected via {socialProfile.provider}</p>
+                         <p className="text-sm font-black text-slate-800">{socialProfile.name}</p>
+                     </div>
+                  </div>
+
+                  <h3 className="text-lg font-black text-slate-800 mb-4 text-center">How do you want to help?</h3>
+                  
+                  <div className="grid grid-cols-1 gap-3 mb-6">
+                        {[
+                            { role: UserRole.DONOR, label: 'Food Donor', icon: '🎁', desc: 'Donate surplus food' },
+                            { role: UserRole.VOLUNTEER, label: 'Volunteer', icon: '🚴', desc: 'Deliver food to needy' },
+                            { role: UserRole.REQUESTER, label: 'Requester', icon: '🏠', desc: 'Request food assistance' }
+                        ].map(({ role, label, icon, desc }) => (
+                            <button 
+                                key={role}
+                                type="button"
+                                onClick={() => setRegRole(role)}
+                                className={`flex items-center p-3 rounded-2xl border-2 transition-all duration-200 text-left ${regRole === role ? 'border-emerald-500 bg-emerald-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-emerald-200'}`}
+                            >
+                                <div className="text-2xl mr-3">{icon}</div>
+                                <div>
+                                    <div className="font-bold text-slate-800 text-xs uppercase tracking-wide">{label}</div>
+                                    <div className="text-[10px] text-slate-500 font-medium">{desc}</div>
+                                </div>
+                                <div className={`ml-auto w-4 h-4 rounded-full border-2 flex items-center justify-center ${regRole === role ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'}`}>
+                                    {regRole === role && <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                            </button>
+                        ))}
+                  </div>
+
+                  {regRole === UserRole.REQUESTER && (
+                      <div className="space-y-4 mb-6 pt-4 border-t border-slate-100 animate-fade-in-up">
+                          <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest text-center mb-2">Organization Details</h4>
+                          <input type="text" placeholder="Organization Name" className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} />
+                          <div className="grid grid-cols-2 gap-3">
+                              <input type="text" placeholder="Address Line 1" className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regLine1} onChange={e => setRegLine1(e.target.value)} />
+                              <input type="text" placeholder="Pincode" className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regPincode} onChange={e => setRegPincode(e.target.value)} />
+                          </div>
+                      </div>
+                  )}
+
+                  <button 
+                      onClick={completeSocialRegistration}
+                      className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-slate-200 hover:bg-slate-800 hover:-translate-y-0.5 transition-all"
+                  >
+                      Complete Signup
+                  </button>
+                  <button 
+                      onClick={() => { setView('LOGIN'); setSocialProfile(null); }}
+                      className="w-full text-center mt-4 text-slate-400 font-bold text-xs uppercase hover:text-slate-600"
+                  >
+                      Cancel
+                  </button>
+              </div>
+          ) : view === 'LOGIN' ? (
             <div className="animate-fade-in-up">
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2">
@@ -410,20 +522,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mt-2">
-                        <button type="button" onClick={() => handleSocialLogin('Google')} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm">
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M23.766 12.2764C23.766 11.4607 23.6999 10.6406 23.5588 9.83807H12.24V14.4591H18.7217C18.4528 15.9494 17.5885 17.2678 16.323 18.1056V21.1039H20.19C22.4608 19.0139 23.766 15.9274 23.766 12.2764Z" fill="#4285F4"/>
-                                <path d="M12.2401 24.0008C15.4766 24.0008 18.2059 22.9382 20.1945 21.1039L16.3275 18.1055C15.2517 18.8375 13.8627 19.252 12.2445 19.252C9.11388 19.252 6.45946 17.1399 5.50705 14.3003H1.5166V17.3912C3.55371 21.4434 7.7029 24.0008 12.2401 24.0008Z" fill="#34A853"/>
-                                <path d="M5.50253 14.3003C5.00236 12.8099 5.00236 11.1961 5.50253 9.70575V6.61481H1.51649C-0.18551 10.0056 -0.18551 14.0004 1.51649 17.3912L5.50253 14.3003Z" fill="#FBBC05"/>
-                                <path d="M12.2401 4.74966C13.9509 4.7232 15.6044 5.36697 16.8434 6.54867L20.2695 3.12262C18.1001 1.0855 15.2208 -0.034466 12.2401 0.000808666C7.7029 0.000808666 3.55371 2.55822 1.5166 6.61481L5.50264 9.70575C6.45064 6.86173 9.10947 4.74966 12.2401 4.74966Z" fill="#EA4335"/>
-                            </svg>
-                            Google
+                        <button type="button" onClick={() => handleSocialAuth('Google')} disabled={!!isSocialProcessing} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm disabled:opacity-70">
+                            {isSocialProcessing === 'Google' ? (
+                                <svg className="animate-spin h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            ) : (
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M23.766 12.2764C23.766 11.4607 23.6999 10.6406 23.5588 9.83807H12.24V14.4591H18.7217C18.4528 15.9494 17.5885 17.2678 16.323 18.1056V21.1039H20.19C22.4608 19.0139 23.766 15.9274 23.766 12.2764Z" fill="#4285F4"/>
+                                    <path d="M12.2401 24.0008C15.4766 24.0008 18.2059 22.9382 20.1945 21.1039L16.3275 18.1055C15.2517 18.8375 13.8627 19.252 12.2445 19.252C9.11388 19.252 6.45946 17.1399 5.50705 14.3003H1.5166V17.3912C3.55371 21.4434 7.7029 24.0008 12.2401 24.0008Z" fill="#34A853"/>
+                                    <path d="M5.50253 14.3003C5.00236 12.8099 5.00236 11.1961 5.50253 9.70575V6.61481H1.51649C-0.18551 10.0056 -0.18551 14.0004 1.51649 17.3912L5.50253 14.3003Z" fill="#FBBC05"/>
+                                    <path d="M12.2401 4.74966C13.9509 4.7232 15.6044 5.36697 16.8434 6.54867L20.2695 3.12262C18.1001 1.0855 15.2208 -0.034466 12.2401 0.000808666C7.7029 0.000808666 3.55371 2.55822 1.5166 6.61481L5.50264 9.70575C6.45064 6.86173 9.10947 4.74966 12.2401 4.74966Z" fill="#EA4335"/>
+                                </svg>
+                            )}
+                            {isSocialProcessing === 'Google' ? 'Connecting...' : 'Google'}
                         </button>
-                        <button type="button" onClick={() => handleSocialLogin('Facebook')} className="flex items-center justify-center gap-2 py-3 bg-[#1877F2] text-white rounded-xl text-xs font-bold hover:bg-[#166fe5] transition-all hover:shadow-sm">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                            </svg>
-                            Facebook
+                        <button type="button" onClick={() => handleSocialAuth('Facebook')} disabled={!!isSocialProcessing} className="flex items-center justify-center gap-2 py-3 bg-[#1877F2] text-white rounded-xl text-xs font-bold hover:bg-[#166fe5] transition-all hover:shadow-sm disabled:opacity-70">
+                            {isSocialProcessing === 'Facebook' ? (
+                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            ) : (
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                </svg>
+                            )}
+                            {isSocialProcessing === 'Facebook' ? 'Connecting...' : 'Facebook'}
                         </button>
                     </div>
                 </div>

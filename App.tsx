@@ -613,7 +613,7 @@ export default function App() {
   if (view === 'HELP' && user) {
       return (
           <Layout user={user} onLogout={() => setView('LOGIN')} onProfileClick={() => setView('PROFILE')} onLogoClick={() => setView('DASHBOARD')} onContactClick={() => setView('CONTACT')} onHelpClick={() => {}} notifications={notifications}>
-              <HelpFAQ onBack={() => setView('DASHBOARD')} />
+              <HelpFAQ onBack={() => setView('DASHBOARD')} onContact={() => setView('CONTACT')} />
           </Layout>
       );
   }

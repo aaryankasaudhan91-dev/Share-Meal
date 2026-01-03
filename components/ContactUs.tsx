@@ -58,10 +58,20 @@ const ContactUs: React.FC<ContactUsProps> = ({ user, onBack }) => {
              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
              <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
              
-             <div className="relative z-10 flex items-center justify-between">
+             <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div>
                     <h2 className="text-3xl font-black tracking-tight mb-2">Contact Support</h2>
-                    <p className="text-slate-400 font-medium max-w-sm leading-relaxed">We're here to help with any questions, technical issues, or feedback you might have.</p>
+                    <p className="text-slate-400 font-medium max-w-sm leading-relaxed mb-6">We're here to help with any questions, technical issues, or feedback you might have.</p>
+                    
+                    <a href="tel:+918591095318" className="inline-flex items-center gap-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 px-5 py-3 rounded-2xl transition-all group">
+                        <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
+                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Call Us Now</p>
+                            <p className="text-lg font-bold text-white tracking-wide">+91 85910 95318</p>
+                        </div>
+                    </a>
                 </div>
                 <div className="hidden md:flex w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl items-center justify-center text-emerald-400 border border-white/10">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
@@ -124,4 +134,3 @@ const ContactUs: React.FC<ContactUsProps> = ({ user, onBack }) => {
 };
 
 export default ContactUs;
-    

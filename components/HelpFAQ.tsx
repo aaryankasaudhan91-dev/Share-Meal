@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 
 interface HelpFAQProps {
   onBack: () => void;
+  onContact: () => void;
 }
 
 const faqs = [
@@ -39,7 +40,7 @@ const faqs = [
   }
 ];
 
-const HelpFAQ: React.FC<HelpFAQProps> = ({ onBack }) => {
+const HelpFAQ: React.FC<HelpFAQProps> = ({ onBack, onContact }) => {
   const [activeCategory, setActiveCategory] = useState('General');
   const [openQuestionIndex, setOpenQuestionIndex] = useState<number | null>(null);
 
@@ -75,7 +76,7 @@ const HelpFAQ: React.FC<HelpFAQProps> = ({ onBack }) => {
             <div className="mt-8 hidden md:block">
                 <div className="bg-emerald-50 rounded-2xl p-5 border border-emerald-100">
                     <p className="text-emerald-800 text-xs font-bold leading-relaxed mb-3">Still need help? Our support team is just a message away.</p>
-                    <button onClick={onBack} className="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-black uppercase hover:bg-emerald-700 transition-colors">Contact Support</button>
+                    <button onClick={onContact} className="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-black uppercase hover:bg-emerald-700 transition-colors">Contact Support</button>
                 </div>
             </div>
         </div>
