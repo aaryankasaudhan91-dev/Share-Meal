@@ -10,10 +10,24 @@ interface PostingsMapProps {
   userLocation?: { lat: number; lng: number };
 }
 
+// Haversine formula for client-side distance calc
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  return R * c; // Distance in km
+};
+
 const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, userLocation }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const polylinesRef = useRef<any[]>([]);
 
   useEffect(() => {
     if (mapContainerRef.current && !mapInstanceRef.current) {
@@ -45,14 +59,16 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
       }
   }, [userLocation]);
 
-  // Update markers
+  // Update markers and active tracking
   useEffect(() => {
       if (!mapInstanceRef.current) return;
       const map = mapInstanceRef.current;
 
-      // Clear existing markers
+      // Clear existing layers
       markersRef.current.forEach(marker => map.removeLayer(marker));
       markersRef.current = [];
+      polylinesRef.current.forEach(line => map.removeLayer(line));
+      polylinesRef.current = [];
 
       // Add User Location Marker
       if (userLocation) {
@@ -69,8 +85,8 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
       }
 
       postings.forEach(post => {
+          // --- 1. Posting Marker (Food Location) ---
           if (post.location?.lat && post.location?.lng) {
-              
               const isUrgent = new Date(post.expiryDate).getTime() - Date.now() < 12 * 60 * 60 * 1000;
               const color = isUrgent ? '#f43f5e' : '#10b981'; // Rose for urgent, Emerald for normal
               const iconEmoji = post.foodCategory === 'Veg' ? '🥗' : '🍱';
@@ -130,6 +146,82 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
               });
 
               markersRef.current.push(marker);
+          }
+
+          // --- 2. Live Volunteer Marker (Active Missions) ---
+          if (post.volunteerLocation?.lat && post.volunteerLocation?.lng && 
+             (post.status === FoodStatus.IN_TRANSIT || post.status === FoodStatus.PICKUP_VERIFICATION_PENDING || post.status === FoodStatus.DELIVERY_VERIFICATION_PENDING)) {
+              
+              const vLat = post.volunteerLocation.lat;
+              const vLng = post.volunteerLocation.lng;
+              
+              // Pulsing Icon for Volunteer
+              const pulsingIcon = L.divIcon({
+                className: 'volunteer-live-marker',
+                html: `
+                  <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                      <div style="position: absolute; inset: 0; background-color: #3b82f6; border-radius: 50%; opacity: 0.3; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+                      <div style="position: relative; z-index: 10; background-color: #3b82f6; width: 32px; height: 32px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); font-size: 16px;">
+                          🚴
+                      </div>
+                      <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 99px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; z-index: 20;">
+                          LIVE
+                      </div>
+                  </div>
+                  <style>
+                    @keyframes ping {
+                      75%, 100% { transform: scale(2); opacity: 0; }
+                    }
+                  </style>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+              });
+
+              const vMarker = L.marker([vLat, vLng], { icon: pulsingIcon, zIndexOffset: 1000 })
+                  .addTo(map);
+
+              // Calculate ETA and Draw Line
+              let targetLat = post.location.lat!;
+              let targetLng = post.location.lng!;
+              let targetLabel = "Pickup";
+
+              // If picked up, target is destination (requester)
+              if (post.status === FoodStatus.IN_TRANSIT && post.requesterAddress?.lat && post.requesterAddress?.lng) {
+                   // Assuming we track 'isPickedUp' flag or infer from status. 
+                   // Since IN_TRANSIT usually means post-pickup in this flow context:
+                   targetLat = post.requesterAddress.lat;
+                   targetLng = post.requesterAddress.lng;
+                   targetLabel = "Dropoff";
+              }
+
+              const distanceKm = calculateDistance(vLat, vLng, targetLat, targetLng);
+              const etaMins = Math.ceil((distanceKm / 20) * 60); // Approx 20km/h avg speed for city delivery
+
+              vMarker.bindPopup(`
+                 <div class="text-center min-w-[120px]">
+                    <p class="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1">Volunteer Live</p>
+                    <p class="font-bold text-sm text-slate-800 mb-2">${post.volunteerName}</p>
+                    <div class="flex justify-center gap-2 text-xs">
+                        <span class="bg-slate-100 px-2 py-1 rounded font-medium">${distanceKm.toFixed(1)} km</span>
+                        <span class="bg-emerald-50 text-emerald-700 px-2 py-1 rounded font-bold">~${etaMins} mins</span>
+                    </div>
+                    <p class="text-[9px] text-slate-400 mt-2">Moving to ${targetLabel}</p>
+                 </div>
+              `);
+
+              markersRef.current.push(vMarker);
+
+              // Draw dashed line to target
+              const polyline = L.polyline([[vLat, vLng], [targetLat, targetLng]], {
+                  color: '#3b82f6',
+                  weight: 3,
+                  opacity: 0.6,
+                  dashArray: '10, 10',
+                  lineCap: 'round'
+              }).addTo(map);
+              
+              polylinesRef.current.push(polyline);
           }
       });
   }, [postings, userLocation]);
