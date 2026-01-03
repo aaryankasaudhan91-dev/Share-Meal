@@ -13,6 +13,7 @@ interface FoodCardProps {
   onDelete?: (id: string) => void;
   currentLocation?: { lat: number; lng: number };
   onRateVolunteer?: (postingId: string, rating: number, feedback: string) => void;
+  onChatClick?: (postingId: string) => void;
   volunteerProfile?: User;
   requesterProfile?: User;
 }
@@ -44,7 +45,7 @@ const resizeImage = (file: File): Promise<string> => {
   });
 };
 
-const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, currentLocation, onRateVolunteer, volunteerProfile, requesterProfile }) => {
+const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, currentLocation, onRateVolunteer, onChatClick, volunteerProfile, requesterProfile }) => {
   const [showDirections, setShowDirections] = useState(false);
   const [showTracking, setShowTracking] = useState(false);
   const [showRating, setShowRating] = useState(false);
@@ -73,6 +74,13 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
   const expiryStatus = getExpiryStatus();
   const hasRated = posting.ratings?.some(r => r.raterId === user?.id);
   const isSafetyUnknownOrUnsafe = posting.safetyVerdict && !posting.safetyVerdict.isSafe;
+
+  // Determine if the user is involved in this posting to allow chat
+  const isInvolved = user && (
+    user.id === posting.donorId || 
+    user.id === posting.volunteerId || 
+    user.id === posting.orphanageId
+  );
 
   const handleRequest = () => {
     if (!user) return;
@@ -303,6 +311,19 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                  </span>
              )}
         </div>
+
+        {/* Chat Button (Only if involved) */}
+        {isInvolved && onChatClick && (
+            <div className="absolute top-5 left-5 z-20">
+                <button 
+                    onClick={() => onChatClick(posting.id)}
+                    className="p-3 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white hover:text-emerald-600 border border-white/20 transition-all shadow-lg"
+                    title="Chat with group"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                </button>
+            </div>
+        )}
 
         {/* Bottom Content Info */}
         <div className="absolute bottom-6 left-6 right-6 text-white z-20">

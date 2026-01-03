@@ -11,6 +11,7 @@ import ContactUs from './components/ContactUs';
 import HelpFAQ from './components/HelpFAQ';
 import { LoginPage } from './components/LoginPage';
 import VerificationRequestModal from './components/VerificationRequestModal';
+import ChatModal from './components/ChatModal';
 
 const SplashScreen: React.FC = () => (
   <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-400 via-emerald-600 to-teal-900 z-[1000] flex flex-col items-center justify-center text-white">
@@ -33,7 +34,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('default');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null); // Track selected posting for modal
-  
+  const [activeChatPostingId, setActiveChatPostingId] = useState<string | null>(null); // Track chat modal
+
   // Pending Verification State for Donors
   const [pendingVerificationPosting, setPendingVerificationPosting] = useState<FoodPosting | null>(null);
 
@@ -568,6 +570,7 @@ export default function App() {
                         onDelete={handleDeletePosting}
                         currentLocation={userLocation}
                         onRateVolunteer={handleRateVolunteer}
+                        onChatClick={(id) => setActiveChatPostingId(id)}
                         volunteerProfile={post.volunteerId ? storage.getUser(post.volunteerId) : undefined}
                         requesterProfile={post.orphanageId ? storage.getUser(post.orphanageId) : undefined}
                     />
@@ -815,6 +818,7 @@ export default function App() {
                                     onUpdate={(id, updates) => { storage.updatePosting(id, updates); handleRefresh(); }}
                                     currentLocation={userLocation}
                                     onRateVolunteer={handleRateVolunteer}
+                                    onChatClick={(id) => setActiveChatPostingId(id)}
                                     volunteerProfile={p.volunteerId ? storage.getUser(p.volunteerId) : undefined}
                                     requesterProfile={p.orphanageId ? storage.getUser(p.orphanageId) : undefined}
                                 />
@@ -823,6 +827,15 @@ export default function App() {
                     })()}
                 </div>
             </div>
+        )}
+
+        {/* Chat Modal */}
+        {activeChatPostingId && (
+            <ChatModal 
+                posting={postings.find(p => p.id === activeChatPostingId)!}
+                user={user!}
+                onClose={() => setActiveChatPostingId(null)}
+            />
         )}
     </Layout>
   );
