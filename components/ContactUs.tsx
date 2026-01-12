@@ -19,6 +19,25 @@ const ContactUs: React.FC<ContactUsProps> = ({ user, onBack }) => {
   const [submitted, setSubmitted] = useState(false);
   const [showAiChat, setShowAiChat] = useState(false);
 
+  const handleEnterToNext = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (e.key === 'Enter') {
+      const form = e.currentTarget.form;
+      if (!form) return;
+      const elements = Array.from(form.elements) as HTMLElement[];
+      const index = elements.indexOf(e.currentTarget);
+      for (let i = index + 1; i < elements.length; i++) {
+        const next = elements[i];
+        if (next instanceof HTMLInputElement || next instanceof HTMLSelectElement || next instanceof HTMLButtonElement) {
+           if (next.tagName !== 'BUTTON' || next.getAttribute('type') === 'submit') {
+              e.preventDefault();
+              next.focus();
+              return;
+           }
+        }
+      }
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -97,18 +116,18 @@ const ContactUs: React.FC<ContactUsProps> = ({ user, onBack }) => {
             <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Name</label>
-                    <input name="name" value={formData.name} onChange={handleChange} required className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white transition-all" />
+                    <input name="name" value={formData.name} onKeyDown={handleEnterToNext} onChange={handleChange} required className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white transition-all" />
                 </div>
                 <div className="space-y-2">
                     <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Email</label>
-                    <input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white transition-all" />
+                    <input type="email" name="email" value={formData.email} onKeyDown={handleEnterToNext} onChange={handleChange} required className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white transition-all" />
                 </div>
             </div>
             
             <div className="space-y-2">
                 <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Subject</label>
                 <div className="relative">
-                     <select name="subject" value={formData.subject} onChange={handleChange} required className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white transition-all appearance-none cursor-pointer">
+                     <select name="subject" value={formData.subject} onKeyDown={handleEnterToNext} onChange={handleChange} required className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white transition-all appearance-none cursor-pointer">
                         <option value="" disabled>Select a topic</option>
                         <option value="General Inquiry">General Inquiry</option>
                         <option value="Technical Issue">Technical Issue</option>

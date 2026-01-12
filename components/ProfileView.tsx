@@ -6,10 +6,11 @@ import { generateAvatar } from '../services/geminiService';
 interface ProfileViewProps {
   user: User;
   onUpdate: (updates: Partial<User>) => void;
+  onDeleteAccount: () => void;
   onBack: () => void;
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onDeleteAccount, onBack }) => {
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [contactNo, setContactNo] = useState(user?.contactNo || '');
@@ -20,7 +21,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
       messages: true
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleEnterToNext = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (e.key === 'Enter') {
+      const form = e.currentTarget.form;
+      if (!form) return;
+      const elements = Array.from(form.elements) as HTMLElement[];
+      const index = elements.indexOf(e.currentTarget);
+      for (let i = index + 1; i < elements.length; i++) {
+        const next = elements[i];
+        if (next instanceof HTMLInputElement || next instanceof HTMLSelectElement || next instanceof HTMLButtonElement) {
+           if (next.tagName !== 'BUTTON' || next.getAttribute('type') === 'submit') {
+              e.preventDefault();
+              next.focus();
+              return;
+           }
+        }
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,11 +193,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
 
               <div className="space-y-2">
                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Full Name</label>
-                 <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" />
+                 <input type="text" value={name} onKeyDown={handleEnterToNext} onChange={e => setName(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" />
               </div>
               <div className="space-y-2">
                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Email Address</label>
-                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" />
+                 <input type="email" value={email} onKeyDown={handleEnterToNext} onChange={e => setEmail(e.target.value)} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all" />
               </div>
               <div className="space-y-2">
                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Contact Number</label>
@@ -188,6 +209,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                         type="tel" 
                         maxLength={10}
                         value={contactNo} 
+                        onKeyDown={handleEnterToNext}
                         onChange={e => {
                             const val = e.target.value.replace(/\D/g, '');
                             if(val.length <= 10) setContactNo(val);
@@ -253,8 +275,42 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                   </button>
               </div>
             </form>
+
+            <div className="mt-12 pt-8 border-t border-rose-100">
+                <h3 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-4">Danger Zone</h3>
+                <div className="bg-rose-50 rounded-2xl p-6 border border-rose-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div>
+                        <p className="font-bold text-slate-800 text-sm">Delete Account</p>
+                        <p className="text-xs text-slate-500">This action is permanent and cannot be undone.</p>
+                    </div>
+                    <button 
+                        type="button" 
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="px-6 py-3 bg-white border-2 border-rose-200 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                    >
+                        Delete My Account
+                    </button>
+                </div>
+            </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[600] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
+            <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-sm text-center shadow-2xl">
+                <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-rose-100">
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Are you sure?</h3>
+                <p className="text-slate-500 font-medium mb-8 leading-relaxed text-sm">Deleting your account will remove all your profile data permanently. This cannot be undone.</p>
+                <div className="flex gap-4">
+                    <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-2xl transition-colors uppercase text-xs tracking-widest">Keep It</button>
+                    <button onClick={() => { setShowDeleteConfirm(false); onDeleteAccount(); }} className="flex-1 py-4 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-2xl transition-colors shadow-lg shadow-rose-200 uppercase text-xs tracking-widest">Delete</button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

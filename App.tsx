@@ -26,6 +26,7 @@ const SplashScreen: React.FC = () => (
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [postings, setPostings] = useState<FoodPosting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -33,13 +34,11 @@ export default function App() {
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<string>('default');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null); // Track selected posting for modal
-  const [activeChatPostingId, setActiveChatPostingId] = useState<string | null>(null); // Track chat modal
+  const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null); 
+  const [activeChatPostingId, setActiveChatPostingId] = useState<string | null>(null);
 
-  // Pending Verification State for Donors
   const [pendingVerificationPosting, setPendingVerificationPosting] = useState<FoodPosting | null>(null);
 
-  // Post Food Modal State
   const [isAddingFood, setIsAddingFood] = useState(false);
   const [foodName, setFoodName] = useState('');
   const [foodDescription, setFoodDescription] = useState('');
@@ -50,14 +49,11 @@ export default function App() {
   const [safetyVerdict, setSafetyVerdict] = useState<{isSafe: boolean, reasoning: string} | undefined>(undefined);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
-  // Post Food - Address State
   const [foodLine1, setFoodLine1] = useState('');
   const [foodLine2, setFoodLine2] = useState('');
   const [foodLandmark, setFoodLandmark] = useState('');
   const [foodPincode, setFoodPincode] = useState('');
-  const [isFoodAutoDetecting, setIsFoodAutoDetecting] = useState(false);
   
-  // Camera State
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -65,28 +61,29 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Splash Screen Timer
-    const timer = setTimeout(() => setShowSplash(false), 2500);
-    return () => clearTimeout(timer);
+    const initApp = async () => {
+      setIsSyncing(true);
+      await storage.syncFromCloud();
+      setIsSyncing(false);
+      setTimeout(() => setShowSplash(false), 1500);
+    };
+    initApp();
   }, []);
 
   useEffect(() => {
     setPostings(storage.getPostings());
     if (user) {
         setNotifications(storage.getNotifications(user.id));
-        // Reset tab when user logs in/changes
         if (user.role === UserRole.DONOR) setActiveTab('active');
         else if (user.role === UserRole.VOLUNTEER) setActiveTab('opportunities');
         else setActiveTab('browse');
     }
     
-    // Global Polling for real-time updates
     const interval = setInterval(() => {
         setPostings(storage.getPostings());
         if (user) setNotifications(storage.getNotifications(user.id));
-    }, 2000); 
+    }, 5000); // Slightly slower polling now that we have potential cloud latency
 
-    // Location Logic
     let watchId: number;
     
     if (user?.role === UserRole.VOLUNTEER) {
@@ -95,7 +92,6 @@ export default function App() {
                 const { latitude, longitude } = pos.coords;
                 setUserLocation({ lat: latitude, lng: longitude });
                 
-                // Track for IN_TRANSIT AND Pending Verifications to keep map live during handovers
                 const activePostings = storage.getPostings().filter(p => 
                     (p.status === FoodStatus.IN_TRANSIT || 
                      p.status === FoodStatus.PICKUP_VERIFICATION_PENDING || 
@@ -125,7 +121,25 @@ export default function App() {
     };
   }, [user]);
 
-  // Poll for postings that require Donor Verification
+  const handleEnterToNext = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (e.key === 'Enter') {
+      const form = e.currentTarget.form;
+      if (!form) return;
+      const elements = Array.from(form.elements) as HTMLElement[];
+      const index = elements.indexOf(e.currentTarget);
+      for (let i = index + 1; i < elements.length; i++) {
+        const next = elements[i];
+        if (next instanceof HTMLInputElement || next instanceof HTMLSelectElement || next instanceof HTMLButtonElement) {
+           if (next.tagName !== 'BUTTON' || next.getAttribute('type') === 'submit') {
+              e.preventDefault();
+              next.focus();
+              return;
+           }
+        }
+      }
+    }
+  };
+
   useEffect(() => {
       if (!user || user.role !== UserRole.DONOR) return;
 
@@ -295,41 +309,6 @@ export default function App() {
     }
   };
 
-  const handleFoodAutoDetectLocation = () => {
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        return;
-    }
-    setIsFoodAutoDetecting(true);
-    navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-            const { latitude, longitude } = pos.coords;
-            try {
-                const address = await reverseGeocode(latitude, longitude);
-                if (address) {
-                    setFoodLine1(address.line1);
-                    setFoodLine2(address.line2);
-                    setFoodLandmark(address.landmark || '');
-                    setFoodPincode(address.pincode);
-                } else {
-                    alert("Could not detect detailed address. Please fill manually.");
-                }
-            } catch (e) {
-                console.error(e);
-                alert("Error detecting address.");
-            } finally {
-                setIsFoodAutoDetecting(false);
-            }
-        },
-        (err) => {
-            console.error(err);
-            alert("Location permission denied. Please enable location or enter manually.");
-            setIsFoodAutoDetecting(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
   const handleRateVolunteer = (postingId: string, ratingValue: number, feedback: string) => {
      if (!user) return;
      const rating: Rating = {
@@ -350,7 +329,6 @@ export default function App() {
   };
 
   const handleDeletePosting = (id: string) => {
-      // Confirmation handled in FoodCard UI directly
       storage.deletePosting(id);
       handleRefresh();
   };
@@ -389,7 +367,6 @@ export default function App() {
     setIsAddingFood(false);
     setPostings(storage.getPostings());
     
-    // Reset Form
     setFoodName(''); setFoodDescription(''); setQuantityNum(''); setFoodImage(null); setSafetyVerdict(undefined);
     setExpiryDate(''); setFoodLine1(''); setFoodLine2(''); setFoodLandmark(''); setFoodPincode(''); setSelectedTags([]);
   };
@@ -428,7 +405,14 @@ export default function App() {
       }
   };
 
-  // --- RENDER HELPERS ---
+  const handleDeleteAccount = () => {
+    if (user) {
+        storage.deleteUser(user.id);
+        setUser(null);
+        setView('LOGIN');
+        alert("Account deleted successfully.");
+    }
+  };
 
   const renderStatsCard = (label: string, value: string | number, icon: string, colorClass: string) => (
     <div className={`p-5 rounded-[2rem] bg-white border border-slate-100 shadow-sm flex items-center gap-4 transition-transform hover:scale-105 flex-1 md:flex-none min-w-[150px] ${colorClass}`}>
@@ -448,7 +432,7 @@ export default function App() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
             <div>
                 <h2 className="text-4xl font-black text-slate-800 tracking-tight leading-none mb-2">
-                    Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">{user.name?.split(' ')[0]}</span>.
+                    Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-50">{user.name?.split(' ')[0]}</span>.
                 </h2>
                 <p className="text-slate-500 font-medium text-lg">
                     {user.role === UserRole.DONOR && "Let's share some food today! 🥘"}
@@ -456,7 +440,6 @@ export default function App() {
                     {user.role === UserRole.REQUESTER && "Find fresh meals nearby. 🏠"}
                 </p>
             </div>
-            {/* Role Specific Stats */}
             <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
                 {user.role === UserRole.DONOR && (
                     <>
@@ -509,7 +492,6 @@ export default function App() {
                 )}
             </div>
 
-            {/* Map Toggle for Volunteer/Requester */}
             {(user.role === UserRole.VOLUNTEER && activeTab === 'opportunities') || (user.role === UserRole.REQUESTER && activeTab === 'browse') ? (
                 <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm ml-4">
                     <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>
@@ -525,7 +507,6 @@ export default function App() {
   };
 
   const renderContent = () => {
-      // Empty State
       if (filteredPostings.length === 0) {
           return (
             <div className="bg-white/60 backdrop-blur-sm rounded-[2.5rem] p-16 text-center border border-dashed border-slate-300 flex flex-col items-center justify-center min-h-[400px]">
@@ -545,7 +526,6 @@ export default function App() {
           );
       }
 
-      // Map View
       if (viewMode === 'map' && ((user?.role === UserRole.VOLUNTEER && activeTab === 'opportunities') || (user?.role === UserRole.REQUESTER && activeTab === 'browse'))) {
           return (
               <div className="h-[600px] w-full rounded-[2.5rem] overflow-hidden shadow-lg border border-slate-200">
@@ -560,7 +540,6 @@ export default function App() {
           );
       }
 
-      // List View
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredPostings.map((post, idx) => (
@@ -599,10 +578,15 @@ export default function App() {
   if (view === 'PROFILE' && user) {
     return (
         <Layout user={user} onLogout={() => setView('LOGIN')} onProfileClick={() => {}} onLogoClick={() => setView('DASHBOARD')} onContactClick={() => setView('CONTACT')} onHelpClick={() => setView('HELP')} notifications={notifications}>
-            <ProfileView user={user} onUpdate={(updates) => {
+            <ProfileView 
+              user={user} 
+              onUpdate={(updates) => {
                 storage.updateUser(user.id, updates);
                 setUser({ ...user, ...updates });
-            }} onBack={() => setView('DASHBOARD')} />
+              }} 
+              onDeleteAccount={handleDeleteAccount}
+              onBack={() => setView('DASHBOARD')} 
+            />
         </Layout>
     );
   }
@@ -633,7 +617,13 @@ export default function App() {
         onHelpClick={() => setView('HELP')}
         notifications={notifications}
     >
-        {/* Dashboard Content */}
+        {isSyncing && (
+          <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] bg-emerald-600 text-white px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 animate-bounce">
+             <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+             Syncing with Cloud...
+          </div>
+        )}
+
         {user && (
             <div className="space-y-4 animate-fade-in-up">
                 {renderDashboardHeader()}
@@ -642,7 +632,6 @@ export default function App() {
             </div>
         )}
 
-        {/* Floating Action Button for Donors */}
         {user?.role === UserRole.DONOR && !isAddingFood && (
             <button 
                 onClick={() => setIsAddingFood(true)}
@@ -652,7 +641,6 @@ export default function App() {
             </button>
         )}
 
-        {/* Post Food Modal */}
         {isAddingFood && (
             <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
                 <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative animate-fade-in-up my-auto">
@@ -669,7 +657,6 @@ export default function App() {
                     </div>
                     
                     <form onSubmit={handlePostFood} className="p-8 space-y-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
-                        {/* Image Capture Section */}
                         <div className="space-y-4">
                             <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Food Photo & Safety Check</label>
                             
@@ -711,7 +698,6 @@ export default function App() {
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                     </button>
                                     
-                                    {/* AI Analysis Result Overlay */}
                                     <div className="absolute bottom-0 inset-x-0 bg-white/95 backdrop-blur-md p-4 border-t border-slate-100">
                                         {isAnalyzing ? (
                                             <div className="flex items-center gap-3 text-slate-600">
@@ -738,15 +724,14 @@ export default function App() {
                             )}
                         </div>
 
-                        {/* Details Inputs */}
                         <div className="space-y-4">
                             <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Food Details</label>
-                            <input type="text" placeholder="What kind of food is it?" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodName} onChange={e => setFoodName(e.target.value)} required />
+                            <input type="text" placeholder="What kind of food is it?" onKeyDown={handleEnterToNext} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodName} onChange={e => setFoodName(e.target.value)} required />
                             <textarea placeholder="Description (ingredients, allergens, etc.)" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all h-28 resize-none" value={foodDescription} onChange={e => setFoodDescription(e.target.value)} />
                             
                             <div className="flex gap-4">
-                                <input type="number" placeholder="Quantity" className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} required />
-                                <select className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={unit} onChange={e => setUnit(e.target.value)}>
+                                <input type="number" placeholder="Quantity" onKeyDown={handleEnterToNext} className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={quantityNum} onChange={e => setQuantityNum(e.target.value)} required />
+                                <select onKeyDown={handleEnterToNext} className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all cursor-pointer" value={unit} onChange={e => setUnit(e.target.value)}>
                                     <option value="meals">Meals</option>
                                     <option value="kg">kg</option>
                                     <option value="items">Items</option>
@@ -755,7 +740,7 @@ export default function App() {
                             
                             <div className="space-y-2">
                                 <p className="text-xs font-bold text-slate-500 uppercase ml-1">Expires In</p>
-                                <input type="datetime-local" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} required />
+                                <input type="datetime-local" onKeyDown={handleEnterToNext} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} required />
                             </div>
 
                             <div className="flex flex-wrap gap-2 pt-2">
@@ -772,19 +757,13 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Location Section */}
                         <div className="space-y-4 pt-6 border-t border-slate-100">
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Pickup Location</label>
-                                <button type="button" onClick={handleFoodAutoDetectLocation} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">
-                                    {isFoodAutoDetecting ? 'Detecting...' : 'Use Current Location'}
-                                </button>
-                            </div>
-                            <input type="text" placeholder="Line 1" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} required />
-                            <input type="text" placeholder="Line 2" className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} required />
+                            <label className="text-xs font-black uppercase text-slate-400 tracking-widest block">Pickup Location</label>
+                            <input type="text" placeholder="Line 1" onKeyDown={handleEnterToNext} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine1} onChange={e => setFoodLine1(e.target.value)} required />
+                            <input type="text" placeholder="Line 2" onKeyDown={handleEnterToNext} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} required />
                             <div className="flex gap-4">
-                                <input type="text" placeholder="Landmark" className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} />
-                                <input type="text" placeholder="Pincode" maxLength={6} className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} required />
+                                <input type="text" placeholder="Landmark" onKeyDown={handleEnterToNext} className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} />
+                                <input type="text" placeholder="Pincode" maxLength={6} onKeyDown={handleEnterToNext} className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} required />
                             </div>
                         </div>
 
@@ -796,7 +775,6 @@ export default function App() {
             </div>
         )}
 
-        {/* Global Modal for Donor Verification Request */}
         {pendingVerificationPosting && (
             <VerificationRequestModal 
                 posting={pendingVerificationPosting}
@@ -805,9 +783,8 @@ export default function App() {
             />
         )}
         
-        {/* Selected Posting Detail Modal (from Map View) */}
         {selectedPostingId && (
-            <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in-up" onClick={() => setSelectedPostingId(null)}>
+            <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up" onClick={() => setSelectedPostingId(null)}>
                 <div className="w-full max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar bg-transparent" onClick={e => e.stopPropagation()}>
                     {(() => {
                         const p = postings.find(p => p.id === selectedPostingId);
@@ -834,7 +811,6 @@ export default function App() {
             </div>
         )}
 
-        {/* Chat Modal */}
         {activeChatPostingId && (
             <ChatModal 
                 posting={postings.find(p => p.id === activeChatPostingId)!}

@@ -1,5 +1,6 @@
 
 import { User, FoodPosting, FoodStatus, UserRole, Notification, ChatMessage, Rating } from '../types';
+import { mongoService } from './mongoService';
 
 const STORAGE_KEY_POSTINGS = 'food_rescue_postings';
 const STORAGE_KEY_USERS = 'food_rescue_users';
@@ -30,7 +31,6 @@ const saveStoredNotifications = (notifications: Notification[]) => {
   localStorage.setItem(STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
 };
 
-// Helper to check prefs
 const shouldNotify = (user: User | undefined, type: 'newPostings' | 'missionUpdates' | 'messages'): boolean => {
     if (!user) return false;
     const prefs = user.notificationPreferences || { newPostings: true, missionUpdates: true, messages: true };
@@ -38,6 +38,23 @@ const shouldNotify = (user: User | undefined, type: 'newPostings' | 'missionUpda
 };
 
 export const storage = {
+  // Cloud Sync
+  async syncFromCloud() {
+    try {
+      const cloudUsers = await mongoService.getUsers();
+      if (cloudUsers.length > 0) localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(cloudUsers));
+
+      const cloudPostings = await mongoService.getPostings();
+      if (cloudPostings.length > 0) localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(cloudPostings));
+      
+      console.log('Successfully synced with MongoDB Atlas');
+      return true;
+    } catch (e) {
+      console.error('Cloud sync failed, using local cache');
+      return false;
+    }
+  },
+
   getUsers: (): User[] => {
     try {
         const data = localStorage.getItem(STORAGE_KEY_USERS);
@@ -61,6 +78,8 @@ export const storage = {
     };
     users.push(newUser);
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+    // Mirror to Mongo
+    mongoService.upsertUser(newUser);
   },
   updateUser: (id: string, updates: Partial<User>) => {
     const users = storage.getUsers();
@@ -69,9 +88,17 @@ export const storage = {
       const updatedUser = { ...users[index], ...updates };
       users[index] = updatedUser;
       localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+      // Mirror to Mongo
+      mongoService.upsertUser(updatedUser);
       return updatedUser;
     }
     return null;
+  },
+  deleteUser: (id: string) => {
+    const users = storage.getUsers();
+    const updated = users.filter(u => u.id !== id);
+    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(updated));
+    // Mirror to Mongo (Ideally would soft delete)
   },
   toggleFavorite: (donorId: string, requesterId: string) => {
     const users = storage.getUsers();
@@ -89,6 +116,7 @@ export const storage = {
       
       users[donorIndex] = donor;
       localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+      mongoService.upsertUser(donor);
       return donor;
     }
     return null;
@@ -114,16 +142,17 @@ export const storage = {
     if (!allChats[postingId]) allChats[postingId] = [];
     allChats[postingId].push(message);
     localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(allChats));
+    
+    // Mirror to Mongo
+    mongoService.insertMessage(message);
 
-    // Create Notification for recipients
     const postings = storage.getPostings();
     const posting = postings.find(p => p.id === postingId);
     if (posting) {
         const recipients = [posting.donorId, posting.volunteerId, posting.orphanageId]
-            .filter(id => id && id !== message.senderId); // Exclude sender and undefined
+            .filter(id => id && id !== message.senderId);
         
         const uniqueRecipients = [...new Set(recipients)];
-        
         uniqueRecipients.forEach(userId => {
             if (!userId) return;
             const user = storage.getUser(userId);
@@ -169,32 +198,24 @@ export const storage = {
     const postings = storage.getPostings();
     postings.unshift(posting);
     localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
+    
+    // Mirror to Mongo
+    mongoService.upsertPosting(posting);
 
     const users = storage.getUsers();
     const notifications = getStoredNotifications();
-    
     users.forEach(u => {
       if (u.role === UserRole.VOLUNTEER) {
-        // Check Notification Preferences
         if (!shouldNotify(u, 'newPostings')) return;
-
         let isNearby = false;
         let distanceText = '';
-
         if (u.address?.lat && u.address?.lng && posting.location.lat && posting.location.lng) {
-          const distance = calculateDistance(
-            posting.location.lat,
-            posting.location.lng,
-            u.address.lat,
-            u.address.lng
-          );
-
+          const distance = calculateDistance(posting.location.lat, posting.location.lng, u.address.lat, u.address.lng);
           if (distance <= 10) {
             isNearby = true;
             distanceText = ` (${distance.toFixed(1)}km away)`;
           }
         }
-
         if (isNearby) {
           notifications.push({
             id: Math.random().toString(36).substr(2, 9),
@@ -217,14 +238,14 @@ export const storage = {
       const newPosting = { ...oldPosting, ...updates };
       postings[index] = newPosting;
       localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
+      
+      // Mirror to Mongo
+      mongoService.upsertPosting(newPosting);
 
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
       const getUserObj = (uid: string) => users.find(u => u.id === uid);
 
-      // --- STATUS TRANSITIONS ---
-
-      // 1. Volunteer submits PICKUP proof -> Notify Donor (Action Required)
       if (oldPosting.status !== FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING) {
          if (shouldNotify(getUserObj(newPosting.donorId), 'missionUpdates')) {
              notifications.push({
@@ -238,7 +259,6 @@ export const storage = {
          }
       }
 
-      // 2. Donor Approves PICKUP -> Notify Volunteer (Success)
       if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
          if (newPosting.volunteerId && shouldNotify(getUserObj(newPosting.volunteerId), 'missionUpdates')) {
              notifications.push({
@@ -252,7 +272,6 @@ export const storage = {
          }
       }
 
-      // 3. Status Reverted from PICKUP to REQUESTED (Rejection or Retraction)
       if (oldPosting.status === FoodStatus.PICKUP_VERIFICATION_PENDING && newPosting.status === FoodStatus.REQUESTED) {
           if (newPosting.volunteerId && newPosting.volunteerId === oldPosting.volunteerId) {
              if (shouldNotify(getUserObj(newPosting.donorId), 'missionUpdates')) {
@@ -278,7 +297,6 @@ export const storage = {
           }
       }
 
-      // 4. Volunteer submits DELIVERY proof -> Notify Requester (Action Required)
       if (oldPosting.status !== FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING) {
           if (newPosting.orphanageId && shouldNotify(getUserObj(newPosting.orphanageId), 'missionUpdates')) {
               notifications.push({
@@ -292,7 +310,6 @@ export const storage = {
           }
       }
 
-      // 5. Status Reverted from DELIVERY to IN_TRANSIT (Rejection)
       if (oldPosting.status === FoodStatus.DELIVERY_VERIFICATION_PENDING && newPosting.status === FoodStatus.IN_TRANSIT) {
            if (newPosting.volunteerId && shouldNotify(getUserObj(newPosting.volunteerId), 'missionUpdates')) {
               notifications.push({
@@ -306,62 +323,33 @@ export const storage = {
            }
       }
 
-      // 6. Final Delivery Approval (Impact Scores & Success)
       if (oldPosting.status !== FoodStatus.DELIVERED && newPosting.status === FoodStatus.DELIVERED) {
          const donorIndex = users.findIndex(u => u.id === newPosting.donorId);
          const volunteerIndex = users.findIndex(u => u.id === newPosting.volunteerId);
-         
-         if (donorIndex !== -1) users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
-         if (volunteerIndex !== -1) users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
-         
+         if (donorIndex !== -1) {
+             users[donorIndex].impactScore = (users[donorIndex].impactScore || 0) + 1;
+             mongoService.upsertUser(users[donorIndex]);
+         }
+         if (volunteerIndex !== -1) {
+             users[volunteerIndex].impactScore = (users[volunteerIndex].impactScore || 0) + 1;
+             mongoService.upsertUser(users[volunteerIndex]);
+         }
          localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
          
-         // Notify Donor
          if (shouldNotify(getUserObj(newPosting.donorId), 'missionUpdates')) {
-             notifications.push({
-                id: Math.random().toString(36).substr(2, 9),
-                userId: newPosting.donorId,
-                message: `Donation Complete: "${newPosting.foodName}" has been successfully delivered and verified!`,
-                isRead: false,
-                createdAt: Date.now(),
-                type: 'SUCCESS'
-             });
+             notifications.push({ id: Math.random().toString(36).substr(2, 9), userId: newPosting.donorId, message: `Donation Complete: "${newPosting.foodName}" has been successfully delivered and verified!`, isRead: false, createdAt: Date.now(), type: 'SUCCESS' });
          }
-
-         // Notify Volunteer
          if (newPosting.volunteerId && shouldNotify(getUserObj(newPosting.volunteerId), 'missionUpdates')) {
-            notifications.push({
-                id: Math.random().toString(36).substr(2, 9),
-                userId: newPosting.volunteerId,
-                message: `Mission Accomplished! "${newPosting.foodName}" delivery verified.`,
-                isRead: false,
-                createdAt: Date.now(),
-                type: 'SUCCESS'
-            });
+            notifications.push({ id: Math.random().toString(36).substr(2, 9), userId: newPosting.volunteerId, message: `Mission Accomplished! "${newPosting.foodName}" delivery verified.`, isRead: false, createdAt: Date.now(), type: 'SUCCESS' });
          }
-
-         // Notify Requester
          if (newPosting.orphanageId && shouldNotify(getUserObj(newPosting.orphanageId), 'missionUpdates')) {
-             notifications.push({
-                 id: Math.random().toString(36).substr(2, 9),
-                 userId: newPosting.orphanageId,
-                 message: `Enjoy your meal! "${newPosting.foodName}" is officially marked as delivered.`,
-                 isRead: false,
-                 createdAt: Date.now(),
-                 type: 'SUCCESS'
-             });
+             notifications.push({ id: Math.random().toString(36).substr(2, 9), userId: newPosting.orphanageId, message: `Enjoy your meal! "${newPosting.foodName}" is officially marked as delivered.`, isRead: false, createdAt: Date.now(), type: 'SUCCESS' });
          }
       }
 
-      // 7. General PickedUp Flag (Legacy or supplementary check)
       if (!oldPosting.isPickedUp && updates.isPickedUp) {
          if (newPosting.orphanageId && shouldNotify(getUserObj(newPosting.orphanageId), 'missionUpdates')) {
-             notifications.push({
-              id: Math.random().toString(36).substr(2, 9),
-              userId: newPosting.orphanageId,
-              message: `Status Update: ${newPosting.volunteerName} has picked up "${newPosting.foodName}"!`,
-              isRead: false, createdAt: Date.now(), type: 'INFO'
-            });
+             notifications.push({ id: Math.random().toString(36).substr(2, 9), userId: newPosting.orphanageId, message: `Status Update: ${newPosting.volunteerName} has picked up "${newPosting.foodName}"!`, isRead: false, createdAt: Date.now(), type: 'INFO' });
          }
       }
 
@@ -373,56 +361,34 @@ export const storage = {
   deletePosting: (id: string) => {
     let postings = storage.getPostings();
     const postingToDelete = postings.find(p => p.id === id);
-    
-    // Notify relevant parties before deletion
     if (postingToDelete) {
       const notifications = getStoredNotifications();
       const users = storage.getUsers();
       const getUserObj = (uid: string) => users.find(u => u.id === uid);
-      
-      // Notify Requester
       if (postingToDelete.orphanageId && shouldNotify(getUserObj(postingToDelete.orphanageId), 'missionUpdates')) {
-        notifications.push({
-          id: Math.random().toString(36).substr(2, 9),
-          userId: postingToDelete.orphanageId,
-          message: `The donation "${postingToDelete.foodName}" has been cancelled by the donor.`,
-          isRead: false,
-          createdAt: Date.now(),
-          type: 'INFO'
-        });
+        notifications.push({ id: Math.random().toString(36).substr(2, 9), userId: postingToDelete.orphanageId, message: `The donation "${postingToDelete.foodName}" has been cancelled by the donor.`, isRead: false, createdAt: Date.now(), type: 'INFO' });
       }
-      
-      // Notify Volunteer
       if (postingToDelete.volunteerId && shouldNotify(getUserObj(postingToDelete.volunteerId), 'missionUpdates')) {
-        notifications.push({
-          id: Math.random().toString(36).substr(2, 9),
-          userId: postingToDelete.volunteerId,
-          message: `Mission Aborted: The donation "${postingToDelete.foodName}" has been cancelled by the donor.`,
-          isRead: false,
-          createdAt: Date.now(),
-          type: 'INFO'
-        });
+        notifications.push({ id: Math.random().toString(36).substr(2, 9), userId: postingToDelete.volunteerId, message: `Mission Aborted: The donation "${postingToDelete.foodName}" has been cancelled by the donor.`, isRead: false, createdAt: Date.now(), type: 'INFO' });
       }
-      
       saveStoredNotifications(notifications);
     }
-
     postings = postings.filter(p => p.id !== id);
     localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
+    // Mirror to Mongo
+    mongoService.deletePosting(id);
   },
   addVolunteerRating: (postingId: string, rating: Rating) => {
     const postings = storage.getPostings();
     const pIndex = postings.findIndex(p => p.id === postingId);
-    
     if (pIndex !== -1) {
       const posting = postings[pIndex];
-      // 1. Add rating to posting
       const newRatings = [...(posting.ratings || []), rating];
       posting.ratings = newRatings;
       postings[pIndex] = posting;
       localStorage.setItem(STORAGE_KEY_POSTINGS, JSON.stringify(postings));
+      mongoService.upsertPosting(posting);
 
-      // 2. Update Volunteer Stats
       if (posting.volunteerId) {
         const users = storage.getUsers();
         const vIndex = users.findIndex(u => u.id === posting.volunteerId);
@@ -430,24 +396,15 @@ export const storage = {
           const volunteer = users[vIndex];
           const currentCount = volunteer.ratingsCount || 0;
           const currentAvg = volunteer.averageRating || 0;
-          
-          // Calculate new average
           const newCount = currentCount + 1;
           const newAvg = ((currentAvg * currentCount) + rating.rating) / newCount;
-          
           volunteer.ratingsCount = newCount;
           volunteer.averageRating = newAvg;
-          
           users[vIndex] = volunteer;
           localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-          
-          // Notify Volunteer if prefs allow
+          mongoService.upsertUser(volunteer);
           if (shouldNotify(volunteer, 'missionUpdates')) {
-              storage.createNotification(
-                 volunteer.id,
-                 `You received a ${rating.rating}-star rating for delivering ${posting.foodName}!`,
-                 'SUCCESS'
-              );
+              storage.createNotification(volunteer.id, `You received a ${rating.rating}-star rating for delivering ${posting.foodName}!`, 'SUCCESS');
           }
         }
       }

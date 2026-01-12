@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { storage } from '../services/storageService';
-import { reverseGeocode } from '../services/geminiService';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
@@ -10,17 +9,16 @@ interface LoginPageProps {
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'SOCIAL_SETUP'>('LOGIN');
+  const [loginMode, setLoginMode] = useState<'EMAIL' | 'PHONE'>('EMAIL');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   
-  // --- LOGIN STATE ---
   const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // --- SOCIAL LOGIN STATE ---
   const [isSocialProcessing, setIsSocialProcessing] = useState<string | null>(null);
   const [socialProfile, setSocialProfile] = useState<{name: string, email: string, provider: string, picture?: string} | null>(null);
 
-  // --- REGISTER STATE (WIZARD) & SOCIAL SETUP ---
   const [currentStep, setCurrentStep] = useState(1);
   const [totalSteps, setTotalSteps] = useState(3);
   
@@ -30,16 +28,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState<UserRole>(UserRole.DONOR);
   
-  // Requester Specific
   const [regOrgName, setRegOrgName] = useState('');
   const [regOrgCategory, setRegOrgCategory] = useState('Orphanage');
   const [regLine1, setRegLine1] = useState('');
   const [regLine2, setRegLine2] = useState('');
   const [regLandmark, setRegLandmark] = useState('');
   const [regPincode, setRegPincode] = useState('');
-  const [isAutoDetecting, setIsAutoDetecting] = useState(false);
 
-  // Update total steps based on role for normal registration
   useEffect(() => {
     if (view === 'REGISTER') {
         if (regRole === UserRole.REQUESTER) {
@@ -50,17 +45,42 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   }, [regRole, view]);
 
-  // --- HANDLERS ---
+  // Global KeyDown Handler for Inputs
+  const handleEnterKey = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (e.key === 'Enter') {
+      const form = e.currentTarget.form;
+      if (!form) return;
+
+      const elements = Array.from(form.elements) as HTMLElement[];
+      const index = elements.indexOf(e.currentTarget);
+      
+      // Look for the next focusable element that isn't hidden or disabled
+      for (let i = index + 1; i < elements.length; i++) {
+        const next = elements[i];
+        if (next instanceof HTMLInputElement || next instanceof HTMLSelectElement || next instanceof HTMLButtonElement) {
+           if (next.tagName !== 'BUTTON' || next.getAttribute('type') === 'submit') {
+              e.preventDefault();
+              next.focus();
+              return;
+           }
+        }
+      }
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const users = storage.getUsers();
     
-    // Allow login by Name OR Email
-    const existing = users.find(u => 
-        u.name.toLowerCase() === loginIdentifier.toLowerCase() || 
-        u.email.toLowerCase() === loginIdentifier.toLowerCase()
-    );
+    let existing;
+    if (loginMode === 'EMAIL') {
+        existing = users.find(u => 
+            u.name.toLowerCase() === loginIdentifier.toLowerCase() || 
+            u.email.toLowerCase() === loginIdentifier.toLowerCase()
+        );
+    } else {
+        existing = users.find(u => u.contactNo === loginPhone);
+    }
 
     if (existing) {
       if (existing.password && existing.password !== loginPassword) {
@@ -69,13 +89,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       }
       onLogin(existing);
     } else {
-        alert("User not found. Please check your username/email or register.");
+        const msg = loginMode === 'EMAIL' 
+            ? "User not found. Please check your username/email or register."
+            : "No account found with this phone number. Please check or register.";
+        alert(msg);
     }
   };
 
   const handleDemoLogin = (role: UserRole) => {
-    // Always create a fresh demo user for this session to ensure 0 stats (Impact Score / Donations)
-    // Using Date.now() in ID ensures it doesn't link to previous demo user data/postings.
     const demoUser = {
         id: `demo-${role.toLowerCase()}-${Date.now()}`,
         name: `Demo ${role.charAt(0) + role.slice(1).toLowerCase()}`,
@@ -83,7 +104,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         contactNo: '9876543210',
         password: 'demo',
         role: role,
-        impactScore: 0, // Reset Impact Score to 0
+        impactScore: 0,
         averageRating: 0,
         ratingsCount: 0,
         address: role === UserRole.REQUESTER ? {
@@ -102,22 +123,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const handleSocialAuth = (provider: string) => {
       setIsSocialProcessing(provider);
       
-      // Simulate API Network Delay
       setTimeout(() => {
           const mockEmail = `user.${provider.toLowerCase()}@example.com`;
           const mockName = `${provider} User`;
           const mockPic = provider === 'Google' 
             ? 'https://lh3.googleusercontent.com/a/default-user=s96-c' 
-            : 'https://graph.facebook.com/123456789/picture?type=large'; // Mock FB URL
+            : 'https://graph.facebook.com/123456789/picture?type=large';
 
           const users = storage.getUsers();
           const existingUser = users.find(u => u.email === mockEmail);
 
           if (existingUser) {
-              // DETECTED EXISTING USER -> LOGIN DIRECTLY
               onLogin(existingUser);
           } else {
-              // NEW USER -> GO TO SETUP
               setSocialProfile({
                   name: mockName,
                   email: mockEmail,
@@ -132,47 +150,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       }, 1500);
   };
 
-  const completeSocialRegistration = () => {
-     if (!socialProfile) return;
-
-     // Validation for social flow
-     if (regRole === UserRole.REQUESTER && (!regOrgName || !regLine1 || !regPincode)) {
-         alert("Please provide Organization Name and Location details.");
-         return;
-     }
-
-     const newUser: User = {
-         id: `social-${socialProfile.provider.toLowerCase()}-${Math.random().toString(36).substr(2, 9)}`,
-         name: regName || socialProfile.name,
-         email: socialProfile.email,
-         contactNo: regContactNo, // Optional for social login usually, but good to have
-         role: regRole,
-         profilePictureUrl: socialProfile.picture,
-         impactScore: 0,
-         averageRating: 0,
-         ratingsCount: 0,
-         orgName: regRole === UserRole.REQUESTER ? regOrgName : undefined,
-         orgCategory: regRole === UserRole.REQUESTER ? regOrgCategory : undefined,
-         address: regRole === UserRole.REQUESTER ? {
-             line1: regLine1,
-             line2: regLine2,
-             landmark: regLandmark,
-             pincode: regPincode
-         } : undefined
-     };
-
-     storage.saveUser(newUser);
-     onLogin(newUser);
-  };
-
   const handleNextStep = () => {
-      // Validation per step
       if (currentStep === 2) {
           if (!regName || !regEmail || !regPassword) {
               alert("Please fill in all fields.");
               return;
           }
-          // Check duplicate email
           const users = storage.getUsers();
           if (users.some(u => u.email.toLowerCase() === regEmail.toLowerCase())) {
               alert("This email is already registered.");
@@ -206,7 +189,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   const completeRegistration = () => {
-      // Final Validation for Requester Address
       if (regRole === UserRole.REQUESTER && (!regLine1 || !regPincode)) {
           alert("Please provide at least Address Line 1 and Pincode.");
           return;
@@ -235,46 +217,41 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     onLogin(newUser);
   };
 
-  const handleAutoDetectLocation = () => {
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        return;
-    }
-    setIsAutoDetecting(true);
-    navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-            const { latitude, longitude } = pos.coords;
-            try {
-                const address = await reverseGeocode(latitude, longitude);
-                if (address) {
-                    setRegLine1(address.line1);
-                    setRegLine2(address.line2);
-                    setRegLandmark(address.landmark || '');
-                    setRegPincode(address.pincode);
-                } else {
-                    alert("Could not detect detailed address. Please fill manually.");
-                }
-            } catch (e) {
-                console.error(e);
-                alert("Error detecting address.");
-            } finally {
-                setIsAutoDetecting(false);
-            }
-        },
-        (err) => {
-            console.error(err);
-            alert("Location permission denied. Please enable location or enter manually.");
-            setIsAutoDetecting(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
+  const completeSocialRegistration = () => {
+     if (!socialProfile) return;
 
-  // --- RENDER HELPERS ---
+     if (regRole === UserRole.REQUESTER && (!regOrgName || !regLine1 || !regPincode)) {
+         alert("Please provide Organization Name and Location details.");
+         return;
+     }
+
+     const newUser: User = {
+         id: `social-${socialProfile.provider.toLowerCase()}-${Math.random().toString(36).substr(2, 9)}`,
+         name: regName || socialProfile.name,
+         email: socialProfile.email,
+         contactNo: regContactNo,
+         role: regRole,
+         profilePictureUrl: socialProfile.picture,
+         impactScore: 0,
+         averageRating: 0,
+         ratingsCount: 0,
+         orgName: regRole === UserRole.REQUESTER ? regOrgName : undefined,
+         orgCategory: regRole === UserRole.REQUESTER ? regOrgCategory : undefined,
+         address: regRole === UserRole.REQUESTER ? {
+             line1: regLine1,
+             line2: regLine2,
+             landmark: regLandmark,
+             pincode: regPincode
+         } : undefined
+     };
+
+     storage.saveUser(newUser);
+     onLogin(newUser);
+  };
 
   const renderRegisterStep = () => {
       switch(currentStep) {
-          case 1: // Role Selection
+          case 1: 
             return (
                 <div className="space-y-4 animate-fade-in-up">
                     <h3 className="text-xl font-black text-slate-800 text-center mb-6">Who are you?</h3>
@@ -305,27 +282,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     </div>
                 </div>
             );
-          case 2: // Credentials
+          case 2: 
             return (
                 <div className="space-y-4 animate-fade-in-up">
                     <h3 className="text-xl font-black text-slate-800 text-center mb-6">Create Login</h3>
                     <div className="space-y-4">
                         <div className="group">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
-                            <input type="text" placeholder="e.g. Jane Doe" className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regName} onChange={e => setRegName(e.target.value)} autoFocus />
+                            <input type="text" placeholder="e.g. Jane Doe" onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regName} onChange={e => setRegName(e.target.value)} autoFocus />
                         </div>
                         <div className="group">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
-                            <input type="email" placeholder="name@example.com" className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
+                            <input type="email" placeholder="name@example.com" onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
                         </div>
                         <div className="group">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
-                            <input type="password" placeholder="••••••••" className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regPassword} onChange={e => setRegPassword(e.target.value)} />
+                            <input type="password" placeholder="••••••••" onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regPassword} onChange={e => setRegPassword(e.target.value)} />
                         </div>
                     </div>
                 </div>
             );
-          case 3: // Contact & Org Details
+          case 3: 
              return (
                  <div className="space-y-4 animate-fade-in-up">
                      <h3 className="text-xl font-black text-slate-800 text-center mb-6">More Details</h3>
@@ -334,7 +311,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mobile Number</label>
                             <div className="relative">
                                 <span className="absolute left-5 top-4 font-bold text-slate-400">+91</span>
-                                <input type="tel" maxLength={10} placeholder="9876543210" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regContactNo} onChange={e => { const v = e.target.value.replace(/\D/g, ''); if(v.length<=10) setRegContactNo(v); }} />
+                                <input type="tel" maxLength={10} placeholder="9876543210" onKeyDown={handleEnterKey} className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regContactNo} onChange={e => { const v = e.target.value.replace(/\D/g, ''); if(v.length<=10) setRegContactNo(v); }} />
                             </div>
                         </div>
 
@@ -343,12 +320,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                                 <div className="h-px bg-slate-100 my-2"></div>
                                 <div className="group">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Organization Name</label>
-                                    <input type="text" placeholder="e.g. Sunrise Shelter" className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} />
+                                    <input type="text" placeholder="e.g. Sunrise Shelter" onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} />
                                 </div>
                                 <div className="group">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Category</label>
                                     <div className="relative">
-                                        <select className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all appearance-none" value={regOrgCategory} onChange={e => setRegOrgCategory(e.target.value)}>
+                                        <select onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all appearance-none cursor-pointer" value={regOrgCategory} onChange={e => setRegOrgCategory(e.target.value)}>
                                             <option>Orphanage</option>
                                             <option>Old Age Home</option>
                                             <option>Shelter</option>
@@ -364,21 +341,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                      </div>
                  </div>
              );
-          case 4: // Location (Requester Only)
+          case 4: 
              return (
                  <div className="space-y-4 animate-fade-in-up">
                      <h3 className="text-xl font-black text-slate-800 text-center mb-6">Location</h3>
-                     <div className="flex justify-end mb-2">
-                        <button type="button" onClick={handleAutoDetectLocation} className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">
-                            {isAutoDetecting ? 'Detecting...' : '📍 Auto-Detect'}
-                        </button>
-                     </div>
                      <div className="space-y-3">
-                        <input type="text" placeholder="Line 1 (e.g. Building, Street)" className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regLine1} onChange={e => setRegLine1(e.target.value)} />
-                        <input type="text" placeholder="Line 2 (e.g. Area, City)" className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regLine2} onChange={e => setRegLine2(e.target.value)} />
+                        <input type="text" placeholder="Line 1 (e.g. Building, Street)" onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regLine1} onChange={e => setRegLine1(e.target.value)} />
+                        <input type="text" placeholder="Line 2 (e.g. Area, City)" onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regLine2} onChange={e => setRegLine2(e.target.value)} />
                         <div className="flex gap-3">
-                            <input type="text" placeholder="Landmark" className="flex-1 px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regLandmark} onChange={e => setRegLandmark(e.target.value)} />
-                            <input type="text" placeholder="Pincode" maxLength={6} className="w-32 px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regPincode} onChange={e => { const v = e.target.value.replace(/\D/g, ''); if(v.length<=6) setRegPincode(v); }} />
+                            <input type="text" placeholder="Landmark" onKeyDown={handleEnterKey} className="flex-1 px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regLandmark} onChange={e => setRegLandmark(e.target.value)} />
+                            <input type="text" placeholder="Pincode" maxLength={6} onKeyDown={handleEnterKey} className="w-32 px-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={regPincode} onChange={e => { const v = e.target.value.replace(/\D/g, ''); if(v.length<=6) setRegPincode(v); }} />
                         </div>
                      </div>
                  </div>
@@ -390,7 +362,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
   return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-100 to-teal-50 flex items-center justify-center p-4 md:p-6 relative overflow-hidden">
-        {/* Animated Background Decor */}
         <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-emerald-300/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] bg-cyan-200/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
         <div className="absolute top-[30%] left-[20%] w-[600px] h-[600px] bg-teal-100/30 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000"></div>
@@ -403,7 +374,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     </div>
                     <h3 className="text-2xl font-black text-slate-800 mb-2 tracking-tight">Reset Password</h3>
                     <p className="text-slate-500 font-medium text-center mb-8 text-sm leading-relaxed">Enter your email address and we'll send you a link to reset your password.</p>
-                    <input type="email" placeholder="name@example.com" className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all mb-4" />
+                    <input type="email" placeholder="name@example.com" onKeyDown={handleEnterKey} className="w-full px-5 py-4 border border-slate-200 bg-slate-50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all mb-4" />
                     <button onClick={() => { alert('Password reset link sent to your email!'); setShowForgotPasswordModal(false); }} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg mb-4 transition-colors">Send Reset Link</button>
                     <button onClick={() => setShowForgotPasswordModal(false)} className="text-slate-400 font-bold text-xs uppercase hover:text-slate-600 transition-colors">Cancel</button>
                 </div>
@@ -413,7 +384,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <div className="inline-block p-4 bg-gradient-to-br from-emerald-50 to-white rounded-[2rem] mb-4 shadow-sm ring-1 ring-emerald-100">
                   <div className="text-4xl filter drop-shadow-sm">🍃</div>
               </div>
-              <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">MEALers <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">connect</span></h1>
+              <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">MEALers <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-50">connect</span></h1>
               <p className="text-slate-500 font-medium mt-2 text-sm">
                   {view === 'LOGIN' ? 'Welcome back! Ready to make a difference?' : view === 'SOCIAL_SETUP' ? 'Almost there! Complete your profile.' : 'Join the community and start helping.'}
               </p>
@@ -462,10 +433,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   {regRole === UserRole.REQUESTER && (
                       <div className="space-y-4 mb-6 pt-4 border-t border-slate-100 animate-fade-in-up">
                           <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest text-center mb-2">Organization Details</h4>
-                          <input type="text" placeholder="Organization Name" className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} />
+                          <input type="text" placeholder="Organization Name" onKeyDown={handleEnterKey} className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regOrgName} onChange={e => setRegOrgName(e.target.value)} />
                           <div className="grid grid-cols-2 gap-3">
-                              <input type="text" placeholder="Address Line 1" className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regLine1} onChange={e => setRegLine1(e.target.value)} />
-                              <input type="text" placeholder="Pincode" className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regPincode} onChange={e => setRegPincode(e.target.value)} />
+                              <input type="text" placeholder="Address Line 1" onKeyDown={handleEnterKey} className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regLine1} onChange={e => setRegLine1(e.target.value)} />
+                              <input type="text" placeholder="Pincode" onKeyDown={handleEnterKey} className="w-full px-5 py-3 border border-slate-200 bg-white/50 rounded-xl font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={regPincode} onChange={e => setRegPincode(e.target.value)} />
                           </div>
                       </div>
                   )}
@@ -486,26 +457,68 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           ) : view === 'LOGIN' ? (
             <div className="animate-fade-in-up">
               <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                   <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Username or Email</label>
-                   <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                      </div>
-                      <input type="text" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" placeholder="john@example.com" value={loginIdentifier} onChange={e => setLoginIdentifier(e.target.value)} required />
-                   </div>
-                </div>
+                {loginMode === 'EMAIL' ? (
+                    <div className="space-y-2 animate-fade-in-up">
+                        <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Username or Email</label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            </div>
+                            <input type="text" onKeyDown={handleEnterKey} className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" placeholder="john@example.com" value={loginIdentifier} onChange={e => setLoginIdentifier(e.target.value)} required />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-2 animate-fade-in-up">
+                        <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Phone Number</label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                                <span className="font-black text-sm border-r border-slate-300 pr-2">+91</span>
+                            </div>
+                            <input 
+                                type="tel" 
+                                maxLength={10} 
+                                onKeyDown={handleEnterKey} 
+                                className="w-full pl-16 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" 
+                                placeholder="9876543210" 
+                                value={loginPhone} 
+                                onChange={e => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    if(val.length <= 10) setLoginPhone(val);
+                                }} 
+                                required 
+                            />
+                        </div>
+                    </div>
+                )}
+                
                 <div className="space-y-2">
                    <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Password</label>
                    <div className="relative group">
                       <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                       </div>
-                      <input type="password" className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
+                      <input type="password" onKeyDown={handleEnterKey} className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
                    </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-between items-center">
+                    <button 
+                        type="button" 
+                        onClick={() => setLoginMode(loginMode === 'EMAIL' ? 'PHONE' : 'EMAIL')} 
+                        className="text-xs font-bold text-slate-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5"
+                    >
+                        {loginMode === 'EMAIL' ? (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                Login with Phone
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                Login with Email
+                            </>
+                        )}
+                    </button>
                     <button type="button" onClick={() => setShowForgotPasswordModal(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors">Forgot Password?</button>
                 </div>
                 
@@ -534,15 +547,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                             )}
                             {isSocialProcessing === 'Google' ? 'Connecting...' : 'Google'}
                         </button>
-                        <button type="button" onClick={() => handleSocialAuth('Facebook')} disabled={!!isSocialProcessing} className="flex items-center justify-center gap-2 py-3 bg-[#1877F2] text-white rounded-xl text-xs font-bold hover:bg-[#166fe5] transition-all hover:shadow-sm disabled:opacity-70">
-                            {isSocialProcessing === 'Facebook' ? (
-                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            ) : (
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                                </svg>
-                            )}
-                            {isSocialProcessing === 'Facebook' ? 'Connecting...' : 'Facebook'}
+                        <button type="button" onClick={() => setLoginMode('PHONE')} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm">
+                            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            Phone
                         </button>
                     </div>
                 </div>
@@ -567,7 +574,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </div>
           ) : (
             <div className="flex flex-col h-full animate-fade-in-up">
-              {/* Progress Bar */}
               <div className="mb-6">
                 <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400 tracking-widest mb-2">
                     <span>Step {currentStep} of {totalSteps}</span>
@@ -581,11 +587,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar px-1 py-1">
+              <form className="flex-1 overflow-y-auto custom-scrollbar px-1 py-1" onSubmit={e => e.preventDefault()}>
                   {renderRegisterStep()}
-              </div>
+              </form>
 
-              {/* Navigation Buttons */}
               <div className="pt-6 mt-4 border-t border-slate-100 flex gap-3">
                   <button 
                     type="button" 
