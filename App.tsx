@@ -17,9 +17,9 @@ const SplashScreen: React.FC = () => (
   <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-400 via-emerald-600 to-teal-900 z-[1000] flex flex-col items-center justify-center text-white">
     <div className="relative mb-6">
         <div className="absolute inset-0 bg-white/30 blur-3xl rounded-full scale-150 animate-pulse"></div>
-        <div className="text-[7rem] relative z-10 animate-bounce-slow drop-shadow-2xl leading-none filter contrast-125">🍃</div>
+        <div className="text-[7rem] relative z-10 animate-bounce-slow leading-none filter contrast-125">🍃</div>
     </div>
-    <h1 className="text-5xl md:text-6xl font-black tracking-tighter mb-2 animate-fade-in-up drop-shadow-sm">MEALers</h1>
+    <h1 className="text-5xl md:text-6xl font-black tracking-tighter mb-2 animate-fade-in-up">MEALers</h1>
     <p className="text-emerald-50 font-bold tracking-[0.3em] text-sm uppercase animate-fade-in-up-delay bg-white/20 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/20 shadow-lg">connect</p>
   </div>
 );
@@ -415,7 +415,7 @@ export default function App() {
   };
 
   const renderStatsCard = (label: string, value: string | number, icon: string, colorClass: string) => (
-    <div className={`p-5 rounded-[2rem] bg-white border border-slate-100 shadow-sm flex items-center gap-4 transition-transform hover:scale-105 flex-1 md:flex-none min-w-[150px] ${colorClass}`}>
+    <div className={`p-5 rounded-[2rem] bg-white border border-slate-100 flex items-center gap-4 transition-transform hover:scale-105 flex-1 md:flex-none min-w-[150px] ${colorClass}`}>
         <div className="w-12 h-12 rounded-2xl bg-white/40 flex items-center justify-center text-2xl shadow-sm backdrop-blur-sm shrink-0">
             {icon}
         </div>
@@ -470,7 +470,7 @@ export default function App() {
     
     return (
         <div className="flex items-center justify-between mb-6">
-            <div className="bg-white p-1.5 rounded-full border border-slate-200 shadow-sm inline-flex">
+            <div className="bg-white p-1.5 rounded-full border border-slate-200 inline-flex">
                 {user.role === UserRole.DONOR && (
                     <>
                     <button onClick={() => setActiveTab('active')} className={tabClass(activeTab === 'active')}>Active</button>
@@ -493,7 +493,7 @@ export default function App() {
             </div>
 
             {(user.role === UserRole.VOLUNTEER && activeTab === 'opportunities') || (user.role === UserRole.REQUESTER && activeTab === 'browse') ? (
-                <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm ml-4">
+                <div className="flex bg-white p-1 rounded-xl border border-slate-200 ml-4">
                     <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                     </button>
@@ -528,7 +528,7 @@ export default function App() {
 
       if (viewMode === 'map' && ((user?.role === UserRole.VOLUNTEER && activeTab === 'opportunities') || (user?.role === UserRole.REQUESTER && activeTab === 'browse'))) {
           return (
-              <div className="h-[600px] w-full rounded-[2.5rem] overflow-hidden shadow-lg border border-slate-200">
+              <div className="h-[600px] w-full rounded-[2.5rem] overflow-hidden border border-slate-200">
                   <PostingsMap 
                     postings={filteredPostings} 
                     userLocation={userLocation}
@@ -763,11 +763,12 @@ export default function App() {
                             <input type="text" placeholder="Line 2" onKeyDown={handleEnterToNext} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} required />
                             <div className="flex gap-4">
                                 <input type="text" placeholder="Landmark" onKeyDown={handleEnterToNext} className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} />
-                                <input type="text" placeholder="Pincode" maxLength={6} onKeyDown={handleEnterToNext} className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodPincode} onChange={e => setFoodPincode(e.target.value)} required />
+                                {/* FIXED: Wrap setFoodPincode in an arrow function and correctly pass the event to fix the type error and name 'e' error. */}
+                                <input type="text" placeholder="Pincode" maxLength={6} onKeyDown={handleEnterToNext} className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodPincode} onChange={(e) => setFoodPincode(e.target.value)} required />
                             </div>
                         </div>
 
-                        <button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-slate-200 transform hover:-translate-y-0.5 active:translate-y-0 transition-all">
+                        <button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-xs transform hover:-translate-y-0.5 active:translate-y-0 transition-all">
                             Post Donation
                         </button>
                     </form>

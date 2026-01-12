@@ -190,11 +190,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
 
   const handlePickupUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (file || !user) return;
 
     setIsPickingUp(true);
     try {
-        const base64 = await resizeImage(file);
+        const base64 = await resizeImage(file!);
         onUpdate(posting.id, { 
             status: FoodStatus.PICKUP_VERIFICATION_PENDING, 
             pickupVerificationImageUrl: base64,
@@ -214,11 +214,11 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
 
   const handleVerificationUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (file || !user) return;
 
     setIsVerifying(true);
     try {
-        const base64 = await resizeImage(file);
+        const base64 = await resizeImage(file!);
         
         // If Requester uploads, they are confirming receipt directly.
         if (user.role === UserRole.REQUESTER) {
@@ -269,24 +269,24 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
   const renderStatusPill = () => {
       switch (posting.status) {
           case FoodStatus.AVAILABLE:
-              return <span className="px-3 py-1.5 rounded-full bg-emerald-100/90 backdrop-blur-md text-emerald-800 text-[10px] font-black uppercase tracking-wider border border-emerald-200/50 shadow-sm">Available</span>;
+              return <span className="px-3 py-1.5 rounded-full bg-emerald-100/90 backdrop-blur-md text-emerald-800 text-[10px] font-black uppercase tracking-wider border border-emerald-200/50">Available</span>;
           case FoodStatus.REQUESTED:
-              return <span className="px-3 py-1.5 rounded-full bg-blue-100/90 backdrop-blur-md text-blue-800 text-[10px] font-black uppercase tracking-wider border border-blue-200/50 shadow-sm">Requested</span>;
+              return <span className="px-3 py-1.5 rounded-full bg-blue-100/90 backdrop-blur-md text-blue-800 text-[10px] font-black uppercase tracking-wider border border-blue-200/50">Requested</span>;
           case FoodStatus.PICKUP_VERIFICATION_PENDING:
-              return <span className="px-3 py-1.5 rounded-full bg-amber-100/90 backdrop-blur-md text-amber-800 text-[10px] font-black uppercase tracking-wider border border-amber-200/50 shadow-sm">Verifying Pickup</span>;
+              return <span className="px-3 py-1.5 rounded-full bg-amber-100/90 backdrop-blur-md text-amber-800 text-[10px] font-black uppercase tracking-wider border border-amber-200/50">Verifying Pickup</span>;
           case FoodStatus.IN_TRANSIT:
-              return <span className="px-3 py-1.5 rounded-full bg-indigo-100/90 backdrop-blur-md text-indigo-800 text-[10px] font-black uppercase tracking-wider border border-indigo-200/50 shadow-sm">On The Way</span>;
+              return <span className="px-3 py-1.5 rounded-full bg-indigo-100/90 backdrop-blur-md text-indigo-800 text-[10px] font-black uppercase tracking-wider border border-indigo-200/50">On The Way</span>;
           case FoodStatus.DELIVERY_VERIFICATION_PENDING:
-              return <span className="px-3 py-1.5 rounded-full bg-purple-100/90 backdrop-blur-md text-purple-800 text-[10px] font-black uppercase tracking-wider border border-purple-200/50 shadow-sm">Verifying Delivery</span>;
+              return <span className="px-3 py-1.5 rounded-full bg-purple-100/90 backdrop-blur-md text-purple-800 text-[10px] font-black uppercase tracking-wider border border-purple-200/50">Verifying Delivery</span>;
           case FoodStatus.DELIVERED:
-              return <span className="px-3 py-1.5 rounded-full bg-slate-100/90 backdrop-blur-md text-slate-500 text-[10px] font-black uppercase tracking-wider border border-slate-200/50 shadow-sm">Delivered</span>;
+              return <span className="px-3 py-1.5 rounded-full bg-slate-100/90 backdrop-blur-md text-slate-500 text-[10px] font-black uppercase tracking-wider border border-slate-200/50">Delivered</span>;
           default:
               return null;
       }
   };
 
   return (
-    <div className={`group rounded-[2.5rem] bg-white transition-all duration-500 relative overflow-hidden flex flex-col h-full ${isUrgent ? 'ring-2 ring-rose-100 shadow-[0_20px_50px_-12px_rgba(244,63,94,0.2)]' : 'shadow-[0_20px_40px_-12px_rgba(0,0,0,0.05)] hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)]'} hover:-translate-y-1`}>
+    <div className={`group rounded-[2.5rem] bg-white transition-all duration-500 relative overflow-hidden flex flex-col h-full ${isUrgent ? 'ring-2 ring-rose-100' : 'shadow-[0_20px_40px_-12px_rgba(0,0,0,0.05)] hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)]'} hover:-translate-y-1`}>
       
       {/* Image Header */}
       <div className="h-64 relative overflow-hidden shrink-0">
@@ -305,7 +305,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
         <div className="absolute top-5 right-5 flex flex-col gap-2 items-end z-20">
              {renderStatusPill()}
              {posting.etaMinutes && (
-                 <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md shadow-lg bg-blue-600 text-white flex items-center gap-1 border border-blue-400/30">
+                 <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-blue-600 text-white flex items-center gap-1 border border-blue-400/30">
                     <svg className="w-3 h-3 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     ETA: {posting.etaMinutes}m
                  </span>
@@ -317,7 +317,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
             <div className="absolute top-5 left-5 z-20">
                 <button 
                     onClick={() => onChatClick(posting.id)}
-                    className="p-3 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white hover:text-emerald-600 border border-white/20 transition-all shadow-lg"
+                    className="p-3 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white hover:text-emerald-600 border border-white/20 transition-all"
                     title="Chat with group"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
@@ -328,18 +328,18 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
         {/* Bottom Content Info */}
         <div className="absolute bottom-6 left-6 right-6 text-white z-20">
             <div className="flex items-center gap-2 mb-2">
-                 <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-bold uppercase border border-white/20 tracking-wider shadow-sm flex items-center gap-1">
+                 <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-bold uppercase border border-white/20 tracking-wider flex items-center gap-1">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                     {posting.quantity}
                  </span>
                  {hoursLeft > 0 && (
-                    <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase backdrop-blur-md border border-white/10 shadow-sm flex items-center gap-1 ${hoursLeft < 12 ? 'bg-rose-500/80 text-white' : 'bg-black/30 text-slate-200'}`}>
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase backdrop-blur-md border border-white/10 flex items-center gap-1 ${hoursLeft < 12 ? 'bg-rose-500/80 text-white' : 'bg-black/30 text-slate-200'}`}>
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         {hoursLeft < 24 ? `${Math.floor(hoursLeft)}h left` : `${Math.floor(hoursLeft / 24)}d left`}
                     </span>
                  )}
             </div>
-            <h3 className="font-black text-2xl leading-tight text-white line-clamp-2 drop-shadow-md mb-2">{posting.foodName}</h3>
+            <h3 className="font-black text-2xl leading-tight text-white line-clamp-2 mb-2">{posting.foodName}</h3>
             
             <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
                 <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] text-white font-bold uppercase">
@@ -362,7 +362,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
                      {user?.role === UserRole.DONOR && posting.donorId === user?.id && (
                         <button 
                             onClick={(e) => { e.stopPropagation(); handleManualSafetyOverride(); }}
-                            className="bg-white text-rose-600 px-6 py-3 rounded-xl text-xs font-black hover:bg-rose-50 transition-colors shadow-lg uppercase tracking-wide"
+                            className="bg-white text-rose-600 px-6 py-3 rounded-xl text-xs font-black hover:bg-rose-50 transition-colors uppercase tracking-wide"
                         >
                             Mark Verified Safe
                         </button>
@@ -406,7 +406,7 @@ const FoodCard: React.FC<FoodCardProps> = ({ posting, user, onUpdate, onDelete, 
               {posting.volunteerName && (
                   <div className="flex items-center gap-3 bg-blue-50/50 p-3 rounded-2xl border border-blue-100/50">
                      {volunteerProfile?.profilePictureUrl ? (
-                       <img src={volunteerProfile.profilePictureUrl} className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0 ring-2 ring-white" alt={posting.volunteerName} />
+                       <img src={volunteerProfile.profilePictureUrl} className="w-10 h-10 rounded-full object-cover shrink-0 ring-2 ring-white" alt={posting.volunteerName} />
                      ) : (
                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 font-black text-xs ring-2 ring-white">
                           {posting.volunteerName.charAt(0)}

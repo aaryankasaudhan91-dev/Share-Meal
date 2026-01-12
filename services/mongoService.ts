@@ -1,19 +1,30 @@
 
 /**
  * MongoDB Atlas Data API Service
- * This service allows the frontend to communicate with MongoDB without a dedicated backend.
- * In a production environment, you would configure your Atlas Data API at:
- * https://www.mongodb.com/docs/atlas/api/data-api/
+ * 
+ * Connection Info provided:
+ * Cluster: cluster0.q1dd0l0.mongodb.net
+ * App Name: Cluster0
+ * 
+ * Note: To use MongoDB directly from a frontend React app, you must use the 
+ * MongoDB Atlas Data API. Standard 'mongodb' driver code (MongoClient) is for 
+ * Node.js backends only.
+ * 
+ * SETUP STEPS for Atlas Data API:
+ * 1. Go to MongoDB Atlas Dashboard -> Data Services -> Data API.
+ * 2. Enable Data API for "Cluster0".
+ * 3. Create an API Key.
+ * 4. Set MONGODB_API_KEY and MONGODB_URL (endpoint) in your environment.
  */
 
 const MONGODB_API_KEY = (process.env as any).MONGODB_API_KEY || '';
-const MONGODB_ENDPOINT = (process.env as any).MONGODB_URL || '';
+const MONGODB_ENDPOINT = (process.env as any).MONGODB_URL || ''; 
 const CLUSTER_NAME = 'Cluster0';
 const DATABASE = 'mealers_connect';
 
 async function mongoFetch(action: string, collection: string, body: any) {
   if (!MONGODB_API_KEY || !MONGODB_ENDPOINT) {
-    console.warn('MongoDB credentials missing. Running in local-only mode.');
+    console.warn('MongoDB Atlas Data API credentials missing. Running in local-only mode.');
     return null;
   }
 
@@ -32,9 +43,16 @@ async function mongoFetch(action: string, collection: string, body: any) {
         ...body,
       }),
     });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`MongoDB Data API Error (${action}):`, errorText);
+        return null;
+    }
+    
     return await response.json();
   } catch (error) {
-    console.error(`MongoDB ${action} error:`, error);
+    console.error(`MongoDB Fetch Exception (${action}):`, error);
     return null;
   }
 }

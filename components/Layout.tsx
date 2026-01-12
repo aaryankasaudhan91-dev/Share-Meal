@@ -33,12 +33,12 @@ const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans selection:bg-emerald-100 selection:text-emerald-900">
-      <header className="fixed top-0 inset-x-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-200/50 shadow-[0_4px_30px_rgba(0,0,0,0.02)] transition-all">
+      <header className="fixed top-0 inset-x-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-200/50 transition-all">
         <div className="max-w-7xl mx-auto px-6 h-24 flex justify-between items-center">
           <div className="flex items-center space-x-3 cursor-pointer group" onClick={onLogoClick}>
             <div className="relative">
                 <div className="absolute inset-0 bg-emerald-400 blur-xl opacity-20 rounded-full group-hover:opacity-40 transition-opacity"></div>
-                <div className="text-4xl group-hover:scale-110 transition-transform relative z-10 leading-none filter drop-shadow-sm">🍃</div>
+                <div className="text-4xl group-hover:scale-110 transition-transform relative z-10 leading-none">🍃</div>
             </div>
             <div className="flex flex-col">
               <span className="font-black text-2xl leading-none text-slate-800 tracking-tight group-hover:text-emerald-700 transition-colors">MEALers</span>
@@ -73,7 +73,7 @@ const Layout: React.FC<LayoutProps> = ({
                           {notifications.length === 0 ? (
                               <div className="p-12 text-center">
                                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2 2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                                   </div>
                                   <p className="text-slate-400 text-xs font-bold uppercase tracking-wide">All caught up!</p>
                               </div>
@@ -97,11 +97,11 @@ const Layout: React.FC<LayoutProps> = ({
               
               <div className="h-8 w-px bg-slate-200"></div>
 
-              <button onClick={onProfileClick} className="flex items-center gap-3 hover:bg-white pl-1 pr-2 py-1 rounded-full transition-all group border border-transparent hover:border-slate-100 hover:shadow-sm">
+              <button onClick={onProfileClick} className="flex items-center gap-3 hover:bg-white pl-1 pr-2 py-1 rounded-full transition-all group border border-transparent hover:border-slate-100">
                   {user?.profilePictureUrl ? (
-                    <img src={user.profilePictureUrl} className="h-10 w-10 rounded-full object-cover shadow-md shadow-slate-200 group-hover:scale-105 transition-transform ring-2 ring-white" alt="User" />
+                    <img src={user.profilePictureUrl} className="h-10 w-10 rounded-full object-cover group-hover:scale-105 transition-transform ring-2 ring-white" alt="User" />
                   ) : (
-                    <div className="h-10 w-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-full flex items-center justify-center text-white font-black shadow-md shadow-slate-200 group-hover:scale-105 transition-transform ring-2 ring-white text-sm">
+                    <div className="h-10 w-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-full flex items-center justify-center text-white font-black group-hover:scale-105 transition-transform ring-2 ring-white text-sm">
                         {user?.name?.charAt(0)}
                     </div>
                   )}

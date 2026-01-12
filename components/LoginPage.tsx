@@ -10,6 +10,8 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'SOCIAL_SETUP'>('LOGIN');
   const [loginMode, setLoginMode] = useState<'EMAIL' | 'PHONE'>('EMAIL');
+  const [isOtpStep, setIsOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState(['', '', '', '']);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -45,16 +47,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   }, [regRole, view]);
 
-  // Global KeyDown Handler for Inputs
   const handleEnterKey = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (e.key === 'Enter') {
-      const form = e.currentTarget.form;
+      const form = (e.currentTarget as any).form;
       if (!form) return;
 
       const elements = Array.from(form.elements) as HTMLElement[];
-      const index = elements.indexOf(e.currentTarget);
+      const index = elements.indexOf(e.currentTarget as any);
       
-      // Look for the next focusable element that isn't hidden or disabled
       for (let i = index + 1; i < elements.length; i++) {
         const next = elements[i];
         if (next instanceof HTMLInputElement || next instanceof HTMLSelectElement || next instanceof HTMLButtonElement) {
@@ -70,9 +70,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const users = storage.getUsers();
     
+    if (loginMode === 'PHONE' && !isOtpStep) {
+        // First step of phone login: Trigger OTP
+        setIsSocialProcessing('Phone');
+        setTimeout(() => {
+            setIsSocialProcessing(null);
+            setIsOtpStep(true);
+        }, 1200);
+        return;
+    }
+
+    const users = storage.getUsers();
     let existing;
+    
     if (loginMode === 'EMAIL') {
         existing = users.find(u => 
             u.name.toLowerCase() === loginIdentifier.toLowerCase() || 
@@ -83,7 +94,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
 
     if (existing) {
-      if (existing.password && existing.password !== loginPassword) {
+      if (loginMode === 'EMAIL' && existing.password && existing.password !== loginPassword) {
         alert("Invalid password.");
         return;
       }
@@ -93,7 +104,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             ? "User not found. Please check your username/email or register."
             : "No account found with this phone number. Please check or register.";
         alert(msg);
+        if (loginMode === 'PHONE') setIsOtpStep(false);
     }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+      if (!/^\d*$/.test(value)) return;
+      const newOtp = [...otpCode];
+      newOtp[index] = value.substring(value.length - 1);
+      setOtpCode(newOtp);
+
+      // Auto focus next
+      if (value && index < 3) {
+          const nextInput = document.getElementById(`otp-${index + 1}`);
+          nextInput?.focus();
+      }
   };
 
   const handleDemoLogin = (role: UserRole) => {
@@ -128,7 +153,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           const mockName = `${provider} User`;
           const mockPic = provider === 'Google' 
             ? 'https://lh3.googleusercontent.com/a/default-user=s96-c' 
-            : 'https://graph.facebook.com/123456789/picture?type=large';
+            : 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
 
           const users = storage.getUsers();
           const existingUser = users.find(u => u.email === mockEmail);
@@ -468,43 +493,73 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-2 animate-fade-in-up">
-                        <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Phone Number</label>
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                                <span className="font-black text-sm border-r border-slate-300 pr-2">+91</span>
+                    <div className="space-y-4 animate-fade-in-up">
+                        {!isOtpStep ? (
+                            <div className="space-y-2">
+                                <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Phone Number</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                                        <span className="font-black text-sm border-r border-slate-300 pr-2">+91</span>
+                                    </div>
+                                    <input 
+                                        type="tel" 
+                                        maxLength={10} 
+                                        onKeyDown={handleEnterKey} 
+                                        className="w-full pl-16 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" 
+                                        placeholder="9876543210" 
+                                        value={loginPhone} 
+                                        onChange={e => {
+                                            const val = e.target.value.replace(/\D/g, '');
+                                            if(val.length <= 10) setLoginPhone(val);
+                                        }} 
+                                        required 
+                                    />
+                                </div>
                             </div>
-                            <input 
-                                type="tel" 
-                                maxLength={10} 
-                                onKeyDown={handleEnterKey} 
-                                className="w-full pl-16 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" 
-                                placeholder="9876543210" 
-                                value={loginPhone} 
-                                onChange={e => {
-                                    const val = e.target.value.replace(/\D/g, '');
-                                    if(val.length <= 10) setLoginPhone(val);
-                                }} 
-                                required 
-                            />
-                        </div>
+                        ) : (
+                            <div className="space-y-4 text-center animate-fade-in-up">
+                                <div>
+                                    <h4 className="font-black text-slate-800 uppercase tracking-widest text-xs">Verify Code</h4>
+                                    <p className="text-xs font-bold text-slate-400 mt-1">Sent to +91 {loginPhone}</p>
+                                </div>
+                                <div className="flex justify-center gap-3">
+                                    {otpCode.map((digit, idx) => (
+                                        <input
+                                            key={idx}
+                                            id={`otp-${idx}`}
+                                            type="text"
+                                            maxLength={1}
+                                            value={digit}
+                                            onChange={e => handleOtpChange(idx, e.target.value)}
+                                            className="w-14 h-16 text-center text-2xl font-black border-2 border-slate-100 rounded-2xl focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-50/50 bg-slate-50 transition-all"
+                                        />
+                                    ))}
+                                </div>
+                                <button type="button" onClick={() => setIsOtpStep(false)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">Resend Code</button>
+                            </div>
+                        )}
                     </div>
                 )}
                 
-                <div className="space-y-2">
-                   <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Password</label>
-                   <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                      </div>
-                      <input type="password" onKeyDown={handleEnterKey} className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
-                   </div>
-                </div>
+                {loginMode === 'EMAIL' && (
+                    <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400 uppercase ml-1 tracking-widest">Password</label>
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        </div>
+                        <input type="password" onKeyDown={handleEnterKey} className="w-full pl-14 pr-5 py-4 border border-slate-200 bg-white/50 rounded-2xl font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all hover:bg-white" placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
+                    </div>
+                    </div>
+                )}
 
                 <div className="flex justify-between items-center">
                     <button 
                         type="button" 
-                        onClick={() => setLoginMode(loginMode === 'EMAIL' ? 'PHONE' : 'EMAIL')} 
+                        onClick={() => {
+                            setLoginMode(loginMode === 'EMAIL' ? 'PHONE' : 'EMAIL');
+                            setIsOtpStep(false);
+                        }} 
                         className="text-xs font-bold text-slate-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5"
                     >
                         {loginMode === 'EMAIL' ? (
@@ -519,40 +574,50 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                             </>
                         )}
                     </button>
-                    <button type="button" onClick={() => setShowForgotPasswordModal(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors">Forgot Password?</button>
+                    {loginMode === 'EMAIL' && (
+                        <button type="button" onClick={() => setShowForgotPasswordModal(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors">Forgot Password?</button>
+                    )}
                 </div>
                 
-                <button className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-emerald-200/50 hover:shadow-emerald-300/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all mt-6">
-                    Sign In
+                <button className={`w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-emerald-200/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all mt-6 flex items-center justify-center gap-3 ${isSocialProcessing ? 'opacity-70' : ''}`}>
+                    {isSocialProcessing === 'Phone' && (
+                         <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    )}
+                    {isSocialProcessing === 'Phone' ? 'Sending Code...' : isOtpStep ? 'Verify & Sign In' : 'Continue'}
                 </button>
 
-                <div className="mt-6">
-                    <div className="relative flex py-2 items-center">
-                        <div className="flex-grow border-t border-slate-200"></div>
-                        <span className="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or login with</span>
-                        <div className="flex-grow border-t border-slate-200"></div>
+                {!isOtpStep && (
+                    <div className="mt-6">
+                        <div className="relative flex py-2 items-center">
+                            <div className="flex-grow border-t border-slate-200"></div>
+                            <span className="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or login with</span>
+                            <div className="flex-grow border-t border-slate-200"></div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                            <button type="button" onClick={() => handleSocialAuth('Google')} disabled={!!isSocialProcessing} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm disabled:opacity-70">
+                                {isSocialProcessing === 'Google' ? (
+                                    <svg className="animate-spin h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                ) : (
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M23.766 12.2764C23.766 11.4607 23.6999 10.6406 23.5588 9.83807H12.24V14.4591H18.7217C18.4528 15.9494 17.5885 17.2678 16.323 18.1056V21.1039H20.19C22.4608 19.0139 23.766 15.9274 23.766 12.2764Z" fill="#4285F4"/>
+                                        <path d="M12.2401 24.0008C15.4766 24.0008 18.2059 22.9382 20.1945 21.1039L16.3275 18.1055C15.2517 18.8375 13.8627 19.252 12.2445 19.252C9.11388 19.252 6.45946 17.1399 5.50705 14.3003H1.5166V17.3912C3.55371 21.4434 7.7029 24.0008 12.2401 24.0008Z" fill="#34A853"/>
+                                        <path d="M5.50253 14.3003C5.00236 12.8099 5.00236 11.1961 5.50253 9.70575V6.61481H1.51649C-0.18551 10.0056 -0.18551 14.0004 1.51649 17.3912L5.50253 14.3003Z" fill="#FBBC05"/>
+                                        <path d="M12.2401 4.74966C13.9509 4.7232 15.6044 5.36697 16.8434 6.54867L20.2695 3.12262C18.1001 1.0855 15.2208 -0.034466 12.2401 0.000808666C7.7029 0.000808666 3.55371 2.55822 1.5166 6.61481L5.50264 9.70575C6.45064 6.86173 9.10947 4.74966 12.2401 4.74966Z" fill="#EA4335"/>
+                                    </svg>
+                                )}
+                                {isSocialProcessing === 'Google' ? 'Connecting...' : 'Google'}
+                            </button>
+                            
+                            <button type="button" onClick={() => setLoginMode('PHONE')} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                </div>
+                                Phone
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                        <button type="button" onClick={() => handleSocialAuth('Google')} disabled={!!isSocialProcessing} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm disabled:opacity-70">
-                            {isSocialProcessing === 'Google' ? (
-                                <svg className="animate-spin h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            ) : (
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M23.766 12.2764C23.766 11.4607 23.6999 10.6406 23.5588 9.83807H12.24V14.4591H18.7217C18.4528 15.9494 17.5885 17.2678 16.323 18.1056V21.1039H20.19C22.4608 19.0139 23.766 15.9274 23.766 12.2764Z" fill="#4285F4"/>
-                                    <path d="M12.2401 24.0008C15.4766 24.0008 18.2059 22.9382 20.1945 21.1039L16.3275 18.1055C15.2517 18.8375 13.8627 19.252 12.2445 19.252C9.11388 19.252 6.45946 17.1399 5.50705 14.3003H1.5166V17.3912C3.55371 21.4434 7.7029 24.0008 12.2401 24.0008Z" fill="#34A853"/>
-                                    <path d="M5.50253 14.3003C5.00236 12.8099 5.00236 11.1961 5.50253 9.70575V6.61481H1.51649C-0.18551 10.0056 -0.18551 14.0004 1.51649 17.3912L5.50253 14.3003Z" fill="#FBBC05"/>
-                                    <path d="M12.2401 4.74966C13.9509 4.7232 15.6044 5.36697 16.8434 6.54867L20.2695 3.12262C18.1001 1.0855 15.2208 -0.034466 12.2401 0.000808666C7.7029 0.000808666 3.55371 2.55822 1.5166 6.61481L5.50264 9.70575C6.45064 6.86173 9.10947 4.74966 12.2401 4.74966Z" fill="#EA4335"/>
-                                </svg>
-                            )}
-                            {isSocialProcessing === 'Google' ? 'Connecting...' : 'Google'}
-                        </button>
-                        <button type="button" onClick={() => setLoginMode('PHONE')} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm">
-                            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                            Phone
-                        </button>
-                    </div>
-                </div>
+                )}
               </form>
               
               <div className="my-8 flex items-center gap-4">
