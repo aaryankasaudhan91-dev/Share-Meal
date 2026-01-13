@@ -113,7 +113,7 @@ const PostingsMap: React.FC<PostingsMapProps> = ({ postings, onPostingSelect, us
                         <span class="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide text-slate-800 shadow-sm">${post.quantity}</span>
                         <div class="absolute bottom-2 left-2 text-white">
                             <p class="text-[10px] font-bold opacity-90 uppercase tracking-wider mb-0.5">${post.foodCategory || 'Food'}</p>
-                            <h3 class="font-bold text-sm leading-tight text-white shadow-black drop-shadow-md line-clamp-1">${post.foodName}</h3>
+                            <h3 class="font-bold text-sm leading-tight text-white line-clamp-1">${post.foodName}</h3> 
                         </div>
                     </div>
                     <div class="p-3">

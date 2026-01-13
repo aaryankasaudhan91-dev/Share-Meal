@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, UserRole, FoodPosting, FoodStatus, Notification, Rating } from './types';
 import { storage } from './services/storageService';
-import { analyzeFoodSafetyImage, reverseGeocode } from './services/geminiService';
+import { analyzeFoodSafetyImage } from './services/geminiService';
 import Layout from './components/Layout';
 import FoodCard from './components/FoodCard';
 import PostingsMap from './components/PostingsMap';
@@ -20,7 +20,7 @@ const SplashScreen: React.FC = () => (
         <div className="text-[7rem] relative z-10 animate-bounce-slow leading-none filter contrast-125">🍃</div>
     </div>
     <h1 className="text-5xl md:text-6xl font-black tracking-tighter mb-2 animate-fade-in-up">MEALers</h1>
-    <p className="text-emerald-50 font-bold tracking-[0.3em] text-sm uppercase animate-fade-in-up-delay bg-white/20 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/20 shadow-lg">connect</p>
+    <p className="text-emerald-50 font-bold tracking-[0.3em] text-sm uppercase animate-fade-in-up-delay bg-white/20 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/20">connect</p>
   </div>
 );
 
@@ -763,8 +763,19 @@ export default function App() {
                             <input type="text" placeholder="Line 2" onKeyDown={handleEnterToNext} className="w-full px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLine2} onChange={e => setFoodLine2(e.target.value)} required />
                             <div className="flex gap-4">
                                 <input type="text" placeholder="Landmark" onKeyDown={handleEnterToNext} className="flex-1 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodLandmark} onChange={e => setFoodLandmark(e.target.value)} />
-                                {/* FIXED: Wrap setFoodPincode in an arrow function and correctly pass the event to fix the type error and name 'e' error. */}
-                                <input type="text" placeholder="Pincode" maxLength={6} onKeyDown={handleEnterToNext} className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" value={foodPincode} onChange={(e) => setFoodPincode(e.target.value)} required />
+                                <input 
+                                    type="text" 
+                                    placeholder="Pincode" 
+                                    maxLength={6} 
+                                    onKeyDown={handleEnterToNext} 
+                                    className="w-32 px-5 py-4 border border-slate-200 bg-slate-50/50 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all" 
+                                    value={foodPincode} 
+                                    onChange={(e) => {
+                                        const v = e.target.value.replace(/\D/g, '');
+                                        if (v.length <= 6) setFoodPincode(v);
+                                    }} 
+                                    required 
+                                />
                             </div>
                         </div>
 

@@ -2,9 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { storage } from '../services/storageService';
+import { auth } from '../services/firebaseConfig';
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
+}
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+  }
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
@@ -13,6 +21,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [isOtpStep, setIsOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState(['', '', '', '']);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPhone, setLoginPhone] = useState('');
@@ -47,6 +56,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   }, [regRole, view]);
 
+  // Setup Recaptcha
+  useEffect(() => {
+    if (view === 'LOGIN' && loginMode === 'PHONE' && !window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'invisible',
+          'callback': () => {
+            // reCAPTCHA solved, allow signInWithPhoneNumber.
+          }
+        });
+      } catch (error) {
+        console.error("Recaptcha Init Error:", error);
+      }
+    }
+  }, [view, loginMode]);
+
   const handleEnterKey = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (e.key === 'Enter') {
       const form = (e.currentTarget as any).form;
@@ -68,43 +93,85 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (loginMode === 'PHONE' && !isOtpStep) {
-        // First step of phone login: Trigger OTP
-        setIsSocialProcessing('Phone');
-        setTimeout(() => {
-            setIsSocialProcessing(null);
-            setIsOtpStep(true);
-        }, 1200);
-        return;
+    const users = storage.getUsers();
+
+    if (loginMode === 'PHONE') {
+        if (!isOtpStep) {
+            // Step 1: Send OTP via Firebase
+            if (!loginPhone || loginPhone.length !== 10) {
+              alert("Please enter a valid 10-digit phone number.");
+              return;
+            }
+
+            setIsSocialProcessing('Phone');
+            const phoneNumber = `+91${loginPhone}`;
+            const appVerifier = window.recaptchaVerifier;
+
+            try {
+              const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+              setConfirmationResult(result);
+              setIsOtpStep(true);
+              setIsSocialProcessing(null);
+            } catch (error: any) {
+              console.error("Error sending OTP:", error);
+              setIsSocialProcessing(null);
+              // Reset recaptcha on error so user can try again
+              if (window.recaptchaVerifier) {
+                window.recaptchaVerifier.clear();
+                window.recaptchaVerifier = null;
+              }
+              alert(`Failed to send OTP: ${error.message}`);
+            }
+            return;
+        } else {
+            // Step 2: Verify OTP
+            const code = otpCode.join('');
+            if (code.length !== 4 && code.length !== 6) {
+                alert("Please enter the complete OTP.");
+                return;
+            }
+
+            setIsSocialProcessing('Verify');
+            try {
+                if (confirmationResult) {
+                    await confirmationResult.confirm(code);
+                    // Auth Successful
+                    const existing = users.find(u => u.contactNo === loginPhone);
+                    if (existing) {
+                        onLogin(existing);
+                    } else {
+                        alert("Phone verified! However, no account is linked to this number. Please register.");
+                        setView('REGISTER');
+                        setRegContactNo(loginPhone);
+                        setCurrentStep(1);
+                    }
+                }
+            } catch (error: any) {
+                console.error("Error verifying OTP:", error);
+                alert("Invalid OTP. Please try again.");
+            } finally {
+                setIsSocialProcessing(null);
+            }
+            return;
+        }
     }
 
-    const users = storage.getUsers();
-    let existing;
-    
-    if (loginMode === 'EMAIL') {
-        existing = users.find(u => 
-            u.name.toLowerCase() === loginIdentifier.toLowerCase() || 
-            u.email.toLowerCase() === loginIdentifier.toLowerCase()
-        );
-    } else {
-        existing = users.find(u => u.contactNo === loginPhone);
-    }
+    // EMAIL LOGIN Logic
+    const existing = users.find(u => 
+        u.name.toLowerCase() === loginIdentifier.toLowerCase() || 
+        u.email.toLowerCase() === loginIdentifier.toLowerCase()
+    );
 
     if (existing) {
-      if (loginMode === 'EMAIL' && existing.password && existing.password !== loginPassword) {
+      if (existing.password && existing.password !== loginPassword) {
         alert("Invalid password.");
         return;
       }
       onLogin(existing);
     } else {
-        const msg = loginMode === 'EMAIL' 
-            ? "User not found. Please check your username/email or register."
-            : "No account found with this phone number. Please check or register.";
-        alert(msg);
-        if (loginMode === 'PHONE') setIsOtpStep(false);
+        alert("User not found. Please check your username/email or register.");
     }
   };
 
@@ -115,7 +182,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       setOtpCode(newOtp);
 
       // Auto focus next
-      if (value && index < 3) {
+      if (value && index < 5) { // Assuming 6 digit OTP usually, but logic keeps 4 inputs for now based on state init
           const nextInput = document.getElementById(`otp-${index + 1}`);
           nextInput?.focus();
       }
@@ -406,8 +473,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             )}
             
           <div className="text-center mb-8 shrink-0">
-              <div className="inline-block p-4 bg-gradient-to-br from-emerald-50 to-white rounded-[2rem] mb-4 shadow-sm ring-1 ring-emerald-100">
-                  <div className="text-4xl filter drop-shadow-sm">🍃</div>
+              <div className="inline-block p-4 bg-gradient-to-br from-emerald-50 to-white rounded-[2rem] mb-4 ring-1 ring-emerald-100">
+                  <div className="text-4xl filter">🍃</div>
               </div>
               <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">MEALers <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-50">connect</span></h1>
               <p className="text-slate-500 font-medium mt-2 text-sm">
@@ -515,6 +582,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                                         required 
                                     />
                                 </div>
+                                {/* Recaptcha Container */}
+                                <div id="recaptcha-container"></div>
                             </div>
                         ) : (
                             <div className="space-y-4 text-center animate-fade-in-up">
@@ -535,7 +604,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                                         />
                                     ))}
                                 </div>
-                                <button type="button" onClick={() => setIsOtpStep(false)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">Resend Code</button>
+                                <button type="button" onClick={() => { setIsOtpStep(false); setIsSocialProcessing(null); setOtpCode(['','','','']); }} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">Resend Code</button>
                             </div>
                         )}
                     </div>
@@ -559,6 +628,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                         onClick={() => {
                             setLoginMode(loginMode === 'EMAIL' ? 'PHONE' : 'EMAIL');
                             setIsOtpStep(false);
+                            setIsSocialProcessing(null);
                         }} 
                         className="text-xs font-bold text-slate-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5"
                     >
@@ -580,10 +650,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 </div>
                 
                 <button className={`w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-emerald-200/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all mt-6 flex items-center justify-center gap-3 ${isSocialProcessing ? 'opacity-70' : ''}`}>
-                    {isSocialProcessing === 'Phone' && (
+                    {isSocialProcessing === 'Phone' || isSocialProcessing === 'Verify' ? (
                          <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    )}
-                    {isSocialProcessing === 'Phone' ? 'Sending Code...' : isOtpStep ? 'Verify & Sign In' : 'Continue'}
+                    ) : null}
+                    {isSocialProcessing === 'Phone' ? 'Sending Code...' : isSocialProcessing === 'Verify' ? 'Verifying...' : isOtpStep ? 'Verify & Sign In' : 'Continue'}
                 </button>
 
                 {!isOtpStep && (
@@ -609,7 +679,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                                 {isSocialProcessing === 'Google' ? 'Connecting...' : 'Google'}
                             </button>
                             
-                            <button type="button" onClick={() => setLoginMode('PHONE')} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm">
+                            <button type="button" onClick={() => { setLoginMode('PHONE'); setIsOtpStep(false); setIsSocialProcessing(null); }} className="flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all hover:shadow-sm">
                                 <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                                 </div>

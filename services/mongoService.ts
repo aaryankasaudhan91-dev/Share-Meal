@@ -14,7 +14,7 @@
  * 1. Go to MongoDB Atlas Dashboard -> Data Services -> Data API.
  * 2. Enable Data API for "Cluster0".
  * 3. Create an API Key.
- * 4. Set MONGODB_API_KEY and MONGODB_URL (endpoint) in your environment.
+ * 4. Set MONGODB_API_KEY and MONGODB_URL (endpoint) in your .env file.
  */
 
 const MONGODB_API_KEY = (process.env as any).MONGODB_API_KEY || '';
@@ -24,8 +24,22 @@ const DATABASE = 'mealers_connect';
 
 async function mongoFetch(action: string, collection: string, body: any) {
   if (!MONGODB_API_KEY || !MONGODB_ENDPOINT) {
-    console.warn('MongoDB Atlas Data API credentials missing. Running in local-only mode.');
+    console.warn(
+      'MongoDB Atlas Data API credentials missing in .env.\n' +
+      'Please set MONGODB_API_KEY and MONGODB_URL.\n' +
+      'Running in local-only mode (offline).'
+    );
     return null;
+  }
+
+  // Safety check for incorrect URL type
+  if (MONGODB_ENDPOINT.startsWith('mongodb')) {
+      console.error(
+          'CONFIGURATION ERROR: MONGODB_URL in .env is a Connection String (starts with mongodb://).\n' +
+          'The React Frontend cannot connect directly to MongoDB using TCP.\n' + 
+          'Please use the "Data API URL Endpoint" (starts with https://) from the Atlas Dashboard -> Data Services.'
+      );
+      return null;
   }
 
   try {
